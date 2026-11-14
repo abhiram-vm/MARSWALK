@@ -1,0 +1,79 @@
+{
+ "type": "FeatureCollection",
+ "source": "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json (read 2026-11-14)",
+ "credit": "NASA/JPL-Caltech",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     137.3835414,
+     -4.79984723
+    ]
+   },
+   "properties": {
+    "id": "S0",
+    "name": "Boxwork edge (Altadena drill area)",
+    "waypoint_sol": 4560,
+    "elev_geoid_m": -3647.181,
+    "note": "Altadena drilled June 2025 at the edge of the boxwork unit",
+    "position_basis": "Curiosity waypoint at or before the event sol; rover position, not drill-hole position"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     137.3810353,
+     -4.80783916
+    ]
+   },
+   "properties": {
+    "id": "S1",
+    "name": "Monte Grande hollow (Valle de la Luna drill)",
+    "waypoint_sol": 4687,
+    "elev_geoid_m": -3610.432,
+    "note": "Hollow drilled Oct 18-19, 2025",
+    "position_basis": "Curiosity waypoint at or before the event sol; rover position, not drill-hole position"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     137.3810041,
+     -4.80800755
+    ]
+   },
+   "properties": {
+    "id": "S2",
+    "name": "Nevado Sajama ridge top",
+    "waypoint_sol": 4711,
+    "elev_geoid_m": -3607.722,
+    "note": "Ridge-top drill, Nov 2025",
+    "position_basis": "Curiosity waypoint at or before the event sol; rover position, not drill-hole position"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     137.3895793,
+     -4.79356808
+    ]
+   },
+   "properties": {
+    "id": "P0",
+    "name": "Approach waypoint (candidate start)",
+    "waypoint_sol": 4500,
+    "elev_geoid_m": -3689.38,
+    "note": "Rover position on approach to the unit",
+    "position_basis": "Curiosity waypoint at or before the event sol; rover position, not drill-hole position"
+   }
+  }
+ ]
+}
