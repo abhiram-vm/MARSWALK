@@ -15,7 +15,8 @@ Model (every parameter below is an assumption, see docs/DATA_SOURCES.md 4):
   - walking speed: Tobler's hiking function on the slope along the direction
     of travel, times a suit factor
   - blocked: cells whose terrain slope exceeds the slope limit
-  - Direct: least time. Cautious: time multiplied on steep or rough cells.
+  - Direct: least time. Cautious: time multiplied on cells steeper than 10 degrees.
+  The prototype in preview/ runs the same model in the browser.
 
 Run from the repository root:  python3 pipeline/routes.py
 """
@@ -85,7 +86,6 @@ def astar(z, slope, rough, start, goal, cautious):
             if cautious:
                 if slope[nr, nc] > 10:
                     t *= 1 + (slope[nr, nc] - 10) * 0.6
-                t *= 1 + 2.0 * min(rough[nr, nc], 1.0)
             ng = g + t
             if ng < best.get((nr, nc), math.inf):
                 best[(nr, nc)] = ng

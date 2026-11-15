@@ -1,450 +1,727 @@
 <title>MARSWALK Preview</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: a flight document. Paper and ink, hairline rules, 2 px corners, one
-   safety-orange accent, numbers in a fixed-width cockpit face. Tokens match
-   docs/DESIGN.md and web/src/index.css. Written with AI assistance. */
+/* Layout: the terrain is the interface. A full-screen map of the site with a
+   planning panel on the left, map tools on the right and a field guide that
+   slides over. One committed dark look, built for a helmet or a dim habitat.
+   AI-assisted (Claude Code). Tokens follow docs/DESIGN.md. */
 :root {
-  --paper: #f2f4f3;
-  --surface: #fafbfa;
-  --ink: #14181b;
-  --ink-2: #4a5258;
-  --rule: #c8cdd0;
-  --signal: #c8401a;
-  --on-signal: #fafbfa;
+  color-scheme: dark;
+  --paper: #0b0e10;
+  --surface: #14181b;
+  --raised: #1b2024;
+  --ink: #e8ecea;
+  --ink-2: #a2abb0;
+  --rule: #2c3338;
+  --signal: #f26a3a;
+  --on-signal: #0f1214;
+  --go: #62c483;
+  --nogo: #ef6258;
   --sans: 'B612', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --mono: 'B612 Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  /* Marks drawn on greyscale imagery keep fixed values in both themes. */
-  --map-signal: #f26a3a;
-  --map-light: #fafbfa;
-  --map-dark: #14181b;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #0f1214; --surface: #171b1e; --ink: #e8ecea; --ink-2: #a2abb0;
-    --rule: #2b3237; --signal: #f26a3a; --on-signal: #0f1214; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --paper: #0f1214; --surface: #171b1e; --ink: #e8ecea; --ink-2: #a2abb0;
-  --rule: #2b3237; --signal: #f26a3a; --on-signal: #0f1214; color-scheme: dark;
+  --panel-w: 372px;
+  --gap-l: max(14px, env(safe-area-inset-left, 0px));
+  --gap-r: max(14px, env(safe-area-inset-right, 0px));
 }
 {{FONT_FACES}}
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; }
-h1, h2, h3, p, ul, ol, dl, dd, figure, table { margin: 0; padding: 0; }
-ul, ol { list-style: none; }
-a { color: inherit; }
-img { display: block; max-width: 100%; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45; overflow: hidden; }
+h1, h2, h3, p, ul, dl, dd, figure { margin: 0; padding: 0; }
+ul { list-style: none; }
+[hidden] { display: none !important; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
-input[type="radio"], input[type="checkbox"] { accent-color: var(--signal); }
-.wrap { max-width: 1240px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--ink-2); }
-.basemap { background-image: url("{{BASEMAP}}"); background-size: 100% 100%; }
-.navcam { background-image: url("{{NAVCAM}}"); background-size: cover; background-position: center; }
 
-/* Navigation */
-.nav { background: var(--surface); border-bottom: 1px solid var(--rule); }
-.nav .wrap { display: flex; align-items: center; gap: 24px; min-height: 56px; }
-.wordmark { font-weight: 700; letter-spacing: 0.2em; font-size: 16px; text-decoration: none; }
-.nav nav { display: flex; gap: 20px; font-size: 14px; }
-.nav nav a { text-decoration: none; padding-block: 6px; border-bottom: 1px solid transparent; }
-.nav nav a:hover { border-bottom-color: var(--ink); }
-.nav .state { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-2); border: 1px solid var(--rule); padding: 4px 8px; border-radius: 2px; white-space: nowrap; }
+.app { position: relative; height: 100%; overflow: hidden; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; background: #050607; }
+#map.dragging { cursor: grabbing; }
+.shade { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 60% 50%, transparent 55%, rgba(5, 6, 7, 0.55) 100%); }
 
-/* Hero */
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; padding-block: 40px; }
-.hero h1 { font-size: clamp(2rem, 3.9vw, 2.9rem); line-height: 1.08; letter-spacing: -0.01em; text-wrap: balance; }
-.hero p { margin-top: 20px; max-width: 34ch; font-size: 18px; color: var(--ink-2); }
-.btn { display: inline-flex; align-items: center; gap: 10px; margin-top: 28px; padding: 12px 18px; background: var(--signal); color: var(--on-signal); font: 700 15px var(--sans); text-decoration: none; border: 0; border-radius: 2px; white-space: nowrap; cursor: pointer; }
-.btn:hover { filter: brightness(1.08); }
-.btn:active { transform: translateY(1px); }
-.btn svg { flex: none; }
-.hero figure { justify-self: end; width: min(100%, 520px); }
-.map { position: relative; aspect-ratio: {{PXW}} / {{PXH}}; border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; background-color: #0b0d0e; }
-.map svg, .map img.slope { position: absolute; inset: 0; width: 100%; height: 100%; }
-.map img.slope { max-width: none; opacity: 0.72; }
-figcaption, .caption { margin-top: 8px; font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--ink-2); }
+/* Top bar */
+.top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 var(--gap-r) 0 var(--gap-l); background: linear-gradient(rgba(8, 10, 12, 0.92), rgba(8, 10, 12, 0)); pointer-events: none; }
+.top b { letter-spacing: 0.22em; font-size: 15px; }
+.top span { font-family: var(--mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .state { margin-left: auto; border: 1px solid var(--rule); background: var(--surface); padding: 3px 8px; border-radius: 2px; flex: none; }
 
-/* Map marks */
-.rt-casing { fill: none; stroke: var(--map-dark); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; opacity: 0.85; }
-.rt-direct { fill: none; stroke: var(--map-signal); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
-.rt-cautious { fill: none; stroke: var(--map-light); stroke-width: 5; stroke-linejoin: round; stroke-dasharray: 14 9; }
-.track { fill: none; stroke: var(--map-light); stroke-width: 2; opacity: 0.75; }
-.stn { stroke: var(--map-dark); stroke-width: 3; }
-.stn-sci { fill: var(--map-signal); }
-.stn-start { fill: var(--map-light); }
-.maplabel { font: 700 27px var(--mono); fill: var(--map-light); stroke: var(--map-dark); stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
-.scalebar line { stroke: var(--map-light); stroke-width: 3; }
-.dim { opacity: 0.4; }
+/* Planning panel */
+.panel { position: absolute; top: 56px; bottom: 14px; left: var(--gap-l); width: var(--panel-w); display: flex; flex-direction: column; background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+.panel .scroll { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--rule); }
+.sec:last-child { border-bottom: 0; }
+.sec h2 { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 10px; }
+.ends { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+.end { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 10px; align-items: center; text-align: left; padding: 9px 10px; background: var(--raised); border: 1px solid var(--rule); border-radius: 2px; }
+.end[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 3px 0 0 var(--signal); }
+.end i { grid-row: span 2; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #0b0e10; outline: 1px solid var(--ink-2); }
+.end .dot-start { background: #fafbfa; } .end .dot-dest { background: var(--signal); }
+.end small { color: var(--ink-2); font-size: 11px; }
+.end strong { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ends .stack { display: grid; gap: 8px; }
+.swap { width: 38px; background: var(--raised); border: 1px solid var(--rule); border-radius: 2px; display: grid; place-items: center; }
+.swap:hover, .chip:hover, .tool:hover { border-color: var(--ink-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { padding: 5px 9px; background: transparent; border: 1px solid var(--rule); border-radius: 2px; font-size: 12px; }
+.chip b { font-family: var(--mono); margin-right: 5px; }
+.help { margin-top: 10px; font-size: 12px; color: var(--ink-2); }
 
-/* Sections */
-section.block .wrap { padding-block: 44px; }
-section.block h2 { font-size: 24px; line-height: 1.2; }
-section.block h2 + p { margin-top: 8px; max-width: 65ch; color: var(--ink-2); }
-.banded { background: var(--surface); border-block: 1px solid var(--rule); }
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: center; }
+.verdict .call { grid-row: span 2; font: 700 26px var(--sans); letter-spacing: 0.06em; padding: 6px 12px; border: 2px solid currentColor; border-radius: 2px; }
+.verdict.go .call { color: var(--go); } .verdict.nogo .call { color: var(--nogo); }
+.verdict .why { font-size: 13px; }
+.checks { margin-top: 12px; display: grid; gap: 6px; font-size: 13px; }
+.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; }
+.checks svg { margin-top: 1px; }
+.ok svg { color: var(--go); } .bad svg { color: var(--nogo); } .info svg { color: var(--ink-2); }
 
-/* Tool */
-.tool { margin-top: 24px; display: grid; grid-template-columns: 340px minmax(0, 1fr); border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); }
-.rail { border-right: 1px solid var(--rule); min-width: 0; }
-.rail > div { padding: 18px; border-bottom: 1px solid var(--rule); }
-.rail > div:last-child { border-bottom: 0; }
-.rail h3, .canvas h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
-.pair { display: grid; grid-template-columns: 52px 1fr; gap: 4px 10px; font-size: 14px; }
-.pair dt { color: var(--ink-2); }
-.note { margin-top: 10px; font-size: 12px; line-height: 1.45; color: var(--ink-2); }
-table.cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
-table.cmp th, table.cmp td { text-align: right; padding: 5px 0 5px 8px; font-weight: 400; }
-table.cmp th:first-child, table.cmp td:first-child { text-align: left; padding-left: 0; color: var(--ink-2); }
-table.cmp thead th { padding-bottom: 10px; vertical-align: bottom; }
-table.cmp tbody.gap tr:first-child td { padding-top: 14px; }
-table.cmp td.num { font-family: var(--mono); white-space: nowrap; }
-.pick { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 76px; padding-top: 8px; border-top: 2px solid transparent; cursor: pointer; font-weight: 700; }
-.pick:has(input:checked) { border-top-color: var(--signal); }
-.swatch { display: block; width: 44px; height: 0; border-top: 3px solid var(--signal); }
-.swatch.dash { border-top: 3px dashed var(--ink); }
-.canvas { min-width: 0; padding: 18px; }
-.layers { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin-bottom: 12px; font-size: 13px; }
-.layers label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
-.legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--rule); }
-.lg-a { background: #f0d66e; } .lg-b { background: #e29628; }
-.lg-c { background: repeating-linear-gradient(135deg, #14181b 0 3px, #8a8f92 3px 6px); }
-.profile { margin-top: 20px; }
-.profile .scroll { overflow-x: auto; }
-.profile svg { width: 100%; min-width: 560px; height: auto; display: block; }
-.profile .ax { stroke: var(--rule); stroke-width: 1; }
-.profile text { font: 10px var(--mono); fill: var(--ink-2); }
-.profile .p-direct { fill: none; stroke: var(--signal); stroke-width: 2; }
-.profile .p-cautious { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 4; }
+.routes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.route { text-align: left; padding: 10px; background: var(--raised); border: 1px solid var(--rule); border-top: 3px solid var(--rule); border-radius: 2px; display: grid; gap: 6px; }
+.route[aria-pressed="true"] { border-color: var(--ink-2); border-top-color: var(--signal); }
+.route .name { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
+.route .line { width: 34px; border-top: 3px solid var(--signal); }
+.route .line.dash { border-top: 3px dashed #fafbfa; }
+.route dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: 12px; }
+.route dt { color: var(--ink-2); } .route dd { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.route .big { font: 700 20px var(--mono); }
+.diff { margin-top: 10px; font-size: 13px; }
 
-/* Field card */
-.brief { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 48px; align-items: start; }
-.card { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; padding: 22px; font-size: 14px; }
-.card header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
-.card header b { letter-spacing: 0.16em; font-size: 13px; }
-.card header span { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
-.key { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-block: 10px; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
-.card h3 { margin: 18px 0 8px; font-size: 13px; font-weight: 700; }
-.card li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: baseline; padding-block: 3px; }
-.card li.plain { grid-template-columns: minmax(0, 1fr); }
-.card .v { font-family: var(--mono); }
+.profile { position: relative; }
+.profile svg { display: block; width: 100%; height: 96px; touch-action: none; cursor: ew-resize; }
+.profile .ax { stroke: var(--rule); } .profile text { font: 9px var(--mono); fill: var(--ink-2); }
+.profile .sel { fill: none; stroke: var(--signal); stroke-width: 2; } .profile .oth { fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.7; }
+.profile .cur { stroke: var(--ink); stroke-width: 1; }
+.readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; font-size: 11px; color: var(--ink-2); }
+.readout b { display: block; font: 700 13px var(--mono); color: var(--ink); }
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 12px; border: 1px solid var(--rule); background: var(--raised); border-radius: 2px; font-weight: 700; white-space: nowrap; }
+.btn.primary { background: var(--signal); color: var(--on-signal); border-color: var(--signal); }
+.btn:active, .chip:active, .tool:active, .end:active, .route:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+details summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--ink-2); list-style: none; display: flex; justify-content: space-between; }
+details summary::after { content: '+'; font-family: var(--mono); } details[open] summary::after { content: '-'; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 4px 10px; align-items: center; margin-top: 12px; font-size: 13px; }
+.field output { font-family: var(--mono); text-align: right; }
+.field input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--signal); }
+.field select { grid-column: 1 / -1; background: var(--raised); border: 1px solid var(--rule); border-radius: 2px; padding: 7px 8px; }
+
+/* Map tools */
+.tools { position: absolute; top: 56px; right: var(--gap-r); display: grid; gap: 8px; justify-items: end; }
+.layers { background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-radius: 2px; padding: 10px 12px; display: grid; gap: 7px; font-size: 13px; }
+.layers label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.layers input { accent-color: var(--signal); }
+.zoom { display: grid; background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-radius: 2px; }
+.tool { width: 38px; height: 38px; display: grid; place-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--rule); }
+.tool:last-child { border-bottom: 0; }
+.legend { position: absolute; right: var(--gap-r); bottom: 14px; background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-radius: 2px; padding: 8px 10px; display: grid; gap: 4px; font: 11px var(--mono); color: var(--ink-2); }
+.legend i { display: inline-block; width: 14px; height: 9px; margin-right: 7px; vertical-align: -1px; }
+.lg-a { background: #f0d66e; } .lg-b { background: #e29628; } .lg-c { background: repeating-linear-gradient(135deg, #0f1214 0 3px, #7d8386 3px 6px); }
+.legend .bar { display: flex; align-items: flex-end; gap: 8px; padding-top: 5px; margin-top: 3px; border-top: 1px solid var(--rule); color: var(--ink); }
+.legend .bar u { display: block; height: 6px; border: 1px solid var(--ink); border-top: 0; }
+
+/* Hint, HUD, status */
+.hint { position: absolute; left: calc(var(--gap-l) + var(--panel-w) + 14px); bottom: 14px; max-width: 44ch; padding: 8px 12px; background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-left: 3px solid var(--signal); border-radius: 2px; font-size: 13px; }
+.hint.warn { border-left-color: var(--nogo); }
+.hud { position: absolute; top: 56px; left: calc(var(--gap-l) + var(--panel-w) + 14px); display: flex; gap: 18px; align-items: center; padding: 8px 12px; background: rgba(20, 24, 27, 0.95); border: 1px solid var(--rule); border-radius: 2px; }
+.hud div { font-size: 11px; color: var(--ink-2); } .hud b { display: block; font: 700 15px var(--mono); color: var(--ink); }
+
+/* Field guide */
+.guide { position: absolute; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--surface); border-left: 1px solid var(--rule); display: flex; flex-direction: column; transform: translateX(0); }
+.guide[hidden] { display: flex !important; transform: translateX(102%); visibility: hidden; }
+.guide header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 2px solid var(--ink); }
+.guide header b { letter-spacing: 0.16em; } .guide header span { display: block; font: 12px var(--mono); color: var(--ink-2); margin-top: 2px; }
+.guide .body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 22px; }
+.guide h3 { margin: 18px 0 8px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 0; border-bottom: 1px solid var(--rule); font: 11px var(--mono); color: var(--ink-2); }
+.guide li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 0; }
+.guide li.plain { grid-template-columns: minmax(0, 1fr); }
+.guide .v { font-family: var(--mono); }
 .mk { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--ink); transform: translateY(1px); }
-.mk-m { background: var(--ink); }
-.mk-a { border-style: dashed; }
+.mk-m { background: var(--ink); } .mk-a { border-style: dashed; }
 .mk-s { background: repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 4px); }
-.limits { margin-top: 18px; padding-top: 4px; border-top: 2px solid var(--ink); }
-.photo img { width: 100%; border: 1px solid var(--rule); border-radius: 2px; }
-.photo p { margin-top: 20px; max-width: 52ch; color: var(--ink-2); }
+.legs { display: grid; gap: 2px; }
+.leg { display: grid; grid-template-columns: 8px 104px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 13px; }
+.leg i { width: 8px; height: 22px; } .leg .mono { color: var(--ink-2); font-size: 12px; }
+.s0 { background: #5d666c; } .s1 { background: #f0d66e; } .s2 { background: #e29628; } .s3 { background: var(--nogo); }
+.guide figure img { width: 100%; display: block; border: 1px solid var(--rule); border-radius: 2px; }
+.guide figcaption { margin-top: 6px; font: 11px var(--mono); color: var(--ink-2); }
+.limits { margin-top: 18px; border-top: 2px solid var(--ink); }
+.guide a { color: inherit; text-underline-offset: 3px; }
 
-/* Missions */
-.missions { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
-.cell { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); padding: 18px; min-width: 0; }
-.cell h3 { font-size: 16px; }
-.cell p { margin-top: 6px; font-size: 14px; color: var(--ink-2); }
-.cell dl { margin-top: 12px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; }
-.cell dt { font-family: var(--mono); }
-.cell dd { color: var(--ink-2); }
-.cell .strip { height: 150px; margin: -18px -18px 16px; border-bottom: 1px solid var(--rule); background-size: cover; background-position: 50% 62%; }
-.cell.tall { grid-row: span 2; }
-.cell.wide { grid-column: 1 / -1; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; padding: 0; }
-.cell.wide .side { min-height: 150px; border-right: 1px solid var(--rule); }
-.cell.wide .body { padding: 18px 18px 18px 0; }
-.use { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); border: 1px solid var(--rule); padding: 2px 6px; border-radius: 2px; }
+/* Opening title */
+.intro { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 10px; background: rgba(5, 6, 7, 0.72); pointer-events: none; opacity: 0; }
+.intro b { font-size: clamp(28px, 6vw, 54px); letter-spacing: 0.3em; margin-right: -0.3em; }
+.intro span { font: 13px var(--mono); color: var(--ink-2); }
 
-/* Sources and status */
-.cols { margin-top: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
-.cols h3 { font-size: 14px; margin-bottom: 10px; }
-.cols li { padding-block: 5px; font-size: 14px; }
-.cols li a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule); }
-.cols li a:hover { text-decoration-color: var(--ink); }
-.cols li a svg { vertical-align: -3px; margin-left: 4px; }
-.cols .grp + .grp { margin-top: 22px; }
-footer .wrap { padding-block: 22px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); border-top: 1px solid var(--rule); }
-
-/* Motion: two moments, each tied to a change. Resting state is fully visible. */
 @media (prefers-reduced-motion: no-preference) {
-  .hero h1, .hero p, .hero .btn, .hero figure { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .hero p { animation-delay: 60ms; } .hero .btn { animation-delay: 120ms; } .hero figure { animation-delay: 180ms; }
-  .hero .rt-direct { stroke-dasharray: 1; animation: draw 0.9s 0.35s ease-out both; }
-  .map img.slope, .map g { transition: opacity 150ms; }
-  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
-  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  .guide { transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), visibility 220ms; }
+  .intro.show { animation: title 2.6s ease both; }
+  .panel, .tools, .legend, .hint { animation: settle 0.5s 1.1s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+  @keyframes title { 0% { opacity: 0; } 18%, 62% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes settle { from { opacity: 0; transform: translateY(6px); } }
 }
 
-@media (max-width: 900px) {
-  .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 28px; }
-  .hero figure { justify-self: stretch; width: 100%; }
-  .tool { grid-template-columns: minmax(0, 1fr); }
-  .rail { border-right: 0; border-bottom: 1px solid var(--rule); }
-  .brief, .missions, .cols { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .missions { gap: 16px; }
-  .cell.tall { grid-row: auto; }
-  .cell.wide { grid-template-columns: minmax(0, 1fr); }
-  .cell.wide .side { border-right: 0; border-bottom: 1px solid var(--rule); }
-  .cell.wide .body { padding: 0 18px 18px; }
-  .nav nav { display: none; }
+@media (max-width: 860px) {
+  .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 46%; border-width: 1px 0 0; }
+  .hint { left: var(--gap-l); right: var(--gap-r); bottom: calc(46% + 10px); max-width: none; }
+  .hud { left: var(--gap-l); right: var(--gap-r); top: 50px; gap: 10px; justify-content: space-between; }
+  .hud .btn span { display: none; }
+  .legend { display: none; }
+  .top span:not(.state) { display: none; }
+  .layers { font-size: 12px; padding: 7px 10px; grid-auto-flow: column; gap: 12px; }
+  .tools { top: 50px; }
+  .hud:not([hidden]) ~ .tools .layers { display: none; }
 }
 </style>
 
-<header class="nav">
-  <div class="wrap">
-    <a class="wordmark" href="#top">MARSWALK</a>
-    <nav aria-label="Sections">
-      <a href="#plan">Plan a walk</a>
-      <a href="#briefing">Briefing</a>
-      <a href="#sources">Sources</a>
-    </nav>
-    <span class="state">Static design preview</span>
+<div class="app" id="app">
+  <canvas id="map" aria-label="Map of the boxwork unit. Click to place the active point, drag to pan, scroll to zoom."></canvas>
+  <div class="shade"></div>
+
+  <div class="top">
+    <b>MARSWALK</b>
+    <span>Boxwork unit, Mount Sharp, Gale crater</span>
+    <span class="state">Prototype</span>
   </div>
-</header>
 
-<main id="top">
-  <section class="hero">
-    <div class="wrap">
-      <div>
-        <h1>Plan the next 500 metres on Mars.</h1>
-        <p>Two routes across the boxwork ridges of Mount Sharp, computed from NASA terrain data, with every number sourced.</p>
-        <a class="btn" href="#plan">Plan a walk {{ICON_ARROW}}</a>
+  <aside class="panel" aria-label="Plan a walk">
+    <div class="scroll">
+      <div class="sec">
+        <h2>Walk</h2>
+        <div class="ends">
+          <div class="stack">
+            <button class="end" id="end-start" aria-pressed="false"><i class="dot-start"></i><small>Start</small><strong id="lbl-start"></strong></button>
+            <button class="end" id="end-dest" aria-pressed="true"><i class="dot-dest"></i><small>Destination</small><strong id="lbl-dest"></strong></button>
+          </div>
+          <button class="swap" id="swap" aria-label="Swap start and destination" title="Swap start and destination">{{I_SWAP}}</button>
+        </div>
+        <div class="chips" id="chips" aria-label="Stations"></div>
+        <p class="help" id="help"></p>
       </div>
-      <figure>
-        <div class="map basemap" role="img" aria-label="Orbital image of the boxwork ridges with a solid orange direct route and a dashed white cautious route between two stations">
-          <svg viewBox="0 0 {{PXW}} {{PXH}}" aria-hidden="true">
-            {{ROUTES_SVG_HERO}}
-            {{STATIONS_SVG}}
-          </svg>
+
+      <div class="sec" aria-live="polite">
+        <div class="verdict" id="verdict"><span class="call" id="call"></span><strong id="headline"></strong><span class="why muted" id="why"></span></div>
+        <ul class="checks" id="checks"></ul>
+      </div>
+
+      <div class="sec">
+        <h2>Routes</h2>
+        <div class="routes">
+          <button class="route" id="rt-direct" aria-pressed="true"><span class="name">Direct<i class="line"></i></span><span class="big" id="d-time"></span><dl id="d-stats"></dl></button>
+          <button class="route" id="rt-cautious" aria-pressed="false"><span class="name">Cautious<i class="line dash"></i></span><span class="big" id="c-time"></span><dl id="c-stats"></dl></button>
         </div>
-        <figcaption>Boxwork unit, Gale crater, {{WIDTH_M}} m across. HiRISE image: NASA/JPL-Caltech/University of Arizona. Routes: this project.</figcaption>
-      </figure>
-    </div>
-  </section>
+        <p class="diff muted" id="diff"></p>
+      </div>
 
-  <section class="block banded" id="plan">
-    <div class="wrap">
-      <h2>Boxwork edge to Monte Grande hollow</h2>
-      <p>Two ways to walk from the edge of the boxwork unit to the hollow Curiosity drilled in October 2025. Pick one to compare.</p>
-
-      <div class="tool">
-        <div class="rail">
-          <div>
-            <h3>Walk</h3>
-            <dl class="pair">
-              <dt>From</dt><dd><span class="mono">S0</span> Boxwork edge</dd>
-              <dt>To</dt><dd><span class="mono">S1</span> Monte Grande hollow</dd>
-            </dl>
-            <p class="note">This preview shows one precomputed pair. The app will route between any two points you pick.</p>
-          </div>
-          <div>
-            <h3>Routes</h3>
-            <table class="cmp">
-              <thead>
-                <tr>
-                  <th scope="col"><span class="muted">Select</span></th>
-                  <th scope="col"><label class="pick">Direct<i class="swatch"></i><input type="radio" name="route" id="pick-direct" value="direct" checked></label></th>
-                  <th scope="col"><label class="pick">Cautious<i class="swatch dash"></i><input type="radio" name="route" id="pick-cautious" value="cautious"></label></th>
-                </tr>
-              </thead>
-              <tbody>
-                {{CMP_TERRAIN}}
-              </tbody>
-              <tbody class="gap">
-                {{CMP_TIME}}
-              </tbody>
-            </table>
-            <p class="note">Distances and slopes are derived from the 1 m terrain model. Times use an assumed walking model. Dose uses Curiosity's measured rate.</p>
-          </div>
-          <div>
-            <h3>Conditions</h3>
-            <dl class="pair" style="grid-template-columns: 78px 1fr">
-              {{CONDITIONS}}
-            </dl>
-            <p class="note">{{CONDITIONS_NOTE}}</p>
-          </div>
-          <div>
-            <a class="btn" style="margin-top:0" href="#briefing">Open briefing {{ICON_ARROW}}</a>
-          </div>
-        </div>
-
-        <div class="canvas">
-          <div class="layers" role="group" aria-label="Map layers">
-            <label><input type="checkbox" id="ly-routes" checked> Routes</label>
-            <label><input type="checkbox" id="ly-slope" checked> Slope bands</label>
-            <label><input type="checkbox" id="ly-track" checked> Curiosity track</label>
-          </div>
-          <div class="map basemap" role="img" aria-label="Map of both routes over the orbital image with slope bands and Curiosity's track">
-            <img class="slope" id="slope" alt="" src="{{SLOPE}}">
-            <svg viewBox="0 0 {{PXW}} {{PXH}}" aria-hidden="true">
-              <g id="g-track"><path class="track" d="{{TRACK_D}}"/></g>
-              <g id="g-routes">{{ROUTES_SVG_TOOL}}</g>
-              {{STATIONS_SVG}}
-              {{LABELS_SVG}}
-              <g class="scalebar" transform="translate(40 {{SCALE_Y}})">
-                <line x1="0" y1="0" x2="{{SCALE_PX}}" y2="0"/><line x1="0" y1="-8" x2="0" y2="8"/><line x1="{{SCALE_PX}}" y1="-8" x2="{{SCALE_PX}}" y2="8"/>
-                <text class="maplabel" x="0" y="-16">100 m</text>
-              </g>
-            </svg>
-          </div>
-          <div class="legend" aria-label="Slope legend">
-            <span><i class="lg-a"></i>10 to 15 degrees</span>
-            <span><i class="lg-b"></i>15 to 20 degrees</span>
-            <span><i class="lg-c"></i>over 20 degrees, treated as blocked</span>
-          </div>
-          <p class="caption">North is up. HiRISE image served by NASA Mars Trek at about 0.6 m per pixel. Slope from the USGS Gale 1 m terrain model, smoothed over 5 m. Track: NASA/JPL-Caltech.</p>
-
-          <div class="profile">
-            <h3>Elevation along each route</h3>
-            <div class="scroll">{{PROFILE_SVG}}</div>
-            <p class="caption">Metres relative to the Mars reference surface. Vertical scale is stretched about {{VEXAG}} times.</p>
-          </div>
+      <div class="sec">
+        <h2>Elevation along the route</h2>
+        <div class="profile"><svg id="profile" viewBox="0 0 340 96" preserveAspectRatio="none" role="img" aria-label="Elevation profile. Drag to move along the route."></svg></div>
+        <div class="readout">
+          <div>Distance<b id="r-dist"></b></div><div>Elevation<b id="r-elev"></b></div><div>Slope here<b id="r-slope"></b></div><div>Time in<b id="r-time"></b></div>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section class="block" id="briefing">
-    <div class="wrap">
-      <h2>The field briefing</h2>
-      <p>One page for the walk. Each figure carries a mark that says whether it was measured, derived, assumed or simulated.</p>
-      <div class="brief">
-        <div>
-          {{CARD_DIRECT}}
-          {{CARD_CAUTIOUS}}
-        </div>
-        <figure class="photo">
-          <img src="{{NAVCAM}}" alt="Greyscale photo of fractured bedrock slabs and loose rocks with part of a rover wheel in the corner" width="820" height="820">
-          <figcaption>The ground at station S1, seen by Curiosity's left navigation camera on sol 4687 (12 October 2025). NASA/JPL-Caltech.</figcaption>
-          <p>Slabs and loose rocks like these are smaller than the terrain model can resolve. The route avoids steep ground; the crew still has to watch their feet.</p>
-        </figure>
-      </div>
-    </div>
-  </section>
-
-  <section class="block banded" id="layers">
-    <div class="wrap">
-      <h2>Four NASA missions, one patch of ground</h2>
-      <div class="missions">
-        <div class="cell tall">
-          <div class="strip basemap" role="img" aria-label="Detail of the orbital image showing the polygonal ridge network"></div>
-          <h3>Mars Reconnaissance Orbiter</h3>
-          <p>The base image and the terrain every route is computed from.</p>
-          <dl>
-            <dt>HiRISE</dt><dd>Orbital image, served at about 0.6 m per pixel</dd>
-            <dt>HiRISE stereo</dt><dd>Terrain model on a 1 m grid</dd>
-            <dt>CTX</dt><dd>Wider context image</dd>
-          </dl>
-          <span class="use">In this preview</span>
-        </div>
-        <div class="cell">
-          <h3>Mars Odyssey</h3>
-          <p>Night-time surface temperature, a hint of rocky versus loose ground.</p>
-          <dl><dt>THEMIS</dt><dd>100 m per pixel, context only</dd></dl>
-          <span class="use">In the app, not in this preview</span>
-        </div>
-        <div class="cell">
-          <h3>Mars Global Surveyor</h3>
-          <p>The regional shape of Mount Sharp around the site.</p>
-          <dl><dt>MOLA</dt><dd>463 m per pixel, context only</dd></dl>
-          <span class="use">In the app, not in this preview</span>
-        </div>
-        <div class="cell wide">
-          <div class="side navcam" role="img" aria-label="Curiosity navigation camera view of the ground at station S1"></div>
-          <div class="body">
-            <h3>Curiosity</h3>
-            <p>The only radiation detector and weather station on this ground, plus the rover's own track and photographs.</p>
-            <dl>
-              <dt>RAD</dt><dd>Surface radiation dose rate</dd>
-              <dt>REMS</dt><dd>Daily temperature, pressure, daylight</dd>
-              <dt>Navcam</dt><dd>What the destination looks like</dd>
-              <dt>Localization</dt><dd>Where the rover drove and stopped</dd>
-            </dl>
-            <span class="use">In this preview</span>
-          </div>
+      <div class="sec">
+        <div class="actions">
+          <button class="btn" id="rehearse">{{I_PLAY}}<span>Rehearse</span></button>
+          <button class="btn primary" id="open-guide">Field guide {{I_ARROW}}</button>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section class="block" id="sources">
-    <div class="wrap">
-      <h2>Sources and status</h2>
-      <div class="cols">
-        <div>
-          <div class="grp">
-            <h3>Data</h3>
-            <ul>
-              <li><a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek, HiRISE mosaic tiles{{ICON_OUT}}</a></li>
-              <li><a href="https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" target="_blank" rel="noopener">USGS, Mars MSL Gale Merged DEM 1m{{ICON_OUT}}</a></li>
-              <li><a href="https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json" target="_blank" rel="noopener">NASA, Curiosity waypoints{{ICON_OUT}}</a></li>
-              <li><a href="https://mars.nasa.gov/rss/api/?feed=weather&amp;category=msl&amp;feedtype=json" target="_blank" rel="noopener">NASA, Curiosity REMS weather feed{{ICON_OUT}}</a></li>
-              <li><a href="https://mars.nasa.gov/msl/multimedia/raw-images/" target="_blank" rel="noopener">NASA, Curiosity raw images{{ICON_OUT}}</a></li>
-            </ul>
-          </div>
-          <div class="grp">
-            <h3>Reading</h3>
-            <ul>
-              <li><a href="https://science.nasa.gov/blog/curiosity-blog-sols-4689-4694-drill-in-the-boxwork-unit-is-go/" target="_blank" rel="noopener">Curiosity blog, sols 4689 to 4694{{ICON_OUT}}</a></li>
-              <li><a href="https://science.nasa.gov/blog/curiosity-blog-sols-4723-4730-digging-into-nevado-sajama" target="_blank" rel="noopener">Curiosity blog, sols 4723 to 4730{{ICON_OUT}}</a></li>
-              <li>Hassler et al. (2014), Science 343, surface radiation at Gale crater</li>
-              <li>Tobler (1993), hiking function, NCGIA Technical Report 93-1</li>
-            </ul>
-          </div>
-        </div>
-        <div>
-          <div class="grp">
-            <h3>Real in this preview</h3>
-            <ul>
-              <li>The orbital image, the slope bands and Curiosity's track</li>
-              <li>Both routes, computed on the terrain model by the project's routing script</li>
-              <li>The weather record and the navigation camera photo</li>
-            </ul>
-          </div>
-          <div class="grp">
-            <h3>Assumed</h3>
-            <ul>
-              <li>Walking speed, the suit factor of {{SUIT}}, the {{LIMIT}} degree slope limit and {{STATION}} minutes at the station</li>
-              <li>The start point, a notional rover park</li>
-            </ul>
-          </div>
-          <div class="grp">
-            <h3>Not built yet</h3>
-            <ul>
-              <li>Picking your own start and destination</li>
-              <li>Pan and zoom, the thermal layer, photos at every station</li>
-              <li>Public deployment</li>
-            </ul>
-          </div>
-        </div>
+      <div class="sec">
+        <details>
+          <summary>Assumptions</summary>
+          <div class="field"><label for="in-depart">Leave at (local Mars time)</label><span></span>
+            <select id="in-depart"></select></div>
+          <div class="field"><label for="in-suit">Suit factor on walking speed</label><output id="out-suit"></output>
+            <input type="range" id="in-suit" min="0.3" max="0.8" step="0.05" value="0.5"></div>
+          <div class="field"><label for="in-limit">Steepest ground allowed</label><output id="out-limit"></output>
+            <input type="range" id="in-limit" min="12" max="30" step="1" value="20"></div>
+          <div class="field"><label for="in-work">Time at the destination</label><output id="out-work"></output>
+            <input type="range" id="in-work" min="0" max="120" step="10" value="30"></div>
+          <p class="help">These are the team's assumptions, not NASA values. Change one and the routes are recomputed.</p>
+        </details>
       </div>
     </div>
-  </section>
-</main>
+  </aside>
 
-<footer>
-  <div class="wrap">MARSWALK is a NASA Space Apps Challenge 2026 project. Not affiliated with or endorsed by NASA. This preview was built with AI assistance (Claude Code).</div>
-</footer>
+  <div class="hud" id="hud" hidden>
+    <div>Distance<b id="h-dist"></b></div><div>Elevation<b id="h-elev"></b></div><div>Slope<b id="h-slope"></b></div><div>Time in<b id="h-time"></b></div>
+    <button class="btn" id="stop">{{I_STOP}}<span>Stop</span></button>
+  </div>
+
+  <div class="tools">
+    <div class="layers" role="group" aria-label="Map layers">
+      <label><input type="checkbox" id="ly-relief" checked> Relief</label>
+      <label><input type="checkbox" id="ly-slope" checked> Slope bands</label>
+      <label><input type="checkbox" id="ly-track"> Curiosity track</label>
+    </div>
+    <div class="zoom">
+      <button class="tool" id="z-in" aria-label="Zoom in">{{I_PLUS}}</button>
+      <button class="tool" id="z-out" aria-label="Zoom out">{{I_MINUS}}</button>
+      <button class="tool" id="z-fit" aria-label="Fit the route" title="Fit the route">{{I_FIT}}</button>
+    </div>
+  </div>
+
+  <div class="legend" id="legend">
+    <span><i class="lg-a"></i>10 to 15°</span>
+    <span><i class="lg-b"></i>15° to limit</span>
+    <span><i class="lg-c"></i>over the limit, blocked</span>
+    <div class="bar"><u id="bar"></u><span id="bar-l"></span><span class="muted">north up</span></div>
+  </div>
+
+  <div class="hint" id="hint" role="status"></div>
+
+  <aside class="guide" id="guide" hidden aria-label="Field guide">
+    <header><div><b>FIELD GUIDE</b><span id="g-sub"></span></div><button class="tool" id="close-guide" aria-label="Close field guide">{{I_X}}</button></header>
+    <div class="body" id="g-body"></div>
+  </aside>
+
+  <div class="intro" id="intro"><b>MARSWALK</b><span>Boxwork unit, Gale crater, Mars</span></div>
+</div>
 
 <script>
-// Written with AI assistance. Two behaviours only: pick a route, toggle a layer.
+// AI-assisted (Claude Code). Routing model: docs/PLAN.md section 6 and
+// pipeline/routes.py, which this mirrors.
 (function () {
-  var cards = { direct: document.getElementById('card-direct'), cautious: document.getElementById('card-cautious') };
-  function pick(name) {
-    cards.direct.hidden = name !== 'direct';
-    cards.cautious.hidden = name !== 'cautious';
-    document.getElementById('tool-direct').classList.toggle('dim', name !== 'direct');
-    document.getElementById('tool-cautious').classList.toggle('dim', name !== 'cautious');
-    document.getElementById('prof-direct').classList.toggle('dim', name !== 'direct');
-    document.getElementById('prof-cautious').classList.toggle('dim', name !== 'cautious');
+'use strict';
+var SITE = {{SITE_JSON}};
+var ICON = {{ICONS_JSON}};
+var NAVCAM = "{{NAVCAM}}";
+var RATE_MSV_PER_SOL = 0.67, SOL_HOURS = 24.6597, MARS_MIN = 1.0275, RESERVE_MIN = 60;
+var COLS = SITE.cols, ROWS = SITE.rows, CELL = SITE.cell_m, N = COLS * ROWS;
+var elev = new Float32Array(N), slope = new Float32Array(N);
+var P = { suit: 0.5, limit: 20, work: 30, depart: 9 * 60 };
+var S = { start: null, dest: null, mode: 'dest', sel: 'direct', routes: null, scrub: 0, busy: false, playing: false };
+var $ = function (id) { return document.getElementById(id); };
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- routing (also runs inside a worker) ----------
+function astar(elev, slope, COLS, ROWS, CELL, s, g, limit, suit, cautious) {
+  var N = COLS * ROWS, best = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1);
+  var hf = [], hn = [], gx = g % COLS, gy = (g / COLS) | 0, vmax = 6 * suit / 3.6;
+  var DX = [0, 0, -1, 1, -1, 1, -1, 1], DY = [-1, 1, 0, 0, -1, -1, 1, 1];
+  function push(f, n) { var i = hf.length; hf.push(f); hn.push(n);
+    while (i > 0) { var p = (i - 1) >> 1; if (hf[p] <= f) break; hf[i] = hf[p]; hn[i] = hn[p]; i = p; } hf[i] = f; hn[i] = n; }
+  function pop() { var n = hn[0], lf = hf.pop(), ln = hn.pop(), len = hf.length;
+    if (len) { var i = 0; for (;;) { var c = 2 * i + 1; if (c >= len) break; if (c + 1 < len && hf[c + 1] < hf[c]) c++; if (hf[c] >= lf) break; hf[i] = hf[c]; hn[i] = hn[c]; i = c; } hf[i] = lf; hn[i] = ln; }
+    return n; }
+  best[s] = 0; push(0, s);
+  while (hf.length) {
+    var f0 = hf[0], cur = pop();
+    if (cur === g) { var path = []; for (var n = g; n !== -1; n = came[n]) path.push(n); return path.reverse(); }
+    var cx = cur % COLS, cy = (cur / COLS) | 0, gc = best[cur];
+    if (f0 - gc > 1e9) continue;
+    for (var k = 0; k < 8; k++) {
+      var nx = cx + DX[k], ny = cy + DY[k];
+      if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+      var ni = ny * COLS + nx, sl = slope[ni];
+      if (sl > limit) continue;
+      var dist = k < 4 ? CELL : CELL * 1.41421356, tan = (elev[ni] - elev[cur]) / dist;
+      var t = dist / (6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * suit / 3.6);
+      if (cautious && sl > 10) t *= 1 + (sl - 10) * 0.6;
+      var ng = gc + t;
+      if (ng < best[ni]) { best[ni] = ng; came[ni] = cur;
+        var hx = nx - gx, hy = ny - gy; push(ng + Math.sqrt(hx * hx + hy * hy) * CELL / vmax, ni); }
+    }
   }
-  ['direct', 'cautious'].forEach(function (n) {
-    var el = document.getElementById('pick-' + n);
-    el.addEventListener('change', function () { if (el.checked) pick(n); });
-    if (el.checked) pick(n);
+  return null;
+}
+var worker = null, jobId = 0, pending = null;
+function makeWorker() {
+  try {
+    var src = astar.toString() + ';var E,SL,C,R,CL;onmessage=function(e){var d=e.data;if(d.init){E=d.elev;SL=d.slope;C=d.cols;R=d.rows;CL=d.cell;return;}' +
+      'postMessage({id:d.id,direct:astar(E,SL,C,R,CL,d.s,d.g,d.limit,d.suit,false),cautious:astar(E,SL,C,R,CL,d.s,d.g,d.limit,d.suit,true)});};';
+    worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    worker.postMessage({ init: true, elev: elev, slope: slope, cols: COLS, rows: ROWS, cell: CELL });
+    worker.onmessage = function (e) { if (pending && e.data.id === pending.id) { var p = pending; pending = null; p.done(e.data); } };
+    worker.onerror = function () { worker = null; if (pending) { var p = pending; pending = null; p.done(solveHere(p)); } };
+  } catch (err) { worker = null; }
+}
+function solveHere(job) {
+  return { direct: astar(elev, slope, COLS, ROWS, CELL, job.s, job.g, job.limit, job.suit, false),
+           cautious: astar(elev, slope, COLS, ROWS, CELL, job.s, job.g, job.limit, job.suit, true) };
+}
+function solve(done) {
+  var job = { id: ++jobId, s: idx(S.start), g: idx(S.dest), limit: P.limit, suit: P.suit, done: done };
+  if (worker) { pending = job; worker.postMessage({ id: job.id, s: job.s, g: job.g, limit: job.limit, suit: job.suit }); }
+  else setTimeout(function () { if (job.id === jobId) done(solveHere(job)); }, 20);
+}
+
+// ---------- helpers ----------
+function idx(p) { return Math.round(p.y) * COLS + Math.round(p.x); }
+function speed(tan) { return 6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * P.suit / 3.6; }
+function fmtMin(m) { m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min'; }
+function clock(m) { m = Math.round(m); return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+function parseClock(s) { var a = s.split(':'); return +a[0] * 60 + +a[1]; }
+function round10(m) { return Math.round(m / 10) * 10; }
+function lonlat(p) {
+  var lon = SITE.west + (p.x + 0.5) / COLS * (SITE.east - SITE.west), lat = SITE.north - (p.y + 0.5) / ROWS * (SITE.north - SITE.south);
+  return Math.abs(lat).toFixed(4) + (lat < 0 ? ' S ' : ' N ') + lon.toFixed(4) + ' E';
+}
+function nearStation(p) {
+  for (var i = 0; i < SITE.stations.length; i++) { var s = SITE.stations[i]; if (Math.hypot(s.xy[0] - p.x, s.xy[1] - p.y) < 3) return s; }
+  return null;
+}
+function label(p) { var s = nearStation(p); return s ? s.id + ' ' + s.name.replace(/ \(.*/, '') : lonlat(p); }
+function snap(p) {
+  var x0 = Math.max(0, Math.min(COLS - 1, Math.round(p.x))), y0 = Math.max(0, Math.min(ROWS - 1, Math.round(p.y)));
+  if (slope[y0 * COLS + x0] <= P.limit) return { x: x0, y: y0, moved: false };
+  for (var r = 1; r <= 15; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    var x = x0 + dx, y = y0 + dy;
+    if (x >= 0 && y >= 0 && x < COLS && y < ROWS && slope[y * COLS + x] <= P.limit) return { x: x, y: y, moved: true };
+  }
+  return null;
+}
+function analyse(path) {
+  if (!path) return null;
+  var n = path.length, d = new Float32Array(n), t = new Float32Array(n), dist = 0, out = 0, back = 0, climb = 0, drop = 0, over10 = 0, maxS = 0;
+  for (var i = 1; i < n; i++) {
+    var a = path[i - 1], b = path[i], diag = (a % COLS !== b % COLS) && (((a / COLS) | 0) !== ((b / COLS) | 0));
+    var step = diag ? CELL * 1.41421356 : CELL, dz = elev[b] - elev[a];
+    dist += step; out += step / speed(dz / step); back += step / speed(-dz / step);
+    if (dz > 0) climb += dz; else drop -= dz;
+    if (slope[b] > 10) over10 += step; if (slope[b] > maxS) maxS = slope[b];
+    d[i] = dist; t[i] = out;
+  }
+  var outMin = out / 60, backMin = back / 60, walk = outMin + backMin + P.work;
+  return { path: path, d: d, t: t, dist: dist, climb: climb, drop: drop, over10: dist ? over10 / dist : 0, maxS: maxS,
+    outMin: outMin, backMin: backMin, walk: walk, dose: RATE_MSV_PER_SOL * (walk / 60) / SOL_HOURS };
+}
+function at(r, frac) {
+  var target = frac * r.dist, lo = 0, hi = r.path.length - 1;
+  while (lo < hi) { var mid = (lo + hi) >> 1; if (r.d[mid] < target) lo = mid + 1; else hi = mid; }
+  var i = lo, c = r.path[i];
+  return { i: i, x: c % COLS, y: (c / COLS) | 0, dist: r.d[i], elev: elev[c], slope: slope[c], time: r.t[i] / 60 };
+}
+
+// ---------- map ----------
+var cv = $('map'), ctx = cv.getContext('2d'), dpr = 1, W = 0, H = 0;
+var view = { s: 1, x: 0, y: 0 }, img = new Image(), relief = null, bands = null, anim = null, dirty = false;
+function insets() {
+  var wide = window.innerWidth > 860, panel = document.querySelector('.panel').getBoundingClientRect();
+  return wide ? { l: panel.right + 30, r: 70, t: 70, b: 60 } : { l: 24, r: 24, t: 110, b: H * 0.46 + 50 };
+}
+function fitBox(x0, y0, x1, y1, pad) {
+  var m = insets(), w = Math.max(40, x1 - x0) * (1 + pad), h = Math.max(40, y1 - y0) * (1 + pad);
+  var s = Math.min((W - m.l - m.r) / w, (H - m.t - m.b) / h); s = Math.max(minScale(), Math.min(12, s));
+  return { s: s, x: m.l + (W - m.l - m.r) / 2 - (x0 + x1) / 2 * s, y: m.t + (H - m.t - m.b) / 2 - (y0 + y1) / 2 * s };
+}
+function minScale() { return Math.min(W / COLS, H / ROWS) * 0.6; }
+function routeBox() {
+  var x0 = Math.min(S.start.x, S.dest.x), x1 = Math.max(S.start.x, S.dest.x), y0 = Math.min(S.start.y, S.dest.y), y1 = Math.max(S.start.y, S.dest.y);
+  if (S.routes) ['direct', 'cautious'].forEach(function (k) { var r = S.routes[k]; if (!r) return;
+    for (var i = 0; i < r.path.length; i += 6) { var c = r.path[i], x = c % COLS, y = (c / COLS) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } });
+  return fitBox(x0, y0, x1, y1, 0.35);
+}
+function fly(to, ms) {
+  if (reduce || !ms) { view = to; anim = null; return paint(); }
+  var from = { s: view.s, x: view.x, y: view.y }, t0 = performance.now();
+  anim = function (now) {
+    var k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    // interpolate the world point at screen centre so the move reads as one camera path
+    var cx = W / 2, cy = H / 2, s = from.s * Math.pow(to.s / from.s, e);
+    var wx = ((cx - from.x) / from.s) * (1 - e) + ((cx - to.x) / to.s) * e, wy = ((cy - from.y) / from.s) * (1 - e) + ((cy - to.y) / to.s) * e;
+    view = { s: s, x: cx - wx * s, y: cy - wy * s };
+    if (k >= 1) { view = to; anim = null; }
+  };
+  paint();
+}
+function paint() { if (!dirty) { dirty = true; requestAnimationFrame(frame); } }
+function frame(now) {
+  dirty = false;
+  if (anim) anim(now);
+  if (play) play(now);
+  draw();
+  if (anim || play) paint();
+}
+function sx(x) { return (x + 0.5) * view.s + view.x; } function sy(y) { return (y + 0.5) * view.s + view.y; }
+function trace(path, step) {
+  ctx.beginPath();
+  for (var i = 0; i < path.length; i += step) { var c = path[i]; var X = sx(c % COLS), Y = sy((c / COLS) | 0); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }
+  var l = path[path.length - 1]; ctx.lineTo(sx(l % COLS), sy((l / COLS) | 0));
+}
+function drawRoute(r, kind, selected) {
+  if (!r) return;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = selected ? 1 : 0.5;
+  trace(r.path, 2); ctx.setLineDash([]); ctx.strokeStyle = '#0b0e10'; ctx.lineWidth = selected ? 8 : 6; ctx.stroke();
+  trace(r.path, 2); ctx.strokeStyle = kind === 'direct' ? '#f26a3a' : '#fafbfa'; ctx.lineWidth = selected ? 4.5 : 3;
+  if (kind === 'cautious') { ctx.lineCap = 'butt'; ctx.setLineDash([10, 7]); }
+  ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+}
+function pin(p, fill, text, active) {
+  var X = sx(p.x), Y = sy(p.y);
+  if (active) { ctx.beginPath(); ctx.arc(X, Y, 15, 0, 6.2832); ctx.strokeStyle = fill; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(X, Y, 8, 0, 6.2832); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#0b0e10'; ctx.stroke();
+  ctx.font = '700 12px "B612 Mono", monospace'; ctx.lineWidth = 4; ctx.strokeStyle = '#0b0e10'; ctx.fillStyle = '#fafbfa';
+  ctx.strokeText(text, X + 14, Y + 4); ctx.fillText(text, X + 14, Y + 4);
+}
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#050607'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(dpr * view.s, 0, 0, dpr * view.s, dpr * view.x, dpr * view.y);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  if (img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, COLS, ROWS);
+  if (relief && $('ly-relief').checked) ctx.drawImage(relief, 0, 0);
+  if (bands && $('ly-slope').checked) { ctx.globalAlpha = 0.42; ctx.drawImage(bands, 0, 0); ctx.globalAlpha = 1; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if ($('ly-track').checked) {
+    ctx.beginPath(); SITE.track.forEach(function (p, i) { if (i) ctx.lineTo(sx(p[0]), sy(p[1])); else ctx.moveTo(sx(p[0]), sy(p[1])); });
+    ctx.strokeStyle = 'rgba(250,251,250,0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  SITE.stations.forEach(function (s) {
+    var p = { x: s.xy[0], y: s.xy[1] }; if ((S.start && Math.hypot(S.start.x - p.x, S.start.y - p.y) < 9) || (S.dest && Math.hypot(S.dest.x - p.x, S.dest.y - p.y) < 9)) return;
+    var X = sx(p.x), Y = sy(p.y); ctx.beginPath(); ctx.rect(X - 4, Y - 4, 8, 8); ctx.fillStyle = '#fafbfa'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#0b0e10'; ctx.stroke();
+    if (view.s > 1.1) { ctx.font = '700 11px "B612 Mono", monospace'; ctx.lineWidth = 3; ctx.strokeText(s.id, X + 9, Y + 4); ctx.fillStyle = '#fafbfa'; ctx.fillText(s.id, X + 9, Y + 4); }
   });
-  [['ly-routes', 'g-routes'], ['ly-slope', 'slope'], ['ly-track', 'g-track']].forEach(function (p) {
-    var box = document.getElementById(p[0]), target = document.getElementById(p[1]);
-    function apply() { target.style.opacity = box.checked ? '' : '0'; }
-    box.addEventListener('change', apply); apply();
+  if (S.routes) { var other = S.sel === 'direct' ? 'cautious' : 'direct'; drawRoute(S.routes[other], other, false); drawRoute(S.routes[S.sel], S.sel, true); }
+  if (S.start) pin(S.start, '#fafbfa', 'START', S.mode === 'start');
+  if (S.dest) pin(S.dest, '#f26a3a', 'DEST', S.mode === 'dest');
+  var r = S.routes && S.routes[S.sel];
+  if (r && (S.scrub > 0 || S.playing)) {
+    var a = at(r, S.scrub), X = sx(a.x), Y = sy(a.y);
+    ctx.beginPath(); ctx.arc(X, Y, 6, 0, 6.2832); ctx.fillStyle = '#fafbfa'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#f26a3a'; ctx.stroke();
+  }
+  var px = 100 / CELL * view.s, len = 100; while (px > 150) { px /= 2; len /= 2; } while (px < 50) { px *= 2; len *= 2; }
+  $('bar').style.width = px + 'px'; $('bar-l').textContent = len + ' m';
+}
+function resize() {
+  var r = cv.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio || 1); W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); paint();
+}
+function buildRelief() {
+  var c = document.createElement('canvas'); c.width = COLS; c.height = ROWS; var x = c.getContext('2d'), im = x.createImageData(COLS, ROWS), d = im.data;
+  var lx = -0.5, ly = -0.5, lz = 0.7071;
+  for (var yy = 1; yy < ROWS - 1; yy++) for (var xx = 1; xx < COLS - 1; xx++) {
+    var i = yy * COLS + xx, gx = (elev[i + 1] - elev[i - 1]) / (2 * CELL), gy = (elev[i + COLS] - elev[i - COLS]) / (2 * CELL);
+    var nl = Math.sqrt(gx * gx + gy * gy + 1), sh = (-gx * lx - gy * ly + lz) / nl - 0.7071, o = i * 4;
+    if (sh < 0) { d[o] = 4; d[o + 1] = 6; d[o + 2] = 8; d[o + 3] = Math.min(190, -sh * 520); }
+    else { d[o] = 255; d[o + 1] = 244; d[o + 2] = 232; d[o + 3] = Math.min(70, sh * 260); }
+  }
+  x.putImageData(im, 0, 0); relief = c;
+}
+function buildBands() {
+  var c = bands || document.createElement('canvas'); c.width = COLS; c.height = ROWS; var x = c.getContext('2d'), im = x.createImageData(COLS, ROWS), d = im.data;
+  for (var i = 0; i < N; i++) { var s = slope[i], o = i * 4;
+    if (s > P.limit) { var st = (((i % COLS) + ((i / COLS) | 0)) % 5) < 2; d[o] = 12; d[o + 1] = 15; d[o + 2] = 17; d[o + 3] = st ? 235 : 110; }
+    else if (s > 15) { d[o] = 226; d[o + 1] = 150; d[o + 2] = 40; d[o + 3] = 200; }
+    else if (s > 10) { d[o] = 240; d[o + 1] = 214; d[o + 2] = 110; d[o + 3] = 150; } }
+  x.putImageData(im, 0, 0); bands = c;
+}
+
+// ---------- pointer input ----------
+var pts = {}, moved = 0, pinch = 0;
+function world(e) { var r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - view.x) / view.s - 0.5, y: (e.clientY - r.top - view.y) / view.s - 0.5 }; }
+function zoomAt(cx, cy, k) { var s = Math.max(minScale(), Math.min(12, view.s * k)); k = s / view.s; view = { s: s, x: cx - (cx - view.x) * k, y: cy - (cy - view.y) * k }; anim = null; paint(); }
+cv.addEventListener('pointerdown', function (e) { cv.setPointerCapture(e.pointerId); pts[e.pointerId] = { x: e.clientX, y: e.clientY }; moved = 0; pinch = 0; stopPlay(); });
+cv.addEventListener('pointermove', function (e) {
+  var p = pts[e.pointerId]; if (!p) return; var ids = Object.keys(pts);
+  if (ids.length === 2) {
+    var o = pts[ids[0] == e.pointerId ? ids[1] : ids[0]], d = Math.hypot(e.clientX - o.x, e.clientY - o.y);
+    if (pinch) zoomAt((e.clientX + o.x) / 2, (e.clientY + o.y) / 2, d / pinch); pinch = d; moved = 99;
+  } else { var dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 5) { view.x += dx; view.y += dy; anim = null; cv.classList.add('dragging'); paint(); } }
+  p.x = e.clientX; p.y = e.clientY;
+});
+function up(e) { var was = pts[e.pointerId]; delete pts[e.pointerId]; cv.classList.remove('dragging'); pinch = 0;
+  if (was && moved <= 5 && e.type === 'pointerup') place(world(e)); }
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', function (e) { e.preventDefault(); var r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
+cv.addEventListener('keydown', function (e) { var k = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] }[e.key];
+  if (k) { view.x += k[0]; view.y += k[1]; paint(); e.preventDefault(); } else if (e.key === '+' || e.key === '=') zoomAt(W / 2, H / 2, 1.3); else if (e.key === '-') zoomAt(W / 2, H / 2, 1 / 1.3); });
+cv.tabIndex = 0;
+
+// ---------- state changes ----------
+function hint(text, warn) { var h = $('hint'); h.textContent = text; h.classList.toggle('warn', !!warn); }
+function place(p) {
+  if (p.x < 0 || p.y < 0 || p.x > COLS - 1 || p.y > ROWS - 1) return hint('That point is outside the mapped area.', true);
+  var s = snap(p); if (!s) return hint('That ground is steeper than the ' + P.limit + '° limit, with nothing walkable within 30 m. Pick another point or raise the limit under Assumptions.', true);
+  S[S.mode] = { x: s.x, y: s.y }; S.scrub = 0;
+  recompute(s.moved ? 'Moved to the nearest walkable ground.' : '');
+}
+function recompute(note, fit) {
+  S.busy = true; $('headline').textContent = 'Computing routes'; ui();
+  solve(function (res) {
+    S.busy = false; S.routes = { direct: analyse(res.direct), cautious: analyse(res.cautious) };
+    if (!S.routes[S.sel]) S.sel = 'direct';
+    ui();
+    if (!S.routes.direct) hint('No walkable route between these points under the ' + P.limit + '° limit. Move a point, or raise the limit under Assumptions.', true);
+    else hint((note ? note + ' ' : '') + (S.mode === 'dest' ? 'Click the map to move the destination.' : 'Click the map to move the start.') + ' Drag to pan, scroll to zoom.');
+    if (fit) fly(routeBox(), 900); else paint();
   });
+}
+function verdict() {
+  var r = S.routes && S.routes[S.sel], list = [], c = SITE.conditions;
+  if (!r) return { go: false, head: 'No route', why: 'Blocked by the slope limit', list: [['bad', 'No walkable route between these points under the ' + P.limit + '° limit']] };
+  var sunset = parseClock(c.sunset), back = P.depart + r.walk / MARS_MIN, margin = (sunset - back) * MARS_MIN, okDay = margin >= RESERVE_MIN;
+  list.push([okDay ? 'ok' : 'bad', 'Back at ' + clock(back) + ', ' + (margin >= 0 ? fmtMin(margin) + ' before sunset' : fmtMin(-margin) + ' after sunset') + ' (reserve ' + RESERVE_MIN + ' min)']);
+  list.push(['ok', 'Steepest ground ' + Math.round(r.maxS) + '°, inside the ' + P.limit + '° limit']);
+  list.push(['info', 'From the far point, the start is ' + fmtMin(r.backMin) + ' away']);
+  list.push(['info', 'Radiation about ' + r.dose.toFixed(2) + ' mSv for the walk, the same on either route']);
+  list.push(['info', 'Ground ' + c.min_gts_temp + ' to ' + c.max_gts_temp + ' °C on sol ' + c.sol]);
+  return { go: okDay, head: okDay ? 'Clear to walk' : 'Not enough daylight', why: fmtMin(r.walk) + ' in all, leaving at ' + clock(P.depart), list: list };
+}
+function stats(r) {
+  if (!r) return '<dt>No route</dt><dd></dd>';
+  return '<dt>Distance</dt><dd>' + round10(r.dist) + ' m</dd><dt>Climb</dt><dd>' + Math.round(r.climb) + ' m</dd><dt>Over 10°</dt><dd>' + Math.round(r.over10 * 100) + '%</dd><dt>Out, back</dt><dd>' + Math.round(r.outMin) + ', ' + Math.round(r.backMin) + ' min</dd>';
+}
+function ui() {
+  $('lbl-start').textContent = S.start ? label(S.start) : ''; $('lbl-dest').textContent = S.dest ? label(S.dest) : '';
+  $('end-start').setAttribute('aria-pressed', S.mode === 'start'); $('end-dest').setAttribute('aria-pressed', S.mode === 'dest');
+  $('help').textContent = 'Editing the ' + (S.mode === 'dest' ? 'destination' : 'start') + '. Click the map or a station to move it.';
+  $('out-suit').textContent = P.suit.toFixed(2); $('out-limit').textContent = P.limit + '°'; $('out-work').textContent = P.work + ' min';
+  var R = S.routes || {}, d = R.direct, c = R.cautious;
+  $('d-time').textContent = d ? fmtMin(d.walk) : 'None'; $('c-time').textContent = c ? fmtMin(c.walk) : 'None';
+  $('d-stats').innerHTML = stats(d); $('c-stats').innerHTML = stats(c);
+  $('rt-direct').setAttribute('aria-pressed', S.sel === 'direct'); $('rt-cautious').setAttribute('aria-pressed', S.sel === 'cautious');
+  if (d && c) { var extra = round10(c.dist - d.dist), cut = Math.round((d.over10 - c.over10) * 100);
+    $('diff').textContent = extra <= 0 || cut <= 0 ? 'Both routes follow nearly the same ground here.' : 'Cautious adds about ' + extra + ' m and ' + Math.max(1, Math.round(c.walk - d.walk)) + ' min, and cuts steep ground by ' + cut + ' points.'; }
+  else $('diff').textContent = '';
+  if (!S.busy) { var v = verdict(); $('verdict').className = 'verdict ' + (v.go ? 'go' : 'nogo'); $('call').textContent = v.go ? 'GO' : 'NO-GO';
+    $('headline').textContent = v.head; $('why').textContent = v.why;
+    $('checks').innerHTML = v.list.map(function (x) { return '<li class="' + x[0] + '">' + (x[0] === 'bad' ? ICON.WarningCircle : ICON.CheckCircle) + '<span>' + x[1] + '</span></li>'; }).join(''); }
+  $('rehearse').disabled = $('open-guide').disabled = !(S.routes && S.routes[S.sel]);
+  profile(); readout(); if (!$('guide').hidden) guide();
+}
+function profile() {
+  var svg = $('profile'), R = S.routes, r = R && R[S.sel]; if (!r) { svg.innerHTML = ''; return; }
+  var o = R[S.sel === 'direct' ? 'cautious' : 'direct'], xm = Math.max(r.dist, o ? o.dist : 0), lo = Infinity, hi = -Infinity;
+  [r, o].forEach(function (q) { if (q) for (var i = 0; i < q.path.length; i += 3) { var z = elev[q.path[i]]; if (z < lo) lo = z; if (z > hi) hi = z; } });
+  if (hi - lo < 6) { hi += 3; lo -= 3; } var L = 4, T = 6, w = 332, h = 70;
+  function line(q, cls) { var s = ''; for (var i = 0; i < q.path.length; i += 2) s += (i ? 'L' : 'M') + (L + q.d[i] / xm * w).toFixed(1) + ' ' + (T + (hi - elev[q.path[i]]) / (hi - lo) * h).toFixed(1);
+    return '<path class="' + cls + '" vector-effect="non-scaling-stroke" d="' + s + '"/>'; }
+  var cx = L + S.scrub * r.dist / xm * w;
+  svg.innerHTML = '<line class="ax" x1="0" y1="' + (T + h) + '" x2="340" y2="' + (T + h) + '" vector-effect="non-scaling-stroke"/>' + (o ? line(o, 'oth') : '') + line(r, 'sel') +
+    '<line class="cur" x1="' + cx + '" x2="' + cx + '" y1="0" y2="' + (T + h) + '" vector-effect="non-scaling-stroke"/>' +
+    '<text x="2" y="92">' + Math.round(lo) + ' m</text><text x="338" y="92" text-anchor="end">' + Math.round(hi) + ' m high, ' + round10(xm) + ' m long</text>';
+  svg._xm = xm; svg._L = L; svg._w = w;
+}
+function cursor() { var svg = $('profile'), r = S.routes && S.routes[S.sel], l = svg.querySelector('.cur'); if (!r || !l) return;
+  var cx = svg._L + S.scrub * r.dist / svg._xm * svg._w; l.setAttribute('x1', cx); l.setAttribute('x2', cx); }
+function readout() {
+  var r = S.routes && S.routes[S.sel];
+  var a = r ? at(r, S.scrub) : null;
+  ['r-', 'h-'].forEach(function (p) {
+    $(p + 'dist').textContent = a ? Math.round(a.dist) + ' m' : ''; $(p + 'elev').textContent = a ? Math.round(a.elev) + ' m' : '';
+    $(p + 'slope').textContent = a ? Math.round(a.slope) + '°' : ''; $(p + 'time').textContent = a ? Math.round(a.time) + ' min' : ''; });
+}
+function scrubTo(e) { var svg = $('profile'), r = S.routes && S.routes[S.sel]; if (!r) return; var b = svg.getBoundingClientRect();
+  var x = (e.clientX - b.left) / b.width * 340; S.scrub = Math.max(0, Math.min(1, (x - svg._L) / svg._w * svg._xm / r.dist)); cursor(); readout(); paint(); }
+$('profile').addEventListener('pointerdown', function (e) { stopPlay(); this.setPointerCapture(e.pointerId); this._on = true; scrubTo(e); });
+$('profile').addEventListener('pointermove', function (e) { if (this._on) scrubTo(e); });
+$('profile').addEventListener('pointerup', function () { this._on = false; });
+
+// ---------- rehearsal ----------
+var play = null;
+function stopPlay() { if (!S.playing) return; play = null; S.playing = false; $('hud').hidden = true; $('rehearse').querySelector('span').textContent = 'Rehearse'; paint(); }
+$('rehearse').addEventListener('click', function () {
+  var r = S.routes && S.routes[S.sel]; if (!r) return; if (S.playing) return stopPlay();
+  S.playing = true; $('hud').hidden = false; $('guide').hidden = true; this.querySelector('span').textContent = 'Stop';
+  var ms = Math.max(8000, Math.min(18000, r.dist * 22)), t0 = performance.now(), zs = Math.max(view.s, Math.min(6, (W * 0.5) / (160 / CELL)));
+  var m = insets(), cx = m.l + (W - m.l - m.r) / 2, cy = m.t + (H - m.t - m.b) / 2; anim = null;
+  play = function (now) {
+    var k = Math.min(1, (now - t0) / ms); S.scrub = k; var a = at(r, k);
+    if (!reduce) { var s = view.s + (zs - view.s) * 0.08, tx = cx - (a.x + 0.5) * s, ty = cy - (a.y + 0.5) * s;
+      view = { s: s, x: view.x + (tx - view.x) * 0.09, y: view.y + (ty - view.y) * 0.09 }; }
+    cursor(); readout(); if (k >= 1) { play = null; S.playing = false; $('hud').hidden = true; $('rehearse').querySelector('span').textContent = 'Rehearse'; hint('Arrived. Open the field guide for the leg by leg plan.'); }
+  };
+  hint('Rehearsing the ' + S.sel + ' route. Touch the map to stop.'); paint();
+});
+$('stop').addEventListener('click', stopPlay);
+
+// ---------- field guide ----------
+function legs(r) {
+  var out = [], cls = function (s) { return s > 15 ? 3 : s > 10 ? 2 : s > 5 ? 1 : 0; }, cur = null;
+  for (var i = 1; i < r.path.length; i++) { var k = cls(slope[r.path[i]]);
+    if (!cur || k !== cur.k) { if (cur && r.d[i - 1] - cur.from < 16 && out.length) { out[out.length - 1].to = r.d[i - 1]; out[out.length - 1].iTo = i - 1; out[out.length - 1].k = Math.max(out[out.length - 1].k, cur.k); }
+      else if (cur) out.push(cur); cur = { k: k, from: r.d[i - 1], iFrom: i - 1 }; }
+    cur.to = r.d[i]; cur.iTo = i; }
+  if (cur) out.push(cur);
+  var merged = []; out.forEach(function (l) { var p = merged[merged.length - 1]; if (p && p.k === l.k) { p.to = l.to; p.iTo = l.iTo; } else merged.push(l); });
+  return merged;
+}
+function guide() {
+  var r = S.routes[S.sel], c = SITE.conditions, v = verdict(), words = ['Gentle ground', 'Moderate slope', 'Steep, slow down', 'Very steep, take care'];
+  function li(m, w, t) { return '<li><span class="mk mk-' + m + '" role="img" aria-label="' + w + '"></span><span>' + t + '</span></li>'; }
+  function V(t) { return '<span class="v">' + t + '</span>'; }
+  $('g-sub').textContent = (S.sel === 'direct' ? 'Direct' : 'Cautious') + ' route, ' + label(S.start) + ' to ' + label(S.dest);
+  var L = legs(r).map(function (l) { var dz = elev[r.path[l.iTo]] - elev[r.path[l.iFrom]];
+    return '<div class="leg"><i class="s' + l.k + '"></i><span class="mono">' + Math.round(l.from) + ' to ' + Math.round(l.to) + ' m</span><span>' + words[l.k] + '</span><span class="mono">' + (dz >= 0 ? 'up ' : 'down ') + Math.abs(Math.round(dz)) + ' m</span></div>'; }).join('');
+  var atS1 = nearStation(S.dest) && /S1|S2/.test(nearStation(S.dest).id), st = nearStation(S.dest);
+  $('g-body').innerHTML =
+    '<div class="key"><span><i class="mk mk-m"></i> measured</span><span><i class="mk mk-d"></i> derived</span><span><i class="mk mk-a"></i> assumed</span><span><i class="mk mk-s"></i> simulated</span></div>' +
+    '<h3>Decision</h3><ul>' + li('d', 'Derived', '<b style="color:var(--' + (v.go ? 'go' : 'nogo') + ')">' + (v.go ? 'GO' : 'NO-GO') + '</b>. ' + v.head + '. ' + v.list[0][1] + '.') + '</ul>' +
+    '<h3>Objective</h3><ul><li class="plain">Sample one hollow and one adjacent ridge of the boxwork unit, to learn why the ridges resisted erosion.</li></ul>' +
+    '<h3>Route</h3><ul>' + li('s', 'Simulated', 'Start at ' + V(label(S.start)) + ', a notional rover park') +
+      li('d', 'Derived', 'Distance ' + V(round10(r.dist) + ' m') + ', climb ' + V(Math.round(r.climb) + ' m') + ', ' + V(Math.round(r.over10 * 100) + '%') + ' on ground over 10°') +
+      li('a', 'Assumed', 'Out ' + V(Math.round(r.outMin) + ' min') + ', back ' + V(Math.round(r.backMin) + ' min') + ', at the destination ' + V(P.work + ' min')) +
+      li('a', 'Assumed', 'Leave ' + V(clock(P.depart)) + ', whole walk about ' + V(fmtMin(r.walk))) + '</ul>' +
+    '<h3>Leg by leg</h3><div class="legs">' + L + '</div>' +
+    '<h3>Turn back if</h3><ul>' + li('a', 'Assumed', 'You are not at the destination ' + V(fmtMin(r.outMin * 1.5)) + ' after leaving. That is one and a half times the planned time out.') +
+      li('d', 'Derived', 'From the far point the start is ' + V(fmtMin(r.backMin)) + ' away') + '</ul>' +
+    '<h3>Conditions</h3><ul>' + li('m', 'Measured', 'Air ' + V(c.min_temp + ' to ' + c.max_temp + ' °C') + ', ground ' + V(c.min_gts_temp + ' to ' + c.max_gts_temp + ' °C')) +
+      li('m', 'Measured', 'Daylight ' + V(c.sunrise + ' to ' + c.sunset) + ' local time, sky ' + c.atmo_opacity.toLowerCase() + ', UV ' + c.local_uv_irradiance_index.toLowerCase()) + '</ul>' +
+    '<h3>Radiation</h3><ul>' + li('m', 'Measured', V(RATE_MSV_PER_SOL + ' mSv') + ' per Mars day at Gale crater (Curiosity RAD, 2012 to 2013)') +
+      li('d', 'Derived', 'About ' + V(r.dose.toFixed(2) + ' mSv') + ' for this walk. No route-scale radiation data exists, so the route does not change it.') + '</ul>' +
+    (st ? '<h3>At the destination</h3><ul><li class="plain">' + st.note + '.</li></ul>' : '') +
+    (atS1 ? '<figure><img alt="Greyscale photo of fractured bedrock slabs and loose rocks beside a rover wheel" src="' + NAVCAM + '"><figcaption>The ground here, from Curiosity\'s left navigation camera, sol 4687 (12 October 2025). NASA/JPL-Caltech.</figcaption></figure>' : '') +
+    '<div class="limits"><h3>Limits</h3><ul>' +
+      '<li class="plain">Rocks smaller than about 1 m are not in the terrain model. Watch your feet.</li>' +
+      '<li class="plain">Walking speed is an Earth hiking model scaled by a suit factor of ' + P.suit.toFixed(2) + ', which is an assumption.</li>' +
+      '<li class="plain">The ' + P.limit + '° slope limit and the ' + RESERVE_MIN + ' minute daylight reserve are assumptions, not NASA limits.</li>' +
+      '<li class="plain">Sand, dust and wind are not modelled.</li>' +
+      '<li class="plain">Conditions are from sol ' + c.sol + ' (' + c.terrestrial_date + '), not today.</li>' +
+      '<li class="plain">The radiation rate is quoted from a summary of Hassler et al. (2014).</li></ul></div>' +
+    '<h3>Sources</h3><ul>' +
+      '<li class="plain">Image: HiRISE, NASA/JPL-Caltech/University of Arizona, served by <a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek</a></li>' +
+      '<li class="plain">Terrain: <a href="https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" target="_blank" rel="noopener">USGS Mars MSL Gale Merged DEM 1m</a></li>' +
+      '<li class="plain">Weather, track, photo, radiation: Curiosity (REMS, localization, Navcam, RAD), NASA/JPL-Caltech</li></ul>';
+}
+$('open-guide').addEventListener('click', function () { stopPlay(); guide(); $('guide').hidden = false; $('close-guide').focus(); });
+$('close-guide').addEventListener('click', function () { $('guide').hidden = true; $('open-guide').focus(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { $('guide').hidden = true; stopPlay(); } });
+
+// ---------- controls ----------
+function setMode(m) { S.mode = m; ui(); hint('Click the map to move the ' + (m === 'dest' ? 'destination' : 'start') + '. Drag to pan, scroll to zoom.'); paint(); }
+$('end-start').addEventListener('click', function () { setMode('start'); }); $('end-dest').addEventListener('click', function () { setMode('dest'); });
+$('swap').addEventListener('click', function () { var t = S.start; S.start = S.dest; S.dest = t; S.scrub = 0; recompute('', true); });
+['direct', 'cautious'].forEach(function (k) { $('rt-' + k).addEventListener('click', function () { if (S.routes && S.routes[k]) { S.sel = k; S.scrub = 0; stopPlay(); ui(); paint(); } }); });
+$('chips').innerHTML = SITE.stations.map(function (s, i) { return '<button class="chip" data-i="' + i + '" title="' + s.note + '"><b>' + s.id + '</b>' + s.name.replace(/ \(.*/, '') + '</button>'; }).join('');
+$('chips').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var s = SITE.stations[+b.dataset.i]; S.scrub = 0; var p = snap({ x: s.xy[0], y: s.xy[1] }); if (!p) return hint('That station is on ground over the slope limit.', true); S[S.mode] = { x: p.x, y: p.y }; recompute('', true); });
+var dep = $('in-depart'); for (var hh = 7; hh <= 17; hh++) dep.innerHTML += '<option value="' + hh * 60 + '"' + (hh === 9 ? ' selected' : '') + '>' + clock(hh * 60) + '</option>';
+dep.addEventListener('change', function () { P.depart = +dep.value; ui(); });
+$('in-work').addEventListener('input', function () { P.work = +this.value; if (S.routes) S.routes = { direct: analyse(S.routes.direct && S.routes.direct.path), cautious: analyse(S.routes.cautious && S.routes.cautious.path) }; ui(); });
+var timer = 0; function later() { clearTimeout(timer); timer = setTimeout(function () { recompute(''); }, 220); }
+$('in-suit').addEventListener('input', function () { P.suit = +this.value; $('out-suit').textContent = P.suit.toFixed(2); later(); });
+$('in-limit').addEventListener('input', function () { P.limit = +this.value; $('out-limit').textContent = P.limit + '°'; buildBands();
+  ['start', 'dest'].forEach(function (k) { var p = snap(S[k]); if (p) S[k] = { x: p.x, y: p.y }; }); paint(); later(); });
+['ly-relief', 'ly-slope', 'ly-track'].forEach(function (id) { $(id).addEventListener('change', paint); });
+$('z-in').addEventListener('click', function () { zoomAt(W / 2, H / 2, 1.5); }); $('z-out').addEventListener('click', function () { zoomAt(W / 2, H / 2, 1 / 1.5); });
+$('z-fit').addEventListener('click', function () { fly(routeBox(), 700); });
+window.addEventListener('resize', resize);
+
+// ---------- start ----------
+function boot() {
+  var t = new Image();
+  t.onload = function () {
+    var c = document.createElement('canvas'); c.width = COLS; c.height = ROWS; var x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(t, 0, 0);
+    var d = x.getImageData(0, 0, COLS, ROWS).data;
+    for (var i = 0; i < N; i++) { elev[i] = SITE.zmin + ((d[i * 4] << 8) | d[i * 4 + 1]) / 100; slope[i] = d[i * 4 + 2] / 4; }
+    buildRelief(); buildBands(); makeWorker();
+    var st = {}; SITE.stations.forEach(function (s) { st[s.id] = s; });
+    S.start = snap({ x: st.S0.xy[0], y: st.S0.xy[1] }); S.dest = snap({ x: st.S1.xy[0], y: st.S1.xy[1] });
+    resize(); view = fitBox(0, 0, COLS, ROWS, 0.02); paint();
+    if (!reduce) $('intro').classList.add('show');
+    recompute('', false);
+    setTimeout(function () { fly(routeBox(), reduce ? 0 : 2200); }, reduce ? 0 : 900);
+  };
+  t.src = "{{TERRAIN}}";
+  img.onload = paint; img.src = "{{SITE_IMG}}";
+}
+boot();
+window.__marswalk = { S: S, P: P, at: at };
 })();
 </script>

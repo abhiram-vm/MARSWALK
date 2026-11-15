@@ -82,8 +82,7 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 | Product | Derived from | Method | What it is not |
 | --- | --- | --- | --- |
 | Slope grid, 2 m cells | T2 | Resample to 2 m, Horn slope | Not sensitive to rocks or steps smaller than the DEM can resolve (roughly 1 to 2 m) |
-| Roughness grid | T2 | Standard deviation of elevation in a 5 by 5 cell window | A terrain texture proxy, not a rock count |
-| Traversal cost grid | Slope, roughness | Time per metre from a slope-dependent walking-speed function; cells above the slope limit are blocked | An estimate. See assumptions. |
+| Traversal cost grid | Slope | Time per metre from a slope-dependent walking-speed function; cells above the slope limit are blocked | An estimate. See assumptions. |
 | Routes | Cost grid | A* shortest path, 8-connected (`pipeline/routes.py`) | Not a certified safe path |
 | EVA dose estimate | R1 | Dose-equivalent rate multiplied by EVA duration | Not a prediction for a future date; ignores suit shielding and solar events |
 
@@ -93,9 +92,9 @@ With the default assumptions in section 4, both routes connect without raising t
 
 | | Direct | Cautious |
 | --- | --- | --- |
-| Distance | 537 m | 626 m |
+| Distance | 537 m | 618 m |
 | Climb | 40 m | 41 m |
-| Share of length over 10 degrees | 31% | 5% |
+| Share of length over 10 degrees | 31% | 7% |
 | Time out / back (assumed model) | 17 / 14 min | 19 / 15 min |
 | Dose for the whole walk (derived) | about 0.03 mSv | about 0.03 mSv |
 

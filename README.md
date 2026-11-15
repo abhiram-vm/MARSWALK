@@ -4,7 +4,7 @@ A walking-scale traverse planner for one real place on Mars: the boxwork ridges 
 
 Built for the 2026 NASA Space Apps Challenge, ["Interplanetary Survival Guide: Martian Map"](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/).
 
-**Status:** planning complete; starter map and data pipeline in place; routing, comparison and briefing not yet built. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
+**Status:** working prototype in `preview/index.html`. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
 
 ## What it does
 
@@ -17,12 +17,18 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 | [docs/PLAN.md](docs/PLAN.md) | The project plan: site, scope, architecture, schedule, risks |
 | [docs/CHALLENGE_BRIEF.md](docs/CHALLENGE_BRIEF.md) | What NASA asks, suggests and leaves optional; rules; judging criteria |
 | [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | Every data layer, its mission, resolution, endpoint, status and limits |
-| [docs/DESIGN.md](docs/DESIGN.md) | Visual direction, tokens, type, layout, copy rules, pre-flight check |
+| [docs/DESIGN.md](docs/DESIGN.md) | How it looks and behaves: layout, motion, performance, tokens, checks |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
 
-## See how it looks
+## Try it
 
-Open `preview/index.html` in a browser. It is one self-contained file: real NASA imagery, two real computed routes, the comparison panel and the field briefing card, in the project's visual style. It is a static preview, not the app; routes are precomputed for one pair of points.
+Open `preview/index.html` in a browser. It is one self-contained file.
+
+- Click anywhere on the map to move the destination. Two routes are computed on the spot.
+- Read the go or no-go call, compare the routes, drag along the elevation chart.
+- Press Rehearse to watch the walk. Open the Field guide for the leg-by-leg plan.
+
+It covers one site, the boxwork unit in Gale crater, using real NASA imagery and terrain.
 
 ## Run it
 
@@ -49,6 +55,10 @@ python3 pipeline/routes.py
 ```
 
 ```bash
+python3 preview/make_assets.py
+```
+
+```bash
 python3 preview/build.py
 ```
 
@@ -61,7 +71,7 @@ The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed i
 
 ## AI assistance
 
-The planning documents in `docs/` were drafted with an AI coding assistant (Claude Code) from the official challenge pages and live NASA data endpoints. The team is responsible for reviewing and correcting them. Code written with AI assistance is identified in file headers. The project concept and design decisions are the team's. No AI-generated images, video or audio are used.
+The project concept, the framework and the decisions are our team's. We used Claude Code as an assistant for drafting documents and writing code, and we reviewed what it produced. No AI-generated images, video or audio are used.
 
 ## Data credits
 
