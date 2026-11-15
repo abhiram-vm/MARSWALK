@@ -20,6 +20,10 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 | [docs/DESIGN.md](docs/DESIGN.md) | Visual direction, tokens, type, layout, copy rules, pre-flight check |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
 
+## See how it looks
+
+Open `preview/index.html` in a browser. It is one self-contained file: real NASA imagery, two real computed routes, the comparison panel and the field briefing card, in the project's visual style. It is a static preview, not the app; routes are precomputed for one pair of points.
+
 ## Run it
 
 ```bash
@@ -38,6 +42,14 @@ python3 pipeline/fetch_reference.py
 
 ```bash
 python3 pipeline/clip_dem.py
+```
+
+```bash
+python3 pipeline/routes.py
+```
+
+```bash
+python3 preview/build.py
 ```
 
 The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed in DATA_SOURCES.md. Its outputs are already committed, so the web app runs without it.

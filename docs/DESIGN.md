@@ -13,6 +13,8 @@ The taste guide says in its own scope note that it is for landing pages and not 
 | Demo slides | Same tokens, type and copy rules as the landing view |
 | Map tool (map, layer panel, route comparison) | Frontend-design guide for direction; from the taste guide only the universal rules in section 7 |
 
+A working example of everything below is in `preview/index.html`.
+
 ## 2. Design read
 
 Reading this as: a mission-planning tool with a short landing view, for judges from NASA and industry who will give it a few minutes, in a utilitarian flight-document language, built on our own CSS tokens with Tailwind v4 utilities and no component library.

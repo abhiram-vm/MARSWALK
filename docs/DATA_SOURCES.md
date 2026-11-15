@@ -35,9 +35,9 @@ Caveats:
 
 | # | Data type | Mission / instrument | Product | Resolution | Access | Status | Use in MARSWALK |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| O1 | Optical | MRO / HiRISE | "MRO HiRISE, Curiosity Roving Site Mosaic" (`curiosity_hirise_mosaic`) | Tile pyramid has 19 levels; level 18 is about 0.16 m per pixel, consistent with a 0.25 m mosaic. Native resolution not stated in the catalog record. | Mars Trek WMTS, PNG | Verified. Tile at the site shows the polygonal ridge network. | Base map |
-| O2 | Optical | MRO / CTX | "MRO CTX, Curiosity Roving Site Mosaic" (`curiosity_ctx_mosaic`), "Gale Crater Mosaic" (`Gale_CTX_BlockAdj_dd`) | About 6 m per pixel (CTX; Trek description says "up to 6 meters/pixel") | Mars Trek WMTS | Verified (catalog); tiles not individually tested | Regional context when zoomed out |
-| T1 | Topographic | MRO / HiRISE stereo | "MRO HiRISE, Gale Crater DEM" (`Gale_DEM_SMG_1m`) | 1 m (from the product name) | Mars Trek WMTS, PNG | Verified, with a limit: the tiles are 8-bit grayscale pictures of the DEM, not elevation values | Shaded-relief overlay only |
+| O1 | Optical | MRO / HiRISE | "MRO HiRISE, Curiosity Roving Site Mosaic" (`curiosity_hirise_mosaic`) | Mars Trek serves it down to tile level 16, about 0.64 m per pixel here. Deeper levels return 404. The USGS source mosaic is finer; we have not fetched it. | Mars Trek WMTS, PNG | Verified. Tile at the site shows the polygonal ridge network. | Base map |
+| O2 | Optical | MRO / CTX | "MRO CTX, Gale Crater Mosaic" (`Gale_CTX_BlockAdj_dd`), also "Curiosity Roving Site Mosaic" (`curiosity_ctx_mosaic`) | Gale mosaic served to level 12, about 10 m per pixel; roving-site mosaic only to level 10, about 41 m per pixel. The instrument itself reaches about 6 m. | Mars Trek WMTS | Verified from each product's capabilities file | Regional context when zoomed out |
+| T1 | Topographic | MRO / HiRISE stereo | "MRO HiRISE, Gale Crater DEM" (`Gale_DEM_SMG_1m`) | 1 m source grid; tiles served to level 14, about 2.5 m per pixel | Mars Trek WMTS, PNG | Verified, with a limit: the tiles are 8-bit grayscale pictures of the DEM, not elevation values | Shaded-relief overlay only |
 | T2 | Topographic | MRO / HiRISE and CTX stereo, Mars Express / HRSC, tied to MGS / MOLA | USGS Astrogeology "Mars MSL Gale Merged DEM 1m" GeoTIFF, v3 (Parker and Calef, 2016) | 1 m grid | [Catalog page](https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m); file `https://planetarymaps.usgs.gov/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif` (3.6 GB, redirects to `asc-pds-services.s3.us-west-2.amazonaws.com`) | Verified. AOI clipped with `pipeline/clip_dem.py` into `data/dem/aoi_dem_1m.tif`; see section 2a. | Real elevations for slope and routing |
 | T3 | Topographic | MGS / MOLA | "MGS MOLA, Global DEM" and color hillshade | 463 m per pixel | Mars Trek WMTS | Verified (catalog) | Regional context only. Far too coarse for a 500 m walk. |
 | H1 | Thermal | Mars Odyssey / THEMIS | "MO THEMIS-IR Night, Global Mosaic" 100 m v2 (and Day) | 100 m per pixel; tiles stop at level 9 here | Mars Trek WMTS, PNG | Verified at level 9; levels 10 and 11 return 404 | Context overlay: relative night-time surface temperature, a proxy for rocky versus loose ground. Only about 15 pixels across the AOI. |
@@ -67,6 +67,7 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 
 - Equirectangular grid, two tiles wide by one tall at level 0. `col = floor((lon + 180) / (180 / 2^z))`, `row = floor((90 - lat) / (180 / 2^z))`.
 - Format is PNG. Requests for `.jpg` return 404.
+- Each product stops at its own deepest level (HiRISE mosaic 16, Gale CTX 12, DEM picture 14, THEMIS 9). The capabilities file lists the levels; requests beyond them return 404. An earlier version of this file overstated the HiRISE depth.
 - Capabilities: `https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/WMTSCapabilities.xml`.
 - Layer search: `https://trek.nasa.gov/mars/TrekServices/ws/index/eq/searchItems?proj=urn:ogc:def:crs:EPSG::104905&start=0&rows=200&facetKeys=itemType&facetValues=product&key={keyword}`.
 - In Leaflet this maps onto `L.CRS.EPSG4326` with `{z}/{y}/{x}`.
@@ -83,8 +84,22 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 | Slope grid, 2 m cells | T2 | Resample to 2 m, Horn slope | Not sensitive to rocks or steps smaller than the DEM can resolve (roughly 1 to 2 m) |
 | Roughness grid | T2 | Standard deviation of elevation in a 5 by 5 cell window | A terrain texture proxy, not a rock count |
 | Traversal cost grid | Slope, roughness | Time per metre from a slope-dependent walking-speed function; cells above the slope limit are blocked | An estimate. See assumptions. |
-| Routes | Cost grid | A* shortest path, 8-connected | Not a certified safe path |
+| Routes | Cost grid | A* shortest path, 8-connected (`pipeline/routes.py`) | Not a certified safe path |
 | EVA dose estimate | R1 | Dose-equivalent rate multiplied by EVA duration | Not a prediction for a future date; ignores suit shielding and solar events |
+
+### 3a. First routing result (computed 2026-11-15, S0 to S1)
+
+With the default assumptions in section 4, both routes connect without raising the slope limit.
+
+| | Direct | Cautious |
+| --- | --- | --- |
+| Distance | 537 m | 626 m |
+| Climb | 40 m | 41 m |
+| Share of length over 10 degrees | 31% | 5% |
+| Time out / back (assumed model) | 17 / 14 min | 19 / 15 min |
+| Dose for the whole walk (derived) | about 0.03 mSv | about 0.03 mSv |
+
+The two routes differ in a way a crew would care about: about 90 m more walking buys a path almost free of ground over 10 degrees. Show figures rounded, as the preview does.
 
 ## 4. Assumptions and simulated values
 
@@ -104,7 +119,7 @@ These are ours, not NASA's. The app must label each one where it appears.
 
 - **No route-scale radiation map exists.** RAD is one instrument at one place. Dose does not vary meaningfully across a 500 m walk, so radiation is a mission-level go/no-go and budget number, never a routing cost. We say this in the app.
 - **No thermal data at walking scale.** THEMIS at 100 m shows the neighbourhood, not the path.
-- **Rocks smaller than about 1 m are invisible** to the DEM. HiRISE imagery shows them down to roughly 0.75 m (three pixels at 0.25 m), but we do not detect them automatically.
+- **Rocks smaller than about 1 m are invisible** to the DEM. The HiRISE tiles we use are about 0.64 m per pixel, so they show rocks of roughly 2 m and up; we do not detect them automatically.
 - **Dust, sand trafficability and wind** are not modelled. Curiosity's wheels are not boots.
 - **Boxwork ridge height** ("roughly 3 to 6 feet (1 to 2 meters) tall") is from a search summary of the JPL release ["NASA's Curiosity Mars Rover Starts Unpacking Boxwork Formations"](https://www.jpl.nasa.gov/news/nasas-curiosity-mars-rover-starts-unpacking-boxwork-formations/). The page itself was not reachable. Cited, not opened.
 

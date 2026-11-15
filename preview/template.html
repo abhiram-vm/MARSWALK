@@ -1,0 +1,450 @@
+<title>MARSWALK Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a flight document. Paper and ink, hairline rules, 2 px corners, one
+   safety-orange accent, numbers in a fixed-width cockpit face. Tokens match
+   docs/DESIGN.md and web/src/index.css. Written with AI assistance. */
+:root {
+  --paper: #f2f4f3;
+  --surface: #fafbfa;
+  --ink: #14181b;
+  --ink-2: #4a5258;
+  --rule: #c8cdd0;
+  --signal: #c8401a;
+  --on-signal: #fafbfa;
+  --sans: 'B612', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'B612 Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* Marks drawn on greyscale imagery keep fixed values in both themes. */
+  --map-signal: #f26a3a;
+  --map-light: #fafbfa;
+  --map-dark: #14181b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1214; --surface: #171b1e; --ink: #e8ecea; --ink-2: #a2abb0;
+    --rule: #2b3237; --signal: #f26a3a; --on-signal: #0f1214; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1214; --surface: #171b1e; --ink: #e8ecea; --ink-2: #a2abb0;
+  --rule: #2b3237; --signal: #f26a3a; --on-signal: #0f1214; color-scheme: dark;
+}
+{{FONT_FACES}}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.5; }
+h1, h2, h3, p, ul, ol, dl, dd, figure, table { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--signal); }
+.wrap { max-width: 1240px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-2); }
+.basemap { background-image: url("{{BASEMAP}}"); background-size: 100% 100%; }
+.navcam { background-image: url("{{NAVCAM}}"); background-size: cover; background-position: center; }
+
+/* Navigation */
+.nav { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.nav .wrap { display: flex; align-items: center; gap: 24px; min-height: 56px; }
+.wordmark { font-weight: 700; letter-spacing: 0.2em; font-size: 16px; text-decoration: none; }
+.nav nav { display: flex; gap: 20px; font-size: 14px; }
+.nav nav a { text-decoration: none; padding-block: 6px; border-bottom: 1px solid transparent; }
+.nav nav a:hover { border-bottom-color: var(--ink); }
+.nav .state { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-2); border: 1px solid var(--rule); padding: 4px 8px; border-radius: 2px; white-space: nowrap; }
+
+/* Hero */
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; padding-block: 40px; }
+.hero h1 { font-size: clamp(2rem, 3.9vw, 2.9rem); line-height: 1.08; letter-spacing: -0.01em; text-wrap: balance; }
+.hero p { margin-top: 20px; max-width: 34ch; font-size: 18px; color: var(--ink-2); }
+.btn { display: inline-flex; align-items: center; gap: 10px; margin-top: 28px; padding: 12px 18px; background: var(--signal); color: var(--on-signal); font: 700 15px var(--sans); text-decoration: none; border: 0; border-radius: 2px; white-space: nowrap; cursor: pointer; }
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn svg { flex: none; }
+.hero figure { justify-self: end; width: min(100%, 520px); }
+.map { position: relative; aspect-ratio: {{PXW}} / {{PXH}}; border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; background-color: #0b0d0e; }
+.map svg, .map img.slope { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map img.slope { max-width: none; opacity: 0.72; }
+figcaption, .caption { margin-top: 8px; font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--ink-2); }
+
+/* Map marks */
+.rt-casing { fill: none; stroke: var(--map-dark); stroke-width: 9; stroke-linejoin: round; stroke-linecap: round; opacity: 0.85; }
+.rt-direct { fill: none; stroke: var(--map-signal); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.rt-cautious { fill: none; stroke: var(--map-light); stroke-width: 5; stroke-linejoin: round; stroke-dasharray: 14 9; }
+.track { fill: none; stroke: var(--map-light); stroke-width: 2; opacity: 0.75; }
+.stn { stroke: var(--map-dark); stroke-width: 3; }
+.stn-sci { fill: var(--map-signal); }
+.stn-start { fill: var(--map-light); }
+.maplabel { font: 700 27px var(--mono); fill: var(--map-light); stroke: var(--map-dark); stroke-width: 5; paint-order: stroke; stroke-linejoin: round; }
+.scalebar line { stroke: var(--map-light); stroke-width: 3; }
+.dim { opacity: 0.4; }
+
+/* Sections */
+section.block .wrap { padding-block: 44px; }
+section.block h2 { font-size: 24px; line-height: 1.2; }
+section.block h2 + p { margin-top: 8px; max-width: 65ch; color: var(--ink-2); }
+.banded { background: var(--surface); border-block: 1px solid var(--rule); }
+
+/* Tool */
+.tool { margin-top: 24px; display: grid; grid-template-columns: 340px minmax(0, 1fr); border: 1px solid var(--rule); border-radius: 2px; background: var(--surface); }
+.rail { border-right: 1px solid var(--rule); min-width: 0; }
+.rail > div { padding: 18px; border-bottom: 1px solid var(--rule); }
+.rail > div:last-child { border-bottom: 0; }
+.rail h3, .canvas h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.pair { display: grid; grid-template-columns: 52px 1fr; gap: 4px 10px; font-size: 14px; }
+.pair dt { color: var(--ink-2); }
+.note { margin-top: 10px; font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+table.cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.cmp th, table.cmp td { text-align: right; padding: 5px 0 5px 8px; font-weight: 400; }
+table.cmp th:first-child, table.cmp td:first-child { text-align: left; padding-left: 0; color: var(--ink-2); }
+table.cmp thead th { padding-bottom: 10px; vertical-align: bottom; }
+table.cmp tbody.gap tr:first-child td { padding-top: 14px; }
+table.cmp td.num { font-family: var(--mono); white-space: nowrap; }
+.pick { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 76px; padding-top: 8px; border-top: 2px solid transparent; cursor: pointer; font-weight: 700; }
+.pick:has(input:checked) { border-top-color: var(--signal); }
+.swatch { display: block; width: 44px; height: 0; border-top: 3px solid var(--signal); }
+.swatch.dash { border-top: 3px dashed var(--ink); }
+.canvas { min-width: 0; padding: 18px; }
+.layers { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin-bottom: 12px; font-size: 13px; }
+.layers label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--rule); }
+.lg-a { background: #f0d66e; } .lg-b { background: #e29628; }
+.lg-c { background: repeating-linear-gradient(135deg, #14181b 0 3px, #8a8f92 3px 6px); }
+.profile { margin-top: 20px; }
+.profile .scroll { overflow-x: auto; }
+.profile svg { width: 100%; min-width: 560px; height: auto; display: block; }
+.profile .ax { stroke: var(--rule); stroke-width: 1; }
+.profile text { font: 10px var(--mono); fill: var(--ink-2); }
+.profile .p-direct { fill: none; stroke: var(--signal); stroke-width: 2; }
+.profile .p-cautious { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 4; }
+
+/* Field card */
+.brief { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 48px; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; padding: 22px; font-size: 14px; }
+.card header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
+.card header b { letter-spacing: 0.16em; font-size: 13px; }
+.card header span { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-block: 10px; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+.card h3 { margin: 18px 0 8px; font-size: 13px; font-weight: 700; }
+.card li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: baseline; padding-block: 3px; }
+.card li.plain { grid-template-columns: minmax(0, 1fr); }
+.card .v { font-family: var(--mono); }
+.mk { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--ink); transform: translateY(1px); }
+.mk-m { background: var(--ink); }
+.mk-a { border-style: dashed; }
+.mk-s { background: repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 4px); }
+.limits { margin-top: 18px; padding-top: 4px; border-top: 2px solid var(--ink); }
+.photo img { width: 100%; border: 1px solid var(--rule); border-radius: 2px; }
+.photo p { margin-top: 20px; max-width: 52ch; color: var(--ink-2); }
+
+/* Missions */
+.missions { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; }
+.cell { border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); padding: 18px; min-width: 0; }
+.cell h3 { font-size: 16px; }
+.cell p { margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+.cell dl { margin-top: 12px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; }
+.cell dt { font-family: var(--mono); }
+.cell dd { color: var(--ink-2); }
+.cell .strip { height: 150px; margin: -18px -18px 16px; border-bottom: 1px solid var(--rule); background-size: cover; background-position: 50% 62%; }
+.cell.tall { grid-row: span 2; }
+.cell.wide { grid-column: 1 / -1; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; padding: 0; }
+.cell.wide .side { min-height: 150px; border-right: 1px solid var(--rule); }
+.cell.wide .body { padding: 18px 18px 18px 0; }
+.use { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); border: 1px solid var(--rule); padding: 2px 6px; border-radius: 2px; }
+
+/* Sources and status */
+.cols { margin-top: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
+.cols h3 { font-size: 14px; margin-bottom: 10px; }
+.cols li { padding-block: 5px; font-size: 14px; }
+.cols li a { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule); }
+.cols li a:hover { text-decoration-color: var(--ink); }
+.cols li a svg { vertical-align: -3px; margin-left: 4px; }
+.cols .grp + .grp { margin-top: 22px; }
+footer .wrap { padding-block: 22px; font-family: var(--mono); font-size: 11px; color: var(--ink-2); border-top: 1px solid var(--rule); }
+
+/* Motion: two moments, each tied to a change. Resting state is fully visible. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero h1, .hero p, .hero .btn, .hero figure { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .hero p { animation-delay: 60ms; } .hero .btn { animation-delay: 120ms; } .hero figure { animation-delay: 180ms; }
+  .hero .rt-direct { stroke-dasharray: 1; animation: draw 0.9s 0.35s ease-out both; }
+  .map img.slope, .map g { transition: opacity 150ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+}
+
+@media (max-width: 900px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 28px; }
+  .hero figure { justify-self: stretch; width: 100%; }
+  .tool { grid-template-columns: minmax(0, 1fr); }
+  .rail { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .brief, .missions, .cols { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .missions { gap: 16px; }
+  .cell.tall { grid-row: auto; }
+  .cell.wide { grid-template-columns: minmax(0, 1fr); }
+  .cell.wide .side { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .cell.wide .body { padding: 0 18px 18px; }
+  .nav nav { display: none; }
+}
+</style>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="wordmark" href="#top">MARSWALK</a>
+    <nav aria-label="Sections">
+      <a href="#plan">Plan a walk</a>
+      <a href="#briefing">Briefing</a>
+      <a href="#sources">Sources</a>
+    </nav>
+    <span class="state">Static design preview</span>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Plan the next 500 metres on Mars.</h1>
+        <p>Two routes across the boxwork ridges of Mount Sharp, computed from NASA terrain data, with every number sourced.</p>
+        <a class="btn" href="#plan">Plan a walk {{ICON_ARROW}}</a>
+      </div>
+      <figure>
+        <div class="map basemap" role="img" aria-label="Orbital image of the boxwork ridges with a solid orange direct route and a dashed white cautious route between two stations">
+          <svg viewBox="0 0 {{PXW}} {{PXH}}" aria-hidden="true">
+            {{ROUTES_SVG_HERO}}
+            {{STATIONS_SVG}}
+          </svg>
+        </div>
+        <figcaption>Boxwork unit, Gale crater, {{WIDTH_M}} m across. HiRISE image: NASA/JPL-Caltech/University of Arizona. Routes: this project.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="block banded" id="plan">
+    <div class="wrap">
+      <h2>Boxwork edge to Monte Grande hollow</h2>
+      <p>Two ways to walk from the edge of the boxwork unit to the hollow Curiosity drilled in October 2025. Pick one to compare.</p>
+
+      <div class="tool">
+        <div class="rail">
+          <div>
+            <h3>Walk</h3>
+            <dl class="pair">
+              <dt>From</dt><dd><span class="mono">S0</span> Boxwork edge</dd>
+              <dt>To</dt><dd><span class="mono">S1</span> Monte Grande hollow</dd>
+            </dl>
+            <p class="note">This preview shows one precomputed pair. The app will route between any two points you pick.</p>
+          </div>
+          <div>
+            <h3>Routes</h3>
+            <table class="cmp">
+              <thead>
+                <tr>
+                  <th scope="col"><span class="muted">Select</span></th>
+                  <th scope="col"><label class="pick">Direct<i class="swatch"></i><input type="radio" name="route" id="pick-direct" value="direct" checked></label></th>
+                  <th scope="col"><label class="pick">Cautious<i class="swatch dash"></i><input type="radio" name="route" id="pick-cautious" value="cautious"></label></th>
+                </tr>
+              </thead>
+              <tbody>
+                {{CMP_TERRAIN}}
+              </tbody>
+              <tbody class="gap">
+                {{CMP_TIME}}
+              </tbody>
+            </table>
+            <p class="note">Distances and slopes are derived from the 1 m terrain model. Times use an assumed walking model. Dose uses Curiosity's measured rate.</p>
+          </div>
+          <div>
+            <h3>Conditions</h3>
+            <dl class="pair" style="grid-template-columns: 78px 1fr">
+              {{CONDITIONS}}
+            </dl>
+            <p class="note">{{CONDITIONS_NOTE}}</p>
+          </div>
+          <div>
+            <a class="btn" style="margin-top:0" href="#briefing">Open briefing {{ICON_ARROW}}</a>
+          </div>
+        </div>
+
+        <div class="canvas">
+          <div class="layers" role="group" aria-label="Map layers">
+            <label><input type="checkbox" id="ly-routes" checked> Routes</label>
+            <label><input type="checkbox" id="ly-slope" checked> Slope bands</label>
+            <label><input type="checkbox" id="ly-track" checked> Curiosity track</label>
+          </div>
+          <div class="map basemap" role="img" aria-label="Map of both routes over the orbital image with slope bands and Curiosity's track">
+            <img class="slope" id="slope" alt="" src="{{SLOPE}}">
+            <svg viewBox="0 0 {{PXW}} {{PXH}}" aria-hidden="true">
+              <g id="g-track"><path class="track" d="{{TRACK_D}}"/></g>
+              <g id="g-routes">{{ROUTES_SVG_TOOL}}</g>
+              {{STATIONS_SVG}}
+              {{LABELS_SVG}}
+              <g class="scalebar" transform="translate(40 {{SCALE_Y}})">
+                <line x1="0" y1="0" x2="{{SCALE_PX}}" y2="0"/><line x1="0" y1="-8" x2="0" y2="8"/><line x1="{{SCALE_PX}}" y1="-8" x2="{{SCALE_PX}}" y2="8"/>
+                <text class="maplabel" x="0" y="-16">100 m</text>
+              </g>
+            </svg>
+          </div>
+          <div class="legend" aria-label="Slope legend">
+            <span><i class="lg-a"></i>10 to 15 degrees</span>
+            <span><i class="lg-b"></i>15 to 20 degrees</span>
+            <span><i class="lg-c"></i>over 20 degrees, treated as blocked</span>
+          </div>
+          <p class="caption">North is up. HiRISE image served by NASA Mars Trek at about 0.6 m per pixel. Slope from the USGS Gale 1 m terrain model, smoothed over 5 m. Track: NASA/JPL-Caltech.</p>
+
+          <div class="profile">
+            <h3>Elevation along each route</h3>
+            <div class="scroll">{{PROFILE_SVG}}</div>
+            <p class="caption">Metres relative to the Mars reference surface. Vertical scale is stretched about {{VEXAG}} times.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="briefing">
+    <div class="wrap">
+      <h2>The field briefing</h2>
+      <p>One page for the walk. Each figure carries a mark that says whether it was measured, derived, assumed or simulated.</p>
+      <div class="brief">
+        <div>
+          {{CARD_DIRECT}}
+          {{CARD_CAUTIOUS}}
+        </div>
+        <figure class="photo">
+          <img src="{{NAVCAM}}" alt="Greyscale photo of fractured bedrock slabs and loose rocks with part of a rover wheel in the corner" width="820" height="820">
+          <figcaption>The ground at station S1, seen by Curiosity's left navigation camera on sol 4687 (12 October 2025). NASA/JPL-Caltech.</figcaption>
+          <p>Slabs and loose rocks like these are smaller than the terrain model can resolve. The route avoids steep ground; the crew still has to watch their feet.</p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="block banded" id="layers">
+    <div class="wrap">
+      <h2>Four NASA missions, one patch of ground</h2>
+      <div class="missions">
+        <div class="cell tall">
+          <div class="strip basemap" role="img" aria-label="Detail of the orbital image showing the polygonal ridge network"></div>
+          <h3>Mars Reconnaissance Orbiter</h3>
+          <p>The base image and the terrain every route is computed from.</p>
+          <dl>
+            <dt>HiRISE</dt><dd>Orbital image, served at about 0.6 m per pixel</dd>
+            <dt>HiRISE stereo</dt><dd>Terrain model on a 1 m grid</dd>
+            <dt>CTX</dt><dd>Wider context image</dd>
+          </dl>
+          <span class="use">In this preview</span>
+        </div>
+        <div class="cell">
+          <h3>Mars Odyssey</h3>
+          <p>Night-time surface temperature, a hint of rocky versus loose ground.</p>
+          <dl><dt>THEMIS</dt><dd>100 m per pixel, context only</dd></dl>
+          <span class="use">In the app, not in this preview</span>
+        </div>
+        <div class="cell">
+          <h3>Mars Global Surveyor</h3>
+          <p>The regional shape of Mount Sharp around the site.</p>
+          <dl><dt>MOLA</dt><dd>463 m per pixel, context only</dd></dl>
+          <span class="use">In the app, not in this preview</span>
+        </div>
+        <div class="cell wide">
+          <div class="side navcam" role="img" aria-label="Curiosity navigation camera view of the ground at station S1"></div>
+          <div class="body">
+            <h3>Curiosity</h3>
+            <p>The only radiation detector and weather station on this ground, plus the rover's own track and photographs.</p>
+            <dl>
+              <dt>RAD</dt><dd>Surface radiation dose rate</dd>
+              <dt>REMS</dt><dd>Daily temperature, pressure, daylight</dd>
+              <dt>Navcam</dt><dd>What the destination looks like</dd>
+              <dt>Localization</dt><dd>Where the rover drove and stopped</dd>
+            </dl>
+            <span class="use">In this preview</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="sources">
+    <div class="wrap">
+      <h2>Sources and status</h2>
+      <div class="cols">
+        <div>
+          <div class="grp">
+            <h3>Data</h3>
+            <ul>
+              <li><a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek, HiRISE mosaic tiles{{ICON_OUT}}</a></li>
+              <li><a href="https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" target="_blank" rel="noopener">USGS, Mars MSL Gale Merged DEM 1m{{ICON_OUT}}</a></li>
+              <li><a href="https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json" target="_blank" rel="noopener">NASA, Curiosity waypoints{{ICON_OUT}}</a></li>
+              <li><a href="https://mars.nasa.gov/rss/api/?feed=weather&amp;category=msl&amp;feedtype=json" target="_blank" rel="noopener">NASA, Curiosity REMS weather feed{{ICON_OUT}}</a></li>
+              <li><a href="https://mars.nasa.gov/msl/multimedia/raw-images/" target="_blank" rel="noopener">NASA, Curiosity raw images{{ICON_OUT}}</a></li>
+            </ul>
+          </div>
+          <div class="grp">
+            <h3>Reading</h3>
+            <ul>
+              <li><a href="https://science.nasa.gov/blog/curiosity-blog-sols-4689-4694-drill-in-the-boxwork-unit-is-go/" target="_blank" rel="noopener">Curiosity blog, sols 4689 to 4694{{ICON_OUT}}</a></li>
+              <li><a href="https://science.nasa.gov/blog/curiosity-blog-sols-4723-4730-digging-into-nevado-sajama" target="_blank" rel="noopener">Curiosity blog, sols 4723 to 4730{{ICON_OUT}}</a></li>
+              <li>Hassler et al. (2014), Science 343, surface radiation at Gale crater</li>
+              <li>Tobler (1993), hiking function, NCGIA Technical Report 93-1</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="grp">
+            <h3>Real in this preview</h3>
+            <ul>
+              <li>The orbital image, the slope bands and Curiosity's track</li>
+              <li>Both routes, computed on the terrain model by the project's routing script</li>
+              <li>The weather record and the navigation camera photo</li>
+            </ul>
+          </div>
+          <div class="grp">
+            <h3>Assumed</h3>
+            <ul>
+              <li>Walking speed, the suit factor of {{SUIT}}, the {{LIMIT}} degree slope limit and {{STATION}} minutes at the station</li>
+              <li>The start point, a notional rover park</li>
+            </ul>
+          </div>
+          <div class="grp">
+            <h3>Not built yet</h3>
+            <ul>
+              <li>Picking your own start and destination</li>
+              <li>Pan and zoom, the thermal layer, photos at every station</li>
+              <li>Public deployment</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">MARSWALK is a NASA Space Apps Challenge 2026 project. Not affiliated with or endorsed by NASA. This preview was built with AI assistance (Claude Code).</div>
+</footer>
+
+<script>
+// Written with AI assistance. Two behaviours only: pick a route, toggle a layer.
+(function () {
+  var cards = { direct: document.getElementById('card-direct'), cautious: document.getElementById('card-cautious') };
+  function pick(name) {
+    cards.direct.hidden = name !== 'direct';
+    cards.cautious.hidden = name !== 'cautious';
+    document.getElementById('tool-direct').classList.toggle('dim', name !== 'direct');
+    document.getElementById('tool-cautious').classList.toggle('dim', name !== 'cautious');
+    document.getElementById('prof-direct').classList.toggle('dim', name !== 'direct');
+    document.getElementById('prof-cautious').classList.toggle('dim', name !== 'cautious');
+  }
+  ['direct', 'cautious'].forEach(function (n) {
+    var el = document.getElementById('pick-' + n);
+    el.addEventListener('change', function () { if (el.checked) pick(n); });
+    if (el.checked) pick(n);
+  });
+  [['ly-routes', 'g-routes'], ['ly-slope', 'slope'], ['ly-track', 'g-track']].forEach(function (p) {
+    var box = document.getElementById(p[0]), target = document.getElementById(p[1]);
+    function apply() { target.style.opacity = box.checked ? '' : '0'; }
+    box.addEventListener('change', apply); apply();
+  });
+})();
+</script>

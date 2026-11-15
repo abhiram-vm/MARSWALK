@@ -172,7 +172,7 @@ Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, n
 - What the clip shows (DATA_SOURCES section 2a): the area is steep, with about 30 percent of cells over 20 degrees, and it carries metre-scale relief consistent with the ridges.
 - Smooth before computing slope. At a 1 m baseline the slope is noisy; use a 3 to 5 m window, and route on a 2 m grid.
 - The rover's published elevations come from this same DEM, so they cannot validate it. Rover tilt can, loosely.
-- With 30 percent of the area above the default 20 degree limit, test early that the default stations are connected. If they are not, raise the limit or route on slope along the direction of travel rather than maximum slope.
+- About 30 percent of the area is above the default 20 degree limit, but the default stations do connect: `pipeline/routes.py` finds a 537 m Direct route and a 626 m Cautious route (DATA_SOURCES section 3a). Other start and end points may not connect; the app must say so plainly when that happens.
 
 ### What exists in the repository now
 
@@ -184,7 +184,10 @@ Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, n
 | `data/dem/aoi_dem_1m.tif` | The 1 m elevation clip. |
 | `data/reference/stations.geojson` | The four stations. |
 
-Not yet written: slope and cost grids, the routing worker, the comparison panel, the briefing, the radiation and conditions panels, deployment.
+| `pipeline/routes.py` | Run. Reference implementation of the routing model. Writes `web/public/data/routes.json` (both default routes with statistics and elevation profiles) and `slope.png`. |
+| `preview/` | A static, self-contained design preview (`preview/index.html`, about 1 MB, opens from disk). Real imagery, real routes, the comparison rail and the field card in the DESIGN.md look. Rebuild with `python3 preview/build.py`. |
+
+Not yet written in the app itself: the routing worker (port `pipeline/routes.py` to the browser), picking your own points, the comparison panel, the briefing, the conditions and radiation panels, deployment. The preview shows what each should look like.
 
 ## 7. Schedule
 
@@ -233,7 +236,7 @@ The submission guide says most of the evaluation rests on the project page, so t
 
 | Risk | Likelihood | Response |
 | --- | --- | --- |
-| Default stations not connected under the slope limit | Medium | Test in the first hour of routing work; adjust the limit or the slope definition |
+| A user-picked pair is not connected under the slope limit | Medium | Show a clear message naming the limit, and offer to raise it |
 | DEM noise read as obstacles | Medium | Smooth 3 to 5 m before slope; show slope as bands, not exact degrees |
 | Mars Trek tiles slow or down during judging | Low to medium | Bundle one AOI base image as a fallback layer |
 | Image hotlinks from mars.nasa.gov fail | Low | Store a handful of station photos in the repository with credits |

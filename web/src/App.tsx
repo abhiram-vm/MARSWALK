@@ -27,7 +27,7 @@ export default function App() {
     const map = L.map(el.current, {
       crs: L.CRS.EPSG4326,
       minZoom: 6,
-      maxZoom: 19,
+      maxZoom: 18,
       zoomSnap: 0.5,
     }).fitBounds(aoi)
 
@@ -36,7 +36,7 @@ export default function App() {
     for (const l of TREK_LAYERS) {
       const layer = L.tileLayer(trekUrl(l.product), {
         maxNativeZoom: l.maxNativeZoom,
-        maxZoom: 19,
+        maxZoom: 18,
         opacity: l.opacity,
         attribution: `${l.instrument}: ${l.credit}`,
       })

@@ -17,8 +17,8 @@ export type TrekLayer = {
   base: boolean
 }
 
-// maxNativeZoom values come from each product's WMTSCapabilities.xml
-// (HiRISE mosaic: 19 levels, DEM: 17 levels) or from tile tests (THEMIS: 9).
+// maxNativeZoom is the deepest tile level each product's WMTSCapabilities.xml
+// lists, confirmed by tile requests: deeper levels return 404.
 export const TREK_LAYERS: TrekLayer[] = [
   {
     id: 'hirise',
@@ -27,22 +27,22 @@ export const TREK_LAYERS: TrekLayer[] = [
     mission: 'Mars Reconnaissance Orbiter',
     instrument: 'HiRISE',
     dataType: 'Optical',
-    resolution: 'about 0.25 m per pixel',
+    resolution: 'served at about 0.6 m per pixel',
     credit: 'NASA/JPL-Caltech/University of Arizona',
-    maxNativeZoom: 18,
+    maxNativeZoom: 16,
     opacity: 1,
     base: true,
   },
   {
     id: 'ctx',
     label: 'CTX context image',
-    product: 'curiosity_ctx_mosaic',
+    product: 'Gale_CTX_BlockAdj_dd',
     mission: 'Mars Reconnaissance Orbiter',
     instrument: 'CTX',
     dataType: 'Optical',
-    resolution: 'about 6 m per pixel',
+    resolution: 'served at about 10 m per pixel',
     credit: 'NASA/JPL-Caltech/MSSS',
-    maxNativeZoom: 14,
+    maxNativeZoom: 12,
     opacity: 1,
     base: true,
   },
@@ -55,7 +55,7 @@ export const TREK_LAYERS: TrekLayer[] = [
     dataType: 'Topographic',
     resolution: '1 m grid, shown as 8-bit grey',
     credit: 'NASA/JPL-Caltech/University of Arizona/USGS',
-    maxNativeZoom: 16,
+    maxNativeZoom: 14,
     opacity: 0.55,
     base: false,
   },
