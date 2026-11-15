@@ -16,6 +16,8 @@ Rules quoted here are from the official [Project Submission Guide](https://www.s
 - [ ] No one under 18 appears in any image, video or audio.
 - [ ] No NASA logos or mission insignia in anything AI-generated.
 - [ ] Every "cited, not opened" and "unverified" row in DATA_SOURCES.md has been opened and confirmed, or removed from the app.
+- [ ] `LICENSE` and `THIRD_PARTY_NOTICES.md` are in the public repository (the event terms require an open-source licence and named third-party licences).
+- [ ] `npm test` and `npm run e2e` pass on the final build.
 
 ## Form fields
 

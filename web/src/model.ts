@@ -1,57 +1,75 @@
 // Planning model: routing, route analysis, the go or no-go decision and the sun.
-// AI-assisted (Claude Code). Mirrors pipeline/routes.py; see docs/PLAN.md section 6.
+// AI-assisted (Claude Code). Tested in src/model.test.ts. Sources: docs/DATA_SOURCES.md.
 
 export interface Grid {
   cols: number
   rows: number
-  cell: number
-  elev: Float32Array
-  slope: Float32Array
+  cell: number // metres per cell
+  elev: Float32Array // metres
+  slope: Float32Array // degrees, from the terrain smoothed over 5 m
 }
 export interface Params {
-  suit: number // multiplier on walking speed for a suited, loaded astronaut (assumed)
+  suit: number // share of normal walking speed for a suited, loaded astronaut (assumed)
   limit: number // steepest ground allowed, degrees (assumed)
-  work: number // minutes at the destination (assumed)
-  depart: number // departure, minutes after local midnight, Mars local time
+  work: number // minutes at each stop (assumed)
+  depart: number // departure, minutes after midnight, local mean solar time (LMST)
 }
 export interface Pt { x: number; y: number }
+export interface SunModel { ls: number; dec: number; eotMin: number } // dec in degrees; eot = LTST minus LMST
+
+/** A walk: start, one or more stops, and back to the start, as one sampled polyline. */
 export interface Route {
   kind: 'direct' | 'cautious'
-  path: Int32Array
-  d: Float32Array // distance along route at each cell, m
-  t: Float32Array // outbound time at each cell, s
+  xs: Float32Array // sample positions in grid cells, about 1 m apart
+  ys: Float32Array
+  z: Float32Array // elevation at each sample, m
+  path: Int32Array // grid cell under each sample
+  d: Float32Array // distance walked at each sample, m
+  t: Float32Array // walking time at each sample, s (time at stops excluded)
+  stopAt: number[] // sample index where each stop is reached; the last entry is the return to start
+  legMin: number[] // walking minutes for each leg
   dist: number
   climb: number
   descent: number
-  over10: number
+  over10: number // share of distance on ground steeper than 10 degrees
   maxSlope: number
-  outMin: number
-  backMin: number
-  walk: number
-  dose: number
+  outMin: number // walking minutes from the start to the last stop
+  backMin: number // walking minutes of the return leg
+  workMin: number
+  walk: number // whole excursion, minutes
+  dose: number // mSv
 }
 export interface Leg { k: 0 | 1 | 2 | 3; from: number; to: number; iFrom: number; iTo: number }
 
-export const RATE_MSV_PER_SOL = 0.67 // Curiosity RAD, Hassler et al. 2014 (cited)
-export const SOL_HOURS = 24.6597
-export const MARS_MIN = 1.0275 // Earth minutes per Mars minute
-export const RESERVE_MIN = 60 // daylight reserve before sunset (assumed)
+// Curiosity RAD, Aug 2012 to Jun 2013: about 0.67 mSv per Earth day dose equivalent
+// (SwRI and NASA releases on Hassler et al. 2014); about 210 microgray per day absorbed (NASA).
+export const RATE_MSV_PER_DAY = 0.67
+export const MARS_MIN = 1.0274912517 // Earth minutes per Mars (mean solar) minute
+export const RESERVE_MIN = 60 // daylight reserve before sunset, Earth minutes (assumed)
+export const LAT_DEG = -4.8
 
-// Tobler's hiking function, km/h, on the slope along the direction of travel.
+// Tobler's hiking function on the slope along the direction of travel, km/h, times the suit factor, in m/s.
+// With the default factor of 0.5, flat ground gives 2.5 km/h, matching NASA's Apollo planning
+// figure of 2.5 km/h for sustained suited walking (Los Alamos report LA-UR-89-3858).
 export function speedMs(tan: number, suit: number) {
   return (6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * suit) / 3.6
 }
 
-// A* on the 2 m grid. Kept free of closures so it can be sent to a worker as text.
+/**
+ * A* on the grid. 8-connected; a diagonal step is not allowed between two cells that
+ * are both over the limit, so routes cannot squeeze through the corner of a ridge.
+ * Kept free of closures over module state so it can run inside a worker.
+ */
 export function astar(
   elev: Float32Array, slope: Float32Array, cols: number, rows: number, cell: number,
   s: number, g: number, limit: number, suit: number, cautious: boolean,
 ): Int32Array | null {
   const n = cols * rows
-  const best = new Float32Array(n).fill(Infinity)
+  if (s < 0 || g < 0 || s >= n || g >= n || slope[s] > limit || slope[g] > limit) return null
+  const best = new Float64Array(n).fill(Infinity) // full precision: the stale-entry check below compares exactly
   const came = new Int32Array(n).fill(-1)
   const hf: number[] = [], hn: number[] = []
-  const gx = g % cols, gy = (g / cols) | 0, vmax = (6 * suit) / 3.6
+  const gx = g % cols, gy = (g / cols) | 0, vmax = speedMs(-0.05, suit)
   const DX = [0, 0, -1, 1, -1, 1, -1, 1], DY = [-1, 1, 0, 0, -1, -1, 1, 1]
   const push = (f: number, node: number) => {
     let i = hf.length
@@ -70,19 +88,22 @@ export function astar(
   }
   best[s] = 0; push(0, s)
   while (hf.length) {
-    const cur = pop()
+    const f = hf[0], cur = pop()
     if (cur === g) {
       const out: number[] = []
       for (let k = g; k !== -1; k = came[k]) out.push(k)
       return Int32Array.from(out.reverse())
     }
     const cx = cur % cols, cy = (cur / cols) | 0, gc = best[cur]
+    const hx0 = cx - gx, hy0 = cy - gy
+    if (f > gc + (Math.sqrt(hx0 * hx0 + hy0 * hy0) * cell) / vmax + 1e-6) continue // stale heap entry
     for (let k = 0; k < 8; k++) {
       const nx = cx + DX[k], ny = cy + DY[k]
       if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue
       const ni = ny * cols + nx, sl = slope[ni]
       if (sl > limit) continue
-      const dist = k < 4 ? cell : cell * 1.41421356
+      if (k >= 4 && slope[cy * cols + nx] > limit && slope[ny * cols + cx] > limit) continue
+      const dist = k < 4 ? cell : cell * Math.SQRT2
       const tan = (elev[ni] - elev[cur]) / dist
       let t = dist / ((6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * suit) / 3.6)
       if (cautious && sl > 10) t *= 1 + (sl - 10) * 0.6
@@ -97,51 +118,138 @@ export function astar(
   return null
 }
 
-export function analyse(grid: Grid, path: Int32Array | null, kind: Route['kind'], p: Params): Route | null {
-  if (!path || path.length < 2) return null
-  const { cols, cell, elev, slope } = grid
-  const n = path.length, d = new Float32Array(n), t = new Float32Array(n)
-  let dist = 0, out = 0, back = 0, climb = 0, descent = 0, over10 = 0, maxSlope = 0
-  for (let i = 1; i < n; i++) {
-    const a = path[i - 1], b = path[i]
-    const diag = a % cols !== b % cols && ((a / cols) | 0) !== ((b / cols) | 0)
-    const step = diag ? cell * 1.41421356 : cell, dz = elev[b] - elev[a]
-    dist += step
-    out += step / speedMs(dz / step, p.suit)
-    back += step / speedMs(-dz / step, p.suit)
-    if (dz > 0) climb += dz; else descent -= dz
-    if (slope[b] > 10) over10 += step
-    if (slope[b] > maxSlope) maxSlope = slope[b]
-    d[i] = dist; t[i] = out
+// ---------------------------------------------------------------- terrain sampling
+export function elevAt(g: Grid, x: number, y: number) {
+  const c = Math.max(0, Math.min(g.cols - 1.0001, x)), r = Math.max(0, Math.min(g.rows - 1.0001, y))
+  const c0 = Math.floor(c), r0 = Math.floor(r), fc = c - c0, fr = r - r0, i = r0 * g.cols + c0
+  return (g.elev[i] * (1 - fc) + g.elev[i + 1] * fc) * (1 - fr) + (g.elev[i + g.cols] * (1 - fc) + g.elev[i + g.cols + 1] * fc) * fr
+}
+const cellOf = (g: Grid, x: number, y: number) => Math.round(y) * g.cols + Math.round(x)
+
+/**
+ * Highest slope over every grid cell a straight segment passes through, found by
+ * walking the cells exactly (Amanatides and Woo). Cells are centred on whole numbers,
+ * so cell borders sit at half values.
+ */
+export function segmentMaxSlope(g: Grid, ax: number, ay: number, bx: number, by: number) {
+  let cx = Math.round(ax), cy = Math.round(ay)
+  const ex = Math.round(bx), ey = Math.round(by), dx = bx - ax, dy = by - ay
+  const sx = Math.sign(dx), sy = Math.sign(dy)
+  const tdx = dx ? Math.abs(1 / dx) : Infinity, tdy = dy ? Math.abs(1 / dy) : Infinity
+  let tx = dx ? ((sx > 0 ? cx + 0.5 - ax : ax - (cx - 0.5)) * tdx) : Infinity
+  let ty = dy ? ((sy > 0 ? cy + 0.5 - ay : ay - (cy - 0.5)) * tdy) : Infinity
+  let m = g.slope[cy * g.cols + cx]
+  for (let n = 0; n < 4 * (g.cols + g.rows) && (cx !== ex || cy !== ey); n++) {
+    if (Math.abs(tx - ty) < 1e-9) {
+      // the line passes exactly through a cell corner: count both side cells
+      m = Math.max(m, g.slope[cy * g.cols + cx + sx], g.slope[(cy + sy) * g.cols + cx])
+      cx += sx; cy += sy; tx += tdx; ty += tdy
+    } else if (tx < ty) { cx += sx; tx += tdx } else { cy += sy; ty += tdy }
+    if (tx > 1 + 1e-9 && ty > 1 + 1e-9 && (cx !== ex || cy !== ey)) break
+    m = Math.max(m, g.slope[cy * g.cols + cx])
   }
-  const outMin = out / 60, backMin = back / 60, walk = outMin + backMin + p.work
-  return { kind, path, d, t, dist, climb, descent, over10: over10 / dist, maxSlope, outMin, backMin, walk, dose: (RATE_MSV_PER_SOL * (walk / 60)) / SOL_HOURS }
+  return m
 }
 
-// Where along the route a given fraction of its length falls.
-export function at(grid: Grid, r: Route, frac: number) {
+/**
+ * Straightens a grid path. From each corner, jump to the farthest later cell that a
+ * straight line reaches without meeting ground steeper than the steepest ground on the
+ * part of the path it replaces. The route never gets steeper, and the grid's zig-zag
+ * (which inflates distance by up to about 8 percent) goes away.
+ */
+export function straighten(g: Grid, path: Int32Array): Pt[] {
+  const pts: Pt[] = [{ x: path[0] % g.cols, y: (path[0] / g.cols) | 0 }]
+  let i = 0
+  while (i < path.length - 1) {
+    let best = i + 1, runMax = 0
+    const ax = path[i] % g.cols, ay = (path[i] / g.cols) | 0
+    for (let j = i + 1; j < path.length && j <= i + 120; j++) {
+      runMax = Math.max(runMax, g.slope[path[j]])
+      const bx = path[j] % g.cols, by = (path[j] / g.cols) | 0
+      if (segmentMaxSlope(g, ax, ay, bx, by) <= Math.max(runMax, 5) + 0.01) best = j
+    }
+    pts.push({ x: path[best] % g.cols, y: (path[best] / g.cols) | 0 })
+    i = best
+  }
+  return pts
+}
+
+/** Builds and measures a walk from one grid path per leg (start to stop 1, ..., last stop to start). */
+export function analyse(g: Grid, legs: (Int32Array | null)[], kind: Route['kind'], p: Params): Route | null {
+  if (!legs.length || legs.some((l) => !l || l.length < 1)) return null
+  const xs: number[] = [], ys: number[] = [], z: number[] = [], path: number[] = [], d: number[] = [], t: number[] = [], stopAt: number[] = [], legMin: number[] = []
+  let dist = 0, time = 0, climb = 0, descent = 0, over10 = 0, maxSlope = 0
+  const add = (x: number, y: number) => {
+    const e = elevAt(g, x, y), c = cellOf(g, x, y)
+    if (xs.length) {
+      const k = xs.length - 1, ds = Math.hypot(x - xs[k], y - ys[k]) * g.cell
+      if (ds > 0) {
+        const dz = e - z[k]
+        dist += ds; time += ds / speedMs(dz / ds, p.suit)
+        if (dz > 0) climb += dz; else descent -= dz
+        if (g.slope[c] > 10) over10 += ds
+      }
+    }
+    if (g.slope[c] > maxSlope) maxSlope = g.slope[c]
+    xs.push(x); ys.push(y); z.push(e); path.push(c); d.push(dist); t.push(time)
+  }
+  for (const leg of legs as Int32Array[]) {
+    const t0 = time
+    const pts = leg.length > 1 ? straighten(g, leg) : [{ x: leg[0] % g.cols, y: (leg[0] / g.cols) | 0 }]
+    if (!xs.length) add(pts[0].x, pts[0].y)
+    for (let k = 1; k < pts.length; k++) {
+      const a = pts[k - 1], b = pts[k], n = Math.max(1, Math.ceil((Math.hypot(b.x - a.x, b.y - a.y) * g.cell) / 1))
+      for (let s = 1; s <= n; s++) add(a.x + ((b.x - a.x) * s) / n, a.y + ((b.y - a.y) * s) / n)
+    }
+    stopAt.push(xs.length - 1)
+    legMin.push((time - t0) / 60)
+  }
+  const nStops = legs.length - 1
+  const backMin = legMin[legMin.length - 1], outMin = legMin.slice(0, -1).reduce((a, b) => a + b, 0)
+  const workMin = p.work * nStops, walk = outMin + backMin + workMin
+  return {
+    kind, xs: Float32Array.from(xs), ys: Float32Array.from(ys), z: Float32Array.from(z), path: Int32Array.from(path),
+    d: Float32Array.from(d), t: Float32Array.from(t), stopAt, legMin,
+    dist, climb, descent, over10: dist ? over10 / dist : 0, maxSlope, outMin, backMin, workMin, walk,
+    dose: doseFor(walk),
+  }
+}
+/** Dose equivalent for an excursion of the given length, from Curiosity's measured surface rate. */
+export const doseFor = (minutes: number) => (RATE_MSV_PER_DAY * minutes) / (24 * 60)
+
+/** Re-times a walk after a change that does not move it (time at stops). */
+export function retime(r: Route, p: Params): Route {
+  const workMin = p.work * (r.stopAt.length - 1), walk = r.outMin + r.backMin + workMin
+  return { ...r, workMin, walk, dose: doseFor(walk) }
+}
+
+/** Where the walker is after a fraction of the walking (stops excluded). */
+export function at(r: Route, frac: number) {
   const target = frac * r.dist
-  let lo = 0, hi = r.path.length - 1
+  let lo = 0, hi = r.d.length - 1
   while (lo < hi) { const mid = (lo + hi) >> 1; if (r.d[mid] < target) lo = mid + 1; else hi = mid }
-  const c = r.path[lo]
-  return { i: lo, x: c % grid.cols, y: (c / grid.cols) | 0, dist: r.d[lo], elev: grid.elev[c], slope: grid.slope[c], time: r.t[lo] / 60 }
+  return { i: lo, x: r.xs[lo], y: r.ys[lo], dist: r.d[lo], elev: r.z[lo], cell: r.path[lo], time: r.t[lo] / 60 }
 }
+/** Which leg a sample index belongs to. */
+export const legOf = (r: Route, i: number) => { let k = 0; while (k < r.stopAt.length - 1 && i > r.stopAt[k]) k++; return k }
 
-// Stretches of similar steepness. Slope is averaged over about 20 m of route so a
-// single steep cell does not label a whole stretch, then pieces shorter than
-// 15 m join the leg before them, keeping that leg's class.
-export function legs(grid: Grid, r: Route): Leg[] {
-  const n = r.path.length, cls = (s: number): Leg['k'] => (s > 15 ? 3 : s > 10 ? 2 : s > 5 ? 1 : 0)
-  const avg = new Float32Array(n)
-  let lo = 0, hi = 0, sum = 0
-  for (let i = 0; i < n; i++) {
-    while (hi < n && r.d[hi] <= r.d[i] + 10) sum += grid.slope[r.path[hi++]]
-    while (r.d[lo] < r.d[i] - 10) sum -= grid.slope[r.path[lo++]]
-    avg[i] = sum / (hi - lo)
+/**
+ * Stretches of similar steepness between two sample indices. Slope is averaged over
+ * about 20 m of route so one steep cell does not label a whole stretch; pieces under
+ * 15 m join the stretch before them.
+ */
+export function legs(g: Grid, r: Route, from = 0, to = r.path.length - 1): Leg[] {
+  const cls = (s: number): Leg['k'] => (s > 15 ? 3 : s > 10 ? 2 : s > 5 ? 1 : 0)
+  const avg = new Float32Array(to - from + 1)
+  let lo = from, hi = from, sum = 0
+  for (let i = from; i <= to; i++) {
+    while (hi <= to && r.d[hi] <= r.d[i] + 10) sum += g.slope[r.path[hi++]]
+    while (r.d[lo] < r.d[i] - 10) sum -= g.slope[r.path[lo++]]
+    avg[i - from] = sum / (hi - lo)
   }
   const runs: Leg[] = []
-  for (let i = 1; i < n; i++) {
-    const k = cls(avg[i]), last = runs[runs.length - 1]
+  for (let i = from + 1; i <= to; i++) {
+    const k = cls(avg[i - from]), last = runs[runs.length - 1]
     if (last && last.k === k) { last.to = r.d[i]; last.iTo = i } else runs.push({ k, from: r.d[i - 1], to: r.d[i], iFrom: i - 1, iTo: i })
   }
   const out: Leg[] = []
@@ -153,31 +261,51 @@ export function legs(grid: Grid, r: Route): Leg[] {
   return out
 }
 
-export interface Check { state: 'ok' | 'bad' | 'info'; text: string }
+// ---------------------------------------------------------------- decision
+export interface Check { state: 'ok' | 'bad' | 'info' | 'warn'; text: string }
 export interface Verdict { go: boolean; head: string; back: number; margin: number; checks: Check[] }
-export function verdict(r: Route | null, p: Params, sunrise: number, sunset: number): Verdict {
-  if (!r) return { go: false, head: 'No walkable route', back: 0, margin: 0, checks: [{ state: 'bad', text: `No route between these points stays under the ${p.limit}° limit` }] }
+export interface SpaceWeather { checked: string; marsArrivals: { time: string; glancing: boolean }[]; sepEvents: string[] }
+
+/** Clock times are local mean solar time in minutes; durations are Earth minutes. */
+export function verdict(r: Route | null, p: Params, sunrise: number, sunset: number, sw?: SpaceWeather | null, nowIso?: string): Verdict {
+  if (!r) return { go: false, head: 'No walkable route', back: 0, margin: 0, checks: [{ state: 'bad', text: `No route joins these points on ground under the ${p.limit}° limit` }] }
   const back = p.depart + r.walk / MARS_MIN, margin = (sunset - back) * MARS_MIN
   const okDawn = p.depart >= sunrise, okDay = margin >= RESERVE_MIN
   const checks: Check[] = [
     { state: okDawn ? 'ok' : 'bad', text: okDawn ? `Leaves after sunrise (${clock(sunrise)})` : `Leaves before sunrise (${clock(sunrise)})` },
-    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `Back ${fmtMin(margin)} before sunset, reserve is ${RESERVE_MIN} min` : `Back ${fmtMin(-margin)} after sunset` },
-    { state: 'ok', text: `Steepest ground ${Math.round(r.maxSlope)}°, inside the ${p.limit}° limit` },
-    { state: 'info', text: `From the far point, the start is ${fmtMin(r.backMin)} away` },
+    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `Back ${fmtMin(margin)} before sunset; the reserve is ${RESERVE_MIN} min` : `Back ${fmtMin(-margin)} after sunset` },
+    r.maxSlope <= p.limit
+      ? { state: 'ok', text: `Steepest ground ${r.maxSlope.toFixed(1)}°, inside the ${p.limit}° limit` }
+      : { state: 'bad', text: `Steepest ground ${r.maxSlope.toFixed(1)}° is over the ${p.limit}° limit` },
+    { state: 'info', text: `The walk back from the last stop takes ${fmtMin(r.backMin)}` },
   ]
-  const go = okDawn && okDay
-  return { go, head: go ? 'Clear to walk' : okDawn ? 'Not enough daylight' : 'Too early to leave', back, margin, checks }
+  const storm = sw && nowIso ? stormNear(sw, nowIso) : null
+  if (storm) checks.push({ state: 'warn', text: storm })
+  const okSlope = r.maxSlope <= p.limit
+  const go = okDawn && okDay && okSlope
+  return { go, head: go ? 'Clear to walk' : !okSlope ? 'Route too steep' : okDawn ? 'Not enough daylight' : 'Too early to leave', back, margin, checks }
+}
+/** A caution if NASA's model has a solar storm reaching Mars within a day of now. */
+export function stormNear(sw: SpaceWeather, nowIso: string) {
+  const now = Date.parse(nowIso), day = 864e5
+  const hit = sw.marsArrivals.map((a) => ({ ...a, ms: Date.parse(a.time) })).filter((a) => a.ms > now - day && a.ms < now + day).sort((a, b) => a.ms - b.ms)[0]
+  if (!hit) return null
+  return `NASA's model has a solar storm ${hit.glancing ? 'glancing' : 'reaching'} Mars around ${hit.time.replace('T', ' ').replace('Z', ' UTC')}. Check particle levels before leaving.`
 }
 
-// Sun position for Gale crater. Declination from the season (solar longitude);
-// local true solar time is taken as the clock time. A planning approximation.
-const LAT = (-4.8 * Math.PI) / 180
-export function sunAt(minutes: number, ls: number) {
-  const dec = Math.asin(Math.sin((25.19 * Math.PI) / 180) * Math.sin((ls * Math.PI) / 180))
-  const H = ((minutes / 60 - 12) * 15 * Math.PI) / 180
+// ---------------------------------------------------------------- sun
+/**
+ * Sun position at Gale crater for a local mean solar time. True solar time is mean time
+ * plus the equation of time, and declination comes from the season; both are computed
+ * with NASA's Mars24 algorithm in the data pipeline for the date of the weather record.
+ */
+export function sunAt(lmstMin: number, sun: SunModel) {
+  const lat = (LAT_DEG * Math.PI) / 180, dec = (sun.dec * Math.PI) / 180
+  const ltst = lmstMin + sun.eotMin
+  const H = ((ltst / 60 - 12) * 15 * Math.PI) / 180
   const e = -Math.cos(dec) * Math.sin(H)
-  const n = Math.cos(LAT) * Math.sin(dec) - Math.sin(LAT) * Math.cos(dec) * Math.cos(H)
-  const u = Math.sin(LAT) * Math.sin(dec) + Math.cos(LAT) * Math.cos(dec) * Math.cos(H)
+  const n = Math.cos(lat) * Math.sin(dec) - Math.sin(lat) * Math.cos(dec) * Math.cos(H)
+  const u = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(H)
   return { e, n, u, el: (Math.asin(u) * 180) / Math.PI, az: ((Math.atan2(e, n) * 180) / Math.PI + 360) % 360 }
 }
 

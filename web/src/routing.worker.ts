@@ -1,4 +1,5 @@
-// Runs both route searches off the main thread. AI-assisted (Claude Code).
+// Runs route searches off the main thread. AI-assisted (Claude Code).
+// For a walk with stops it searches each leg in turn, for both route profiles.
 import { astar } from './model'
 
 let elev: Float32Array, slope: Float32Array, cols = 0, rows = 0, cell = 2
@@ -6,7 +7,9 @@ let elev: Float32Array, slope: Float32Array, cols = 0, rows = 0, cell = 2
 self.onmessage = (e: MessageEvent) => {
   const d = e.data
   if (d.init) { elev = d.elev; slope = d.slope; cols = d.cols; rows = d.rows; cell = d.cell; return }
-  const direct = astar(elev, slope, cols, rows, cell, d.s, d.g, d.limit, d.suit, false)
-  const cautious = astar(elev, slope, cols, rows, cell, d.s, d.g, d.limit, d.suit, true)
-  ;(self as unknown as Worker).postMessage({ id: d.id, direct, cautious })
+  const out: Record<string, (Int32Array | null)[]> = { direct: [], cautious: [] }
+  for (const kind of ['direct', 'cautious'] as const)
+    for (let i = 0; i < d.points.length - 1; i++)
+      out[kind].push(astar(elev, slope, cols, rows, cell, d.points[i], d.points[i + 1], d.limit, d.suit, kind === 'cautious'))
+  ;(self as unknown as Worker).postMessage({ id: d.id, ...out })
 }

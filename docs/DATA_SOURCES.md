@@ -41,7 +41,7 @@ Caveats:
 | T2 | Topographic | MRO / HiRISE and CTX stereo, Mars Express / HRSC, tied to MGS / MOLA | USGS Astrogeology "Mars MSL Gale Merged DEM 1m" GeoTIFF, v3 (Parker and Calef, 2016) | 1 m grid | [Catalog page](https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m); file `https://planetarymaps.usgs.gov/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif` (3.6 GB, redirects to `asc-pds-services.s3.us-west-2.amazonaws.com`) | Verified. AOI clipped with `pipeline/clip_dem.py` into `data/dem/aoi_dem_1m.tif`; see section 2a. | Real elevations for slope and routing |
 | T3 | Topographic | MGS / MOLA | "MGS MOLA, Global DEM" and color hillshade | 463 m per pixel | Mars Trek WMTS | Verified (catalog) | Regional context only. Far too coarse for a 500 m walk. |
 | H1 | Thermal | Mars Odyssey / THEMIS | "MO THEMIS-IR Night, Global Mosaic" 100 m v2 (and Day) | 100 m per pixel; tiles stop at level 9 here | Mars Trek WMTS, PNG | Verified at level 9; levels 10 and 11 return 404 | Context overlay: relative night-time surface temperature, a proxy for rocky versus loose ground. Only about 15 pixels across the AOI. |
-| R1 | Radiation | MSL / RAD | Surface dose rate at Gale crater | Point measurement, one site | Published values (Hassler et al. 2014, *Science* 343, 1244797) | **Cited, not opened**: 0.210 ± 0.040 mGy/day absorbed dose; about 0.67 mSv/day dose equivalent, Aug 2012 to Jun 2013 | EVA dose estimate and go/no-go panel |
+| R1 | Radiation | MSL / RAD | Surface dose rate at Gale crater, August 2012 to June 2013 | Point measurement, one site | Hassler et al. (2014), *Science* 343, 1244797; [NASA page](https://science.nasa.gov/resource/radiation-measurements-on-mars/); [SwRI release](https://www.swri.org/newsroom/press-releases/swri-scientists-publish-first-radiation-measurements-the-surface-of-mars) | **Verified on NASA's page**: about 210 µGy per (Earth) day absorbed. 0.67 mSv per day dose equivalent from the SwRI and NASA releases. The paper itself was not reachable. | EVA dose: 0.67 mSv × minutes / 1440 |
 | A1 | Atmospheric | MSL / REMS | Curiosity weather feed (per-sol min/max air and ground temperature, pressure, UV index, opacity, sunrise, sunset) | Point measurement, one per sol | `https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | Verified: 4,745 sols; newest record sol 4995 (2026-08-25) | Conditions panel, daylight window |
 | W | Localization | MSL / rover navigation | `MSL_waypoints.json`, `MSL_traverse.json` | Per drive; position, elevation, tilt, distance | `https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/` | Verified (665 KB and 1.36 MB GeoJSON) | Rover track overlay, stations. Rover tilt is an independent check on DEM slope; rover elevation is not (section 2a). |
 | P1 | Optical (surface) | MSL / Mastcam, Navcam, Hazcam | Raw images by sol and camera | Camera dependent | `https://mars.nasa.gov/api/v1/raw_image_items/?order=sol+desc&per_page=..&condition_1=msl:mission` | Verified (returns JSON with image URLs) | "What you will see" images at stations |
@@ -88,14 +88,24 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 
 What the thermal layer means: rock and coarse ground hold the day's heat and stay warmer at night; dust and fine sand cool quickly. At 80 m per pixel it shows the neighbourhood, not the path.
 
+### 2c. Sun and space weather (added 2026-11-15)
+
+| # | Data | Source | Status | Use |
+| --- | --- | --- | --- | --- |
+| S1 | Equation of time (-49.4 min), solar declination (-7.82°) and Ls (341.6) for 2026-08-25, the weather record's date | Computed with NASA GISS's Mars24 algorithm (Allison and McEwen 2000) in `pipeline/build_app_data.py` | Verified: with these values the sun rises and sets within a minute of Curiosity's measured 06:46 and 18:51 local mean solar time; Ls matches the record's 341 | Sun position, shadows, timeline |
+| SW1 | Modelled solar storm (CME) arrivals at Mars | NASA DONKI, WSA-ENLIL simulations by the Community Coordinated Modeling Center, via api.nasa.gov | Verified: 13 Mars arrivals in the 30 days to 2026-11-15, latest 2026-11-13 12:00 UTC | Space weather card; caution within a day of an arrival |
+| SW2 | Solar energetic particle events | NASA DONKI SEP list | Verified: none in the 60 days to 2026-11-15 | Space weather card |
+
+The build carries a snapshot; a hosted copy also asks DONKI for the latest runs when it opens.
+
 ## 3. Derived products (ours)
 
 | Product | Derived from | Method | What it is not |
 | --- | --- | --- | --- |
 | Slope grid, 2 m cells | T2 | Resample to 2 m, Horn slope | Not sensitive to rocks or steps smaller than the DEM can resolve (roughly 1 to 2 m) |
 | Traversal cost grid | Slope | Time per metre from a slope-dependent walking-speed function; cells above the slope limit are blocked | An estimate. See assumptions. |
-| Routes | Cost grid | A* shortest path, 8-connected (`pipeline/routes.py`; the same model runs in the app, `web/src/model.ts`) | Not a certified safe path |
-| Sun position | Season (Ls) from the weather record, site latitude | Standard solar geometry with clock time taken as local solar time | An approximation good to a few degrees; no atmospheric refraction |
+| Routes | Cost grid | A* shortest path, 8-connected, no corner cutting; then straightened without crossing steeper ground (`web/src/model.ts`; `pipeline/routes.py` is the earlier reference) | Not a certified safe path |
+| Sun position | Mars24 values (S1), site latitude | Standard solar geometry with true solar time = mean solar time + equation of time | No atmospheric refraction; values are for the weather record's date |
 | Terrain shading | Terrain | How much sky each point sees, sampled in 8 directions | A visual aid, not a measurement |
 | Legs | Slope along the route | Slope averaged over about 20 m, classed at 5, 10 and 15 degrees, pieces under 15 m merged | A summary for the guide |
 | EVA dose estimate | R1 | Dose-equivalent rate multiplied by EVA duration | Not a prediction for a future date; ignores suit shielding and solar events |
@@ -121,11 +131,11 @@ These are ours, not NASA's. The app must label each one where it appears.
 | Item | Default | Basis | Label |
 | --- | --- | --- | --- |
 | Walking speed versus slope | Tobler's hiking function, `6 * exp(-3.5 * abs(tan(slope) + 0.05))` km/h | Tobler (1993), NCGIA Technical Report 93-1. Derived for unsuited people on Earth. | Assumed |
-| Suit and load factor | Speed multiplied by 0.5, adjustable 0.3 to 0.8 | No validated Mars-suit walking model was found during planning. Sanity-check against published Apollo traverse speeds if time allows. | Assumed |
+| Suit and load factor | Speed multiplied by 0.5, adjustable 0.3 to 0.8. Gives 2.5 km/h on flat ground and about 1.4 km/h up 10°. | Matches NASA's Apollo planning estimate of 2.5 km/h for sustained suited walking (3.6 km/h for up to an hour); Apollo 14's uphill average was about 1.7 km/h. Los Alamos report [LA-UR-89-3858](https://www.osti.gov/servlets/purl/7168757). Lunar gravity differs from Mars. | Assumed, with a source |
 | Maximum walkable slope | 20 degrees, adjustable | Design choice, not a NASA limit | Assumed |
 | Start point | S0 or P0, or any point the user clicks | A notional pressurized-rover park position. No crewed landing site exists. | Simulated |
 | Time at each science station | 30 min, adjustable | Design choice | Assumed |
-| EVA dose | 0.67 mSv/day multiplied by hours / 24.66 (one sol is about 24 h 39.6 min) | R1. Measured 2012-2013 near a weak solar maximum; galactic cosmic ray dose is higher near solar minimum. | Derived from measurement |
+| EVA dose | 0.67 mSv per Earth day multiplied by the excursion's hours / 24 | R1. Measured 2012-2013 near a weak solar maximum; galactic cosmic ray dose is higher near solar minimum. | Derived from measurement |
 | Conditions | Latest available REMS record, or a chosen past sol | A1. The feed lags the present; the newest record seen was 78 sols older than the newest waypoint. | Measured (past) |
 
 ## 5. Things we know are missing

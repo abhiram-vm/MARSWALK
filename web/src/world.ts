@@ -4,11 +4,11 @@
 import * as THREE from 'three'
 import type { SiteData } from './data'
 import type { Route } from './model'
-import { sunAt } from './model'
+import { sunAt, type SunModel } from './model'
 
 export type Mode = 'orbit' | 'walk' | 'fly'
 export interface Pose { target: THREE.Vector3; dist: number; yaw: number; pitch: number }
-export interface CineFrame { frac: number; heading: number; pos: THREE.Vector3 }
+export interface CineFrame { dist: number; frac: number; heading: number; pos: THREE.Vector3 }
 
 const SITE_STEP = 2
 const CTX_STEP = 2
@@ -26,6 +26,7 @@ export class World {
   onCine: (f: CineFrame) => void = () => {}
   onCineEnd: () => void = () => {}
   onUserMove: () => void = () => {}
+  onContextLost: () => void = () => {}
   pixelRatio = 1
   private maxRatio = 1
   private d: SiteData
@@ -43,28 +44,28 @@ export class World {
   private boundary!: THREE.Line
   private ribbons: Partial<Record<Route['kind'], THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>> = {}
   private paths: Partial<Record<Route['kind'], { x: number; z: number; h: number; s: number }[]>> = {}
-  private beacons: Record<'start' | 'dest', THREE.Group> = {} as never
+  private beacons: THREE.Group[] = [] // 0 is the start, then one per stop
   private orbit: Pose = { target: new THREE.Vector3(), dist: 5200, yaw: 0.4, pitch: 1.15 }
   private vel = { yaw: 0, pitch: 0 }
   private tween: { t0: number; ms: number; a: Pose; b: Pose } | null = null
   private cine: {
-    kind: 'walk' | 'fly'; kindRoute: Route['kind']; t0: number; dur: number; pausedAt: number
+    kind: 'walk' | 'fly'; kindRoute: Route['kind']; t0: number; dur: number; pausedAt: number; endDist: number; clockAt: (dist: number) => number
     pos: THREE.Vector3 | null; look: THREE.Vector3 | null; lookYaw: number; lookPitch: number; lookHold: number
-    sunStart: number; route: Route
+    route: Route
   } | null = null
   private reveal: { t0: number; ms: number } | null = null
   private raf = 0
   private frames: number[] = []
   private lastT = 0
   private reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-  private ls: number
+  private sunModel: SunModel
   private departMin = 540
 
   constructor(canvas: HTMLCanvasElement, d: SiteData) {
     this.canvas = canvas
     this.d = d
     this.zmid = d.zmid
-    this.ls = Number(d.conditions.ls)
+    this.sunModel = d.sun
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
     this.maxRatio = Math.min(2, devicePixelRatio || 1)
     this.pixelRatio = Math.min(1.5, this.maxRatio)
@@ -83,9 +84,9 @@ export class World {
     this.buildSite()
     this.buildContext()
     this.buildOverlays()
-    this.beacons.start = this.beacon(WHITE, 44)
-    this.beacons.dest = this.beacon(ORANGE, 72)
     this.bindInput()
+    // If the GPU resets, three.js cannot rebuild this scene by itself; tell the page.
+    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onContextLost() })
     addEventListener('resize', () => this.resize())
     this.resize()
   }
@@ -302,11 +303,16 @@ export class World {
     return g
   }
 
-  setEnds(start: { x: number; y: number }, dest: { x: number; y: number }) {
-    for (const [k, p] of [['start', start], ['dest', dest]] as const) {
-      const x = this.wx(p.x), z = this.wz(p.y)
-      this.beacons[k].position.set(x, this.height(x, z), z)
-    }
+  /** Beacons for the start (white) and each stop (orange, the last one tallest). */
+  setPoints(points: { x: number; y: number }[]) {
+    while (this.beacons.length < points.length) this.beacons.push(this.beacon(this.beacons.length ? ORANGE : WHITE, this.beacons.length ? 60 : 44))
+    this.beacons.forEach((b, i) => {
+      b.visible = i < points.length
+      if (!b.visible) return
+      const x = this.wx(points[i].x), z = this.wz(points[i].y)
+      b.position.set(x, this.height(x, z), z)
+      b.scale.y = i && i === points.length - 1 ? 1.3 : 1
+    })
     this.invalidate()
   }
 
@@ -317,7 +323,7 @@ export class World {
       if (old) { this.world.remove(old); old.geometry.dispose(); old.material.dispose(); delete this.ribbons[k]; delete this.paths[k] }
       const r = routes[k]
       if (!r) continue
-      const sp = this.smooth(r.path)
+      const sp = this.track3d(r)
       this.paths[k] = sp
       this.ribbons[k] = this.ribbon(sp, k === 'direct' ? ORANGE : WHITE, k === 'cautious')
       this.world.add(this.ribbons[k]!)
@@ -349,27 +355,13 @@ export class World {
       if (m && sp) m.material.uniforms.reveal.value = k >= 1 ? 1e9 : k * sp[sp.length - 1].s
     }
   }
-  private smooth(path: Int32Array) {
-    const cols = this.d.grid.cols
-    let pts: [number, number][] = []
-    for (let i = 0; i < path.length; i += 3) pts.push([path[i] % cols, (path[i] / cols) | 0])
-    const last = path[path.length - 1]
-    pts.push([last % cols, (last / cols) | 0])
-    for (let it = 0; it < 3; it++) {
-      const q: [number, number][] = [pts[0]]
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], b = pts[i + 1]
-        q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75])
-      }
-      q.push(pts[pts.length - 1]); pts = q
-    }
+  // The route is already straightened and sampled every metre by the model; keep every
+  // second sample, and use the model's distances so the 3D view and the numbers agree.
+  private track3d(r: Route) {
     const out: { x: number; z: number; h: number; s: number }[] = []
-    let acc = 0
-    for (let i = 0; i < pts.length; i++) {
-      const x = this.wx(pts[i][0]), z = this.wz(pts[i][1])
-      if (i) acc += Math.hypot(x - out[i - 1].x, z - out[i - 1].z)
-      out.push({ x, z, h: this.siteH(pts[i][0], pts[i][1]), s: acc })
-    }
+    for (let i = 0; i < r.xs.length; i += 2) out.push({ x: this.wx(r.xs[i]), z: this.wz(r.ys[i]), h: r.z[i] - this.zmid, s: r.d[i] })
+    const L = r.xs.length - 1
+    if (L % 2) out.push({ x: this.wx(r.xs[L]), z: this.wz(r.ys[L]), h: r.z[L] - this.zmid, s: r.d[L] })
     return out
   }
   private sample(sp: { x: number; z: number; s: number }[], s: number) {
@@ -414,7 +406,7 @@ export class World {
           float e = abs(vE);
           vec3 c = e > 0.7 ? vec3(0.04, 0.035, 0.03) : color;
           // chevrons point along the direction of travel
-          if (chevron > 0.5 && e <= 0.7) { float v = fract(vA / spacing - e * 0.32); if (v < 0.14) c = mix(c, vec3(1.0), 0.55); }
+          if (chevron > 0.5 && e <= 0.7) { float v = fract(vA / spacing + e * 0.32); if (v < 0.14) c = mix(c, vec3(1.0), 0.55); }
           gl_FragColor = vec4(c, opacity);
           #include <colorspace_fragment>
         }`,
@@ -440,7 +432,7 @@ export class World {
   }
   setDepart(min: number) { this.departMin = min; if (!this.cine) this.applySun(min); this.invalidate() }
   private applySun(minutes: number, focus?: THREE.Vector3, radius = 950) {
-    const s = sunAt(minutes, this.ls)
+    const s = sunAt(minutes, this.sunModel)
     const el = Math.max(1.2, s.el) * (Math.PI / 180)
     const dir = new THREE.Vector3(s.e, Math.max(Math.sin(el), s.u), -s.n).normalize()
     const f = focus ?? new THREE.Vector3()
@@ -593,12 +585,13 @@ export class World {
   }
 
   // ---------- walk and flyover ----------
-  startCine(kind: 'walk' | 'fly', route: Route, durSec: number) {
+  /** Walks or flies the route from the start to endDist metres; clockAt gives the Mars clock at a distance, for the sun. */
+  startCine(kind: 'walk' | 'fly', route: Route, durSec: number, endDist: number, clockAt: (dist: number) => number) {
     const sp = this.paths[route.kind]
     if (!sp) return
     this.mode = kind
     if (kind === 'walk') this.setExag(1)
-    this.cine = { kind, kindRoute: route.kind, t0: performance.now(), dur: durSec * 1000, pausedAt: 0, pos: null, look: null, lookYaw: 0, lookPitch: 0, lookHold: 0, sunStart: this.departMin, route }
+    this.cine = { kind, kindRoute: route.kind, t0: performance.now(), dur: durSec * 1000, pausedAt: 0, endDist, clockAt, pos: null, look: null, lookYaw: 0, lookPitch: 0, lookHold: 0, route }
     this.styleRibbons(route.kind)
     this.invalidate()
   }
@@ -627,7 +620,7 @@ export class World {
     const c = this.cine!
     if (c.pausedAt) return
     const sp = this.paths[c.kindRoute]!
-    const f = Math.min(1, (now - c.t0) / c.dur), total = sp[sp.length - 1].s, s = f * total
+    const f = Math.min(1, (now - c.t0) / c.dur), s = f * c.endDist
     const here = this.sample(sp, s)
     let pos: THREE.Vector3, look: THREE.Vector3
     if (c.kind === 'walk') {
@@ -651,9 +644,8 @@ export class World {
     if (c.lookYaw || c.lookPitch) { this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), c.lookYaw); this.camera.rotateX(c.lookPitch) }
     const fwd = this.sample(sp, s + 6)
     const heading = ((Math.atan2(fwd.x - here.x, -(fwd.z - here.z)) * 180) / Math.PI + 360) % 360
-    const simMin = c.sunStart + (c.route.outMin * f) / 1.0275
-    this.applySun(simMin, c.kind === 'walk' ? new THREE.Vector3(here.x, this.height(here.x, here.z), here.z) : undefined, c.kind === 'walk' ? 240 : 950)
-    this.onCine({ frac: f, heading, pos: c.pos })
+    this.applySun(c.clockAt(s), c.kind === 'walk' ? new THREE.Vector3(here.x, this.height(here.x, here.z), here.z) : undefined, c.kind === 'walk' ? 240 : 950)
+    this.onCine({ dist: s, frac: f, heading, pos: c.pos })
     if (f >= 1) { this.cine = null; this.onCineEnd() }
   }
 

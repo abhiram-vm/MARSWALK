@@ -14,7 +14,7 @@ Companion documents: [CHALLENGE_BRIEF.md](CHALLENGE_BRIEF.md) (what NASA asks, r
 
 ## 1. The project in one paragraph
 
-MARSWALK is a walking-scale traverse planner and field guide for one real place on Mars: the boxwork ridges on Mount Sharp in Gale crater, which Curiosity has been studying since 2025. The site is shown in 3D from NASA's terrain and orbital images, with Mount Sharp rising around it. An astronaut clicks any start and destination in the 1.4 km planning area. MARSWALK computes two routes (fastest and most cautious), makes a go or no-go call against daylight, shows the walk on a daylight timeline, lets the crew walk it first at eye level with a visor-style display, and produces a printable field guide with a leg-by-leg plan, a turn-back rule, conditions, radiation, real Curiosity photos of the destination, and limits. Every number is marked as measured, derived, assumed or simulated.
+MARSWALK is a walking-scale traverse planner and field guide for one real place on Mars: the boxwork ridges on Mount Sharp in Gale crater, which Curiosity has been studying since 2025. The site is shown in 3D from NASA's terrain and orbital images, with Mount Sharp rising around it. An astronaut plans a science walk: a start and up to four stops anywhere in the 1.4 km planning area, then back to the start. MARSWALK routes every leg two ways (fastest and most cautious), makes a go or no-go call against daylight and NASA's solar storm forecasts for Mars, shows the walk on a daylight timeline, lets the crew walk it first at eye level with a visor-style display, and produces a printable field guide with a leg-by-leg plan, a turn-back rule, conditions, radiation, real Curiosity photos of each stop, and limits. Every number is marked as measured, derived, assumed or simulated.
 
 ### Does the challenge require routing between any two points?
 
@@ -37,7 +37,7 @@ The cost of this choice is originality of location: other teams will pick the br
 
 **Science objective (draft for the team to refine):** find out why the boxwork ridges resisted erosion while the hollows between them did not, by sampling ridge and hollow pairs at several places across the unit. Curiosity sampled one hollow and one adjacent ridge about a month apart (October and November 2025). A person on foot could visit several such pairs in one excursion and choose the next sample from what the last one showed, which is the human advantage the brief's background describes.
 
-**Default scenario:** start at the edge of the boxwork unit (station S0, the Altadena drill area), walk to the Monte Grande hollow and Nevado Sajama ridge pair (S1, S2). The computed Direct route is about 540 m with 40 m of climb; the round trip takes about an hour under the default assumptions. Coordinates are in DATA_SOURCES section 1.
+**Default scenario:** start at the edge of the boxwork unit (station S0, the Altadena drill area), stop at the Monte Grande hollow (S1), then at the Nevado Sajama ridge top beside it (S2), and walk back. The Direct round trip is about 1,050 m; with 30 minutes at each stop the whole walk is about 1 h 30 under the default assumptions. Coordinates are in DATA_SOURCES section 1.
 
 ## 3. Mapping to the brief
 
@@ -60,9 +60,9 @@ Checked against the official text again on 2026-11-15, after the final app was b
 | Suggestion | In the app |
 | --- | --- |
 | Start from a science goal and location | Section 2; stated in the guide |
-| At least three kinds of data | Six: optical (HiRISE, CTX), topographic (terrain), thermal (THEMIS), radiation (RAD), atmospheric (REMS), surface imagery (Navcam) |
+| At least three kinds of data | Seven: optical (HiRISE, CTX), topographic (terrain), thermal (THEMIS), radiation (RAD), atmospheric (REMS), surface imagery (Navcam), space weather (DONKI) |
 | Safety | Slope hazard layer, blocked ground over the limit, go or no-go, sunset reserve, time back from the far point, turn-back rule, steep-ground warnings while walking |
-| Radiation and space weather | RAD dose for the walk, with a note that no route-scale radiation data exists and that a solar particle event would change the call |
+| Radiation and space weather | RAD dose for the walk; NASA's WSA-ENLIL forecasts of solar storm arrivals at Mars and recent particle events from DONKI, with a caution in the call within a day of a modelled arrival and a turn-back rule for particle alerts |
 | Suit and load | Adjustable share of normal walking speed, labelled as an assumption |
 | Route avoiding large obstacles | Routes avoid ground steeper than the limit; rocks smaller than the terrain model resolves are a stated limit |
 
@@ -80,22 +80,22 @@ Checked against the official text again on 2026-11-15, after the final app was b
 ## 4. What the user does (the demo path)
 
 1. **Opens MARSWALK.** The camera descends from above Gale crater to a default walk between two of Curiosity's drill sites.
-2. **Chooses where to go.** Clicks the ground, or taps a station photo and presses Go here. Two routes appear in a fraction of a second.
-3. **Reads the call.** GO or NO-GO, with whole walk time, back-by time and radiation dose, and the reasons.
+2. **Plans the stops.** The default visits the hollow and the ridge Curiosity drilled. Add a stop, click the ground or a station photo to place it; every leg is routed in a fraction of a second.
+3. **Reads the call.** GO or NO-GO, with whole walk time, back-by time and radiation dose, and the reasons, including space weather.
 4. **Picks a route.** Direct or Cautious, compared on time, distance, steep share and steepest ground.
 5. **Sets the time.** Drags the walk along the daylight timeline. Shadows on the terrain move with the sun; the call turns NO-GO if the walk eats into the last hour of light.
 6. **Checks the layers.** Slope hazard, night surface temperature, Curiosity's drive path.
-7. **Walks it.** Eye level, true scale, compass, slope warnings, Mars clock, profile; Curiosity's photo of the destination on arrival.
-8. **Opens the field guide.** A printable sheet with the route map and everything the crew needs.
+7. **Walks it.** Eye level, true scale, through every stop: compass, slope warnings, next stop, Mars clock, sun height, dose so far; Curiosity's photo of the last stop on arrival.
+8. **Opens the field guide.** A printable sheet: route map, timeline with arrival times, a turn-back time for each stop, leg-by-leg ground, conditions, radiation and space weather, photos of each stop, limits and sources.
 
-All eight work in the current build.
+All eight work in the current build and are covered by the browser test (`npm run e2e`).
 
 ## 5. Scope
 
 | Tier | Feature | State |
 | --- | --- | --- |
 | Must | 3D site with real terrain and imagery, 8 km context | Built |
-| Must | Any-two-points routing in a worker, two route profiles | Built |
+| Must | Multi-stop routing in a worker (up to four stops and a routed return), two route profiles, straightened routes | Built |
 | Must | Go or no-go, comparison, daylight timeline | Built |
 | Must | Data layers with mission credits: slope, thermal, track | Built |
 | Must | Science stations with real photos | Built |
@@ -103,8 +103,11 @@ All eight work in the current build.
 | Must | Field guide with provenance marks and limits | Built |
 | Must | Phone layout, reduced-motion support, single-file build | Built |
 | Must | Public hosting, demo, submission form | **Team** |
+| Must | Space weather at Mars from NASA DONKI, snapshot plus live refresh | Built |
+| Must | Licence and third-party notices required by the event terms | Built |
+| Must | Automated tests: 17 engine tests, 21 browser checks | Built |
 | Should | Station notes on drill results (chemistry) from published sources | Not built |
-| Should | A "space weather" toggle that simulates a solar particle event | Not built |
+| Should | Working in pairs: two walkers, buddy-distance rule | Not built |
 | Will not build | Accounts, a backend, a chatbot, other sites, automatic rock detection | |
 
 ## 6. Technical approach
@@ -121,7 +124,9 @@ pipeline/build_app_data.py (Python, run once)
         |
         v
 web/ (Vite, TypeScript, three.js 0.186)
-  src/model.ts           routing (A*), route analysis, legs, go or no-go, sun position
+  src/model.ts           routing (A*), straightening, multi-stop analysis, legs, go or no-go, Mars24 sun
+  src/model.test.ts      17 engine tests (npm test)
+  tests/e2e.cjs          21 browser checks of the built app (npm run e2e)
   src/routing.worker.ts  routing off the main thread
   src/world.ts           3D: terrain meshes with baked shading, sky, sun and shadows,
                          route ribbons, beacons, picking, camera, walk and flyover
@@ -143,7 +148,10 @@ Why these choices:
 - Cost of a step is its length divided by walking speed. Speed depends on slope along the direction of travel (Tobler's function) times a suit factor. Both are assumptions and are labelled as such.
 - Cells steeper than the slope limit are blocked.
 - **Direct** minimises time. **Cautious** multiplies cost on cells over 10 degrees, so it trades distance for gentler ground.
-- Return time is the time back to the start from the farthest point on the route.
+- A diagonal step is not allowed between two blocked cells, so routes cannot cut a ridge corner.
+- Each leg's grid path is then straightened: from each corner the route jumps to the farthest point a straight line reaches without crossing ground steeper than the part it replaces (checked cell by cell). This removes the grid's zig-zag without ever making the route steeper. The route is then measured every metre.
+- The walk back from the last stop is routed on its own, since uphill and downhill cost differently.
+- Engine verified against brute-force Dijkstra on random terrain (AUDIT.md section 5).
 - The rover's actual track is drawn for comparison: a route a wheeled vehicle is known to have driven.
 
 ### Elevation data: resolved
@@ -173,7 +181,7 @@ Open `web/dist/index.html`. For development, `npm run dev`. To rebuild the data 
 | When | Work | Owner |
 | --- | --- | --- |
 | Now | Everyone uses the app for ten minutes on the laptop you will demo from. Note anything slow, confusing or wrong. | All |
-| Next | Open every source marked "cited, not opened" in DATA_SOURCES.md; confirm or remove the figure. | Science |
+| Next | Read AUDIT.md; check the two remaining items under "Not verified" on your own hardware and hosted copy. | Science |
 | Next | Publish: make the repository public, then Settings, Pages, deploy from branch `main`, folder `/ (root)`. The root `index.html` is the app (the build copies it there). Or upload that one file to any static host. Test the link in a private window. **First "Submit for Judging".** | One person |
 | Then | Demo: a 30-second screen recording (descent, click, call, timeline drag, walk, guide) or seven slides. | Presentation |
 | Then | Project page text from SUBMISSION.md, in your own words. | Presentation |
@@ -187,7 +195,7 @@ Submitting early is safe: the guide says you can "edit and resubmit your project
 | --- | --- | --- |
 | Impact | A real crew decision, which way and whether to go, made from real data | Call, comparison, timeline, guide |
 | Creativity | Walking the route at eye level before going; sun and shadows at departure time; provenance marks on every number; radiation handled honestly | Walk mode, timeline, guide |
-| Validity | Real terrain drives the routes; assumptions are visible and adjustable; limits are written down; numbers match the Python reference | Assumptions, guide limits, DATA_SOURCES |
+| Validity | Real terrain drives the routes; the engine is tested against a reference solver; the sun matches Curiosity's sunrise and sunset; the walking speed default is NASA's Apollo planning figure; limits are written down | AUDIT.md, guide limits, DATA_SOURCES |
 | Relevance | Four NASA missions and six instruments, each named in the Data layers drawer and doing work in the decision | Data layers drawer, guide sources |
 | Presentation | One story: a real place, a real question, a decision, a walk | The opening descent, the walk, the demo |
 

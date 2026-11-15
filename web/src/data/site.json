@@ -551,6 +551,59 @@
   "sunrise": "06:46",
   "sunset": "18:51"
  },
+ "sun": {
+  "ls": 341.56,
+  "eotMin": -49.42,
+  "dec": -7.818,
+  "date": "2026-08-25"
+ },
+ "spaceWeather": {
+  "checked": "2026-11-15T14:37Z",
+  "source": "NASA DONKI (CCMC): WSA-ENLIL simulations and SEP events",
+  "marsArrivals": [
+   {
+    "time": "2026-10-27T12:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-10-30T18:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-10-30T18:00Z",
+    "glancing": true
+   },
+   {
+    "time": "2026-10-31T00:00Z",
+    "glancing": true
+   },
+   {
+    "time": "2026-10-31T11:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-11-01T01:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-11-01T02:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-11-04T08:00Z",
+    "glancing": false
+   },
+   {
+    "time": "2026-11-07T06:00Z",
+    "glancing": true
+   },
+   {
+    "time": "2026-11-13T12:00Z",
+    "glancing": true
+   }
+  ],
+  "sepEvents": []
+ },
  "photos": {
   "S0": {
    "sol": 4560,

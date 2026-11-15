@@ -151,6 +151,30 @@ details.assume[open] summary svg { transform: rotate(180deg); }
 .field input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--signal); }
 .fine { margin-top: 12px; font-size: 11.5px; color: var(--ink-3); }
 
+/* ---------- itinerary ---------- */
+.itin { display: grid; gap: 2px; position: relative; }
+.itin .stop { display: grid; grid-template-columns: 22px minmax(0, 1fr) 34px; gap: 8px; align-items: center; position: relative; }
+.itin .stop::before { content: ''; position: absolute; left: 10px; top: -2px; bottom: -2px; width: 2px; background: repeating-linear-gradient(var(--ink-3) 0 3px, transparent 3px 6px); }
+.itin .stop:first-child::before { top: 50%; }
+.itin .stop.back::before { bottom: 50%; }
+.itin .stop > i { position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 700 11px var(--mono); border: 2px solid var(--bg); }
+.itin .stop > i.s { width: 14px; height: 14px; margin-left: 3px; background: #f4f1ec; box-shadow: 0 0 0 1.5px var(--ink-2); }
+.itin .stop > i.d { background: var(--signal); color: var(--signal-ink); box-shadow: 0 0 0 1.5px var(--signal); }
+.itin .stop.back .end { cursor: default; opacity: 0.75; }
+.itin .end small .mono { color: var(--ink-3); margin-left: 6px; font-size: 10.5px; }
+.itin .rm { width: 32px; height: 32px; font-size: 14px; color: var(--ink-3); }
+.itin .rm:hover { color: var(--ink); }
+.itin-actions { display: flex; gap: 8px; margin-top: 8px; padding-left: 30px; }
+.itin-actions .btn { min-height: 32px; font-size: 12px; padding: 0 10px; }
+
+/* ---------- space weather ---------- */
+.sw-line { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; font-size: 12.5px; }
+.sw-line svg { font-size: 15px; margin-top: 1px; }
+.sw-line.ok svg { color: var(--go); } .sw-line.warn svg { color: var(--amber); } .sw-line.info svg { color: var(--ink-3); }
+.sw-list { margin-top: 8px; display: grid; gap: 2px; font-size: 11.5px; color: var(--ink-2); }
+.sw-list li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid var(--line); }
+.checks .warn svg { color: var(--amber); }
+
 /* ---------- daylight timeline ---------- */
 .day { position: fixed; left: calc(var(--gl) + var(--rail) + 16px); right: calc(var(--gr) + 236px); bottom: var(--gb); padding: 10px 14px 8px; z-index: 3; }
 .day-h { display: flex; align-items: baseline; gap: 14px; font-size: 12px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; }
@@ -281,6 +305,8 @@ details.assume[open] summary svg { transform: rotate(180deg); }
 .guide figure { margin-top: 8px; }
 .guide figure img, .guide figure canvas { display: block; width: 100%; border: 1px solid var(--paper-line); border-radius: 2px; }
 .guide figcaption { margin-top: 6px; font: 11px var(--mono); color: var(--paper-ink-2); }
+.guide .leg-h { margin: 14px 0 2px; font-size: 13px; display: flex; justify-content: space-between; gap: 10px; }
+.guide .leg-h .mono { font-size: 12px; color: var(--paper-ink-2); font-weight: 400; }
 .guide .leg { display: grid; grid-template-columns: 8px 112px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 13.5px; border-bottom: 1px solid var(--paper-line); }
 .guide .leg i { width: 8px; height: 22px; border-radius: 1px; } .guide .leg .mono { font-size: 12px; color: var(--paper-ink-2); }
 .g0 { background: #9b948c; } .g1 { background: #e2c25a; } .g2 { background: #e08a26; } .g3 { background: #c8432f; }

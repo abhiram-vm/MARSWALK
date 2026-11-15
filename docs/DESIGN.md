@@ -59,8 +59,10 @@ How it stays fast:
 +--------------------------------------------------------------------------+
 ```
 
-- **Plan panel** in the order a person decides: where, whether, which, then act.
-- **Daylight timeline:** the walk is drawn as a block (out, at the station, back) between sunrise and sunset, with the last hour of light hatched and the sun's height as a curve. Drag the block to change when you leave; the call and the shadows update as you drag.
+- **Plan panel** in the order a person decides: where (an itinerary: start, numbered stops, back to start, with walking time per leg), whether, which, then act, then space weather and assumptions.
+- **Itinerary:** the selected row is outlined in orange and a click on the ground moves it. Add a stop, remove one, or reverse the order. Stops are numbered the same way on the map, the mini-map, the 3D tags and in the guide.
+- **Space weather card:** NASA's latest forecasts of solar storms reaching Mars, with a plain one-line status and when it was checked. It says "live from NASA" when the hosted page has refreshed it, "snapshot" otherwise.
+- **Daylight timeline:** the walk is drawn as blocks (each leg, each stop, the way back) between sunrise and sunset, with the last hour of light hatched and the sun's height as a curve. Drag the block to change when you leave; the call and the shadows update as you drag.
 - **Data layers drawer:** every dataset with its mission, instrument and resolution. Base layers are labelled Base; overlays have switches.
 - **Station pins** are buttons. They open a card with the real Curiosity photo and Go here or Start here.
 - **Mini-map** shows the whole planning area, both routes and where the camera is looking. Click it to look somewhere.
@@ -109,7 +111,9 @@ How it stays fast:
 ## 8. Check before each submission
 
 - [ ] Open `web/dist/index.html` on the demo laptop. The descent is smooth.
+- [ ] `npm test` and `npm run e2e` pass.
 - [ ] Click five places. Each gives two routes or a clear reason why not.
+- [ ] Add a stop, remove it, reverse the stops.
 - [ ] Drag the daylight block to late afternoon: the call turns NO-GO and the shadows lengthen.
 - [ ] Turn each layer on and off.
 - [ ] Open each station card; Go here works.
@@ -124,7 +128,7 @@ How it stays fast:
 In the build environment, at desktop (1440 by 880) and phone (390 by 844) sizes:
 
 - Loads in about 3 seconds from disk, with no errors.
-- Default routes match the Python reference (536 m and 614 m).
+- The route engine matches a brute-force reference solver on random terrain (AUDIT.md section 5).
 - A click-to-route takes about 0.15 to 0.25 seconds, including the worker round trip.
 - Layers, stations, timeline, walk, flyover, guide and reduced motion all work.
 

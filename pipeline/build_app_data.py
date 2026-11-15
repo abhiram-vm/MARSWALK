@@ -16,7 +16,7 @@ web/public/data/waypoints.geojson and conditions.json (pipeline/fetch_reference.
 
 Run from the repository root:  python3 pipeline/build_app_data.py [tile_cache_dir]
 """
-import io, json, math, pathlib, sys, time, urllib.request
+import datetime as dt, io, json, math, os, pathlib, sys, time, urllib.request
 import numpy as np, rasterio
 from rasterio.windows import Window
 from PIL import Image
@@ -28,6 +28,58 @@ DEM_URL = "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/M
 TREK = "https://trek.nasa.gov/tiles/Mars/EQ/{p}/1.0.0/default/default028mm/{z}/{r}/{c}.png"
 CTX_RES, CTX_HALF = 16, 4000          # context grid: 16 m cells, 8 km square
 PHOTOS = {"S0": ("4560", "NAV_LEFT_B"), "S1": ("4687", "NAV_LEFT_B"), "S2": ("4716", "NAV_RIGHT_B")}
+
+
+def mars24(date_iso, lon_e, hour_utc=12.0):
+    """Sun on Mars for a UTC date, after NASA GISS Mars24 (Allison and McEwen 2000).
+    Returns solar longitude Ls, the equation of time (true minus mean solar time) in
+    minutes, and the solar declination in degrees."""
+    y, m, d = map(int, date_iso.split("-"))
+    if m <= 2:
+        y, m = y - 1, m + 12
+    a = y // 100
+    jd_ut = int(365.25 * (y + 4716)) + int(30.6001 * (m + 1)) + d + hour_utc / 24 + 2 - a + a // 4 - 1524.5
+    dt_j2000 = jd_ut + 69.184 / 86400 - 2451545.0  # TT minus UTC: 32.184 s + 37 leap seconds
+    M = math.radians(19.3871 + 0.52402073 * dt_j2000)
+    afms = 270.3871 + 0.524038496 * dt_j2000
+    pbs = sum(A * math.cos(math.radians(0.985626 * dt_j2000 / tau + phi)) for A, tau, phi in [
+        (0.0071, 2.2353, 49.409), (0.0057, 2.7543, 168.173), (0.0039, 1.1177, 191.837), (0.0037, 15.7866, 21.736),
+        (0.0021, 2.1354, 15.704), (0.0020, 2.4694, 95.528), (0.0018, 32.8493, 49.095)])
+    nu_m = (10.691 + 3.0e-7 * dt_j2000) * math.sin(M) + 0.623 * math.sin(2 * M) + 0.050 * math.sin(3 * M) + 0.005 * math.sin(4 * M) + 0.0005 * math.sin(5 * M) + pbs
+    ls = (afms + nu_m) % 360
+    eot_deg = 2.861 * math.sin(math.radians(2 * ls)) - 0.071 * math.sin(math.radians(4 * ls)) + 0.002 * math.sin(math.radians(6 * ls)) - nu_m
+    dec = math.degrees(math.asin(0.42565 * math.sin(math.radians(ls)))) + 0.25 * math.sin(math.radians(ls))
+    return {"ls": round(ls, 2), "eotMin": round(eot_deg * 4, 2), "dec": round(dec, 3), "date": date_iso}
+
+
+def space_weather(cache):
+    """Recent solar energetic particle events and modelled solar storm arrivals at Mars,
+    from NASA's DONKI (api.nasa.gov). Uses NASA_API_KEY if set, otherwise DEMO_KEY.
+    Falls back to cached responses when the API is unavailable."""
+    key = os.environ.get("NASA_API_KEY", "DEMO_KEY")
+    today = dt.date.today()
+    out, fetched = {}, []
+    for name, path, days in (("sep", "SEP", 59), ("enlil", "WSAEnlilSimulations", 30)):
+        url = f"https://api.nasa.gov/DONKI/{path}?startDate={today - dt.timedelta(days=days)}&endDate={today}&api_key={key}"
+        f = cache / f"donki_{name}.json" if cache else None
+        try:
+            out[name] = json.loads(get(url))
+            fetched.append(dt.datetime.now(dt.timezone.utc))
+            if f:
+                f.write_text(json.dumps(out[name]))
+        except Exception as e:
+            print("DONKI", name, "unavailable:", str(e)[:80], "- using cache" if f and f.exists() else "")
+            out[name] = json.loads(f.read_text()) if f and f.exists() else []
+            if f and f.exists():
+                fetched.append(dt.datetime.fromtimestamp(f.stat().st_mtime, dt.timezone.utc))
+    arrivals = sorted({(i["arrivalTime"], bool(i.get("isGlancingBlow"))) for s in out["enlil"] for i in (s.get("impactList") or []) if i.get("location") == "Mars" and i.get("arrivalTime")})
+    return {
+        # when the data was fetched; the older of the two requests if they differ
+        "checked": min(fetched).strftime("%Y-%m-%dT%H:%MZ") if fetched else None,
+        "source": "NASA DONKI (CCMC): WSA-ENLIL simulations and SEP events",
+        "marsArrivals": [{"time": t, "glancing": g} for t, g in arrivals],
+        "sepEvents": [e.get("eventTime") for e in out["sep"]],
+    }
 
 
 def get(url, cache=None):
@@ -168,6 +220,8 @@ def main():
                       "sol": f["properties"]["waypoint_sol"], "xy": cell(*f["geometry"]["coordinates"])} for f in st],
         "track": [cell(*f["geometry"]["coordinates"]) for f in wp],
         "conditions": cond,
+        "sun": mars24(cond["terrestrial_date"], (west + east) / 2),
+        "spaceWeather": space_weather(cache),
         "photos": photos,
     }
     (OUT / "site.json").write_text(json.dumps(site, indent=1))

@@ -8,7 +8,7 @@ import themisUrl from './data/context_themis.png'
 import photoS0 from './data/photo_S0.jpg'
 import photoS1 from './data/photo_S1.jpg'
 import photoS2 from './data/photo_S2.jpg'
-import type { Grid } from './model'
+import type { Grid, SpaceWeather, SunModel } from './model'
 
 export interface Station { id: string; name: string; note: string; sol: number; xy: [number, number] }
 export interface Conditions {
@@ -25,6 +25,8 @@ export interface SiteData {
   track: [number, number][]
   conditions: Conditions
   photos: Record<string, Photo & { src: string }>
+  sun: SunModel & { date: string }
+  spaceWeather: SpaceWeather & { source: string }
   images: { site: HTMLImageElement; ctx: HTMLImageElement; themis: HTMLImageElement }
 }
 
@@ -73,6 +75,8 @@ export async function loadSite(progress: (f: number) => void): Promise<SiteData>
     track: siteJson.track as [number, number][],
     conditions: siteJson.conditions as Conditions,
     photos,
+    sun: siteJson.sun,
+    spaceWeather: siteJson.spaceWeather as SiteData['spaceWeather'],
     images: { site, ctx, themis },
   }
 }
