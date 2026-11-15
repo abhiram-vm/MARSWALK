@@ -27,6 +27,7 @@ Coordinates are from NASA's Curiosity localization file `MSL_waypoints.json` (se
 
 Caveats:
 
+- Elevations in the table are the waypoint file's `elev_geoid`, which is sampled from the same DEM we route on (section 2a).
 - The station position is the rover's last recorded waypoint at or before the event sol. That places the rover, not the drill bit; the drill target is within arm's reach (about 2 m) of the rover. For S0 and S2 the match between waypoint and drill sol is our inference from dates, not a NASA statement. S1 is firmer: the blog's image of the drill block was taken on sol 4687, the waypoint sol.
 - S1 to S2 is about 10 m apart. S0 to S1 is about 500 m in a straight line with about 37 m of climb (computed from the table).
 
@@ -37,16 +38,26 @@ Caveats:
 | O1 | Optical | MRO / HiRISE | "MRO HiRISE, Curiosity Roving Site Mosaic" (`curiosity_hirise_mosaic`) | Tile pyramid has 19 levels; level 18 is about 0.16 m per pixel, consistent with a 0.25 m mosaic. Native resolution not stated in the catalog record. | Mars Trek WMTS, PNG | Verified. Tile at the site shows the polygonal ridge network. | Base map |
 | O2 | Optical | MRO / CTX | "MRO CTX, Curiosity Roving Site Mosaic" (`curiosity_ctx_mosaic`), "Gale Crater Mosaic" (`Gale_CTX_BlockAdj_dd`) | About 6 m per pixel (CTX; Trek description says "up to 6 meters/pixel") | Mars Trek WMTS | Verified (catalog); tiles not individually tested | Regional context when zoomed out |
 | T1 | Topographic | MRO / HiRISE stereo | "MRO HiRISE, Gale Crater DEM" (`Gale_DEM_SMG_1m`) | 1 m (from the product name) | Mars Trek WMTS, PNG | Verified, with a limit: the tiles are 8-bit grayscale pictures of the DEM, not elevation values | Shaded-relief overlay only |
-| T2 | Topographic | MRO / HiRISE stereo | USGS Astrogeology "MSL Gale Merged DEM 1m" GeoTIFF (the source of T1) | 1 m | Direct download from USGS (planetarymaps.usgs.gov / astrogeology.usgs.gov) | **Unverified**: hosts were not reachable; exact file URL not confirmed | Real elevations for slope and routing. This is the critical dependency; see the fallback in the plan. |
+| T2 | Topographic | MRO / HiRISE and CTX stereo, Mars Express / HRSC, tied to MGS / MOLA | USGS Astrogeology "Mars MSL Gale Merged DEM 1m" GeoTIFF, v3 (Parker and Calef, 2016) | 1 m grid | [Catalog page](https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m); file `https://planetarymaps.usgs.gov/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif` (3.6 GB, redirects to `asc-pds-services.s3.us-west-2.amazonaws.com`) | Verified. AOI clipped with `pipeline/clip_dem.py` into `data/dem/aoi_dem_1m.tif`; see section 2a. | Real elevations for slope and routing |
 | T3 | Topographic | MGS / MOLA | "MGS MOLA, Global DEM" and color hillshade | 463 m per pixel | Mars Trek WMTS | Verified (catalog) | Regional context only. Far too coarse for a 500 m walk. |
 | H1 | Thermal | Mars Odyssey / THEMIS | "MO THEMIS-IR Night, Global Mosaic" 100 m v2 (and Day) | 100 m per pixel; tiles stop at level 9 here | Mars Trek WMTS, PNG | Verified at level 9; levels 10 and 11 return 404 | Context overlay: relative night-time surface temperature, a proxy for rocky versus loose ground. Only about 15 pixels across the AOI. |
 | R1 | Radiation | MSL / RAD | Surface dose rate at Gale crater | Point measurement, one site | Published values (Hassler et al. 2014, *Science* 343, 1244797) | **Cited, not opened**: 0.210 ± 0.040 mGy/day absorbed dose; about 0.67 mSv/day dose equivalent, Aug 2012 to Jun 2013 | EVA dose estimate and go/no-go panel |
 | A1 | Atmospheric | MSL / REMS | Curiosity weather feed (per-sol min/max air and ground temperature, pressure, UV index, opacity, sunrise, sunset) | Point measurement, one per sol | `https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | Verified: 4,745 sols; newest record sol 4995 (2026-08-25) | Conditions panel, daylight window |
-| W | Localization | MSL / rover navigation | `MSL_waypoints.json`, `MSL_traverse.json` | Per drive; position, elevation, tilt, distance | `https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/` | Verified (665 KB and 1.36 MB GeoJSON) | Rover track overlay, stations, elevation ground truth |
+| W | Localization | MSL / rover navigation | `MSL_waypoints.json`, `MSL_traverse.json` | Per drive; position, elevation, tilt, distance | `https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/` | Verified (665 KB and 1.36 MB GeoJSON) | Rover track overlay, stations. Rover tilt is an independent check on DEM slope; rover elevation is not (section 2a). |
 | P1 | Optical (surface) | MSL / Mastcam, Navcam, Hazcam | Raw images by sol and camera | Camera dependent | `https://mars.nasa.gov/api/v1/raw_image_items/?order=sol+desc&per_page=..&condition_1=msl:mission` | Verified (returns JSON with image URLs) | "What you will see" images at stations |
 | C1 | Chemical / mineral | MSL / APXS, ChemCam, CheMin, SAM | Drill-sample results at S0-S2 | Per sample | NASA mission blogs and papers | Blogs read; no numeric compositions extracted | Stretch: text notes at stations |
 
 Missions represented: **Mars Reconnaissance Orbiter, Mars Odyssey, Mars Science Laboratory (Curiosity), Mars Global Surveyor**. Data types: optical, topographic, thermal, radiation, atmospheric (five), with chemical as a stretch.
+
+### 2a. What the terrain clip looks like (measured 2026-11-15)
+
+- Full file: 32,980 by 57,440 cells, float32, 1 m cells, equirectangular projection on a 3,396,190 m sphere, nodata -32767.
+- AOI clip: 1,423 by 1,541 cells, no missing cells, elevation -3771.7 to -3421.2 m.
+- The area is steep. With 5 m smoothing the median slope is about 13 degrees, and about 30 percent of cells exceed 20 degrees. Routing here is a real problem, not a formality.
+- Metre-scale texture is present: after removing a 15 m moving average, 98 percent of the residual lies within about -1.1 to +1.3 m. That is consistent with HiRISE stereo coverage and with ridges 1 to 2 m tall, but the catalog does not say which instrument supplied each part of the mosaic, so treat ridge-scale detail as likely, not certain.
+- **Rover elevations are not independent ground truth.** Sampling the clip at all 119 waypoints inside the AOI reproduces the waypoint file's `elev_geoid` exactly (difference 0.00 m). The rover's published elevation is read from this same DEM.
+- **Rover tilt is independent** (measured on board). Median rover tilt at those waypoints is 8.3 degrees (maximum 17.5); median DEM slope at the same points with 5 m smoothing is 9.9 degrees. Correlation between the two is weak (0.39), as expected when comparing a 3 m vehicle's attitude with a gridded slope. Curiosity was driven on the gentlest ground available, so 17.5 degrees is a floor on what is trafficable for the rover, not a human limit.
+- The catalog page's own recommended citation reads: "Calef III, F.J. and Parker, T., 2016, MSL Gale Merged Orthophoto Mosaic, Publisher: PDS Annex, U.S. Geological Survey" with the DEM page URL. Use the page title and URL if in doubt.
 
 ### Mars Trek tile recipe (verified)
 
@@ -60,6 +71,10 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 - Layer search: `https://trek.nasa.gov/mars/TrekServices/ws/index/eq/searchItems?proj=urn:ogc:def:crs:EPSG::104905&start=0&rows=200&facetKeys=itemType&facetValues=product&key={keyword}`.
 - In Leaflet this maps onto `L.CRS.EPSG4326` with `{z}/{y}/{x}`.
 - Trek's ArcGIS ImageServer endpoints (`/mars/arcgis/rest/services/...`) timed out on every attempt. Do not plan around them.
+
+### Hosts the pipeline needs
+
+`trek.nasa.gov`, `mars.nasa.gov`, `astrogeology.usgs.gov`, `planetarymaps.usgs.gov`, `asc-pds-services.s3.us-west-2.amazonaws.com`. All are public and need no key.
 
 ## 3. Derived products (ours)
 
@@ -101,6 +116,7 @@ Use these beside each layer and in the References field. Confirm each against th
 - CTX, Mastcam: NASA/JPL-Caltech/MSSS
 - THEMIS: NASA/JPL-Caltech/Arizona State University
 - MOLA: NASA/GSFC/MOLA Science Team
+- Gale merged DEM: Parker, T. and Calef III, F.J. (2016), USGS Astrogeology Science Center; originators JPL-Caltech, NASA, USGS, University of Arizona. It incorporates HRSC data from ESA's Mars Express; ESA is a 2026 Space Apps partner.
 - RAD: NASA/JPL-Caltech/SwRI
 - REMS: NASA/JPL-Caltech/CSIC-INTA (REMS was contributed by Spain; the Spanish Space Agency is a 2026 Space Apps partner, so mention it in the "Space Agency Partner Data" field after confirming the correct credit)
 - Navcam, Hazcam, localization: NASA/JPL-Caltech

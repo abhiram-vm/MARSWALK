@@ -4,7 +4,7 @@ A walking-scale traverse planner for one real place on Mars: the boxwork ridges 
 
 Built for the 2026 NASA Space Apps Challenge, ["Interplanetary Survival Guide: Martian Map"](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/).
 
-**Status:** planning complete, build in progress. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
+**Status:** planning complete; starter map and data pipeline in place; routing, comparison and briefing not yet built. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
 
 ## What it does
 
@@ -19,6 +19,28 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 | [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | Every data layer, its mission, resolution, endpoint, status and limits |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
 
+## Run it
+
+```bash
+cd web && npm ci && npm run dev
+```
+
+Data pipeline (Python 3, from the repository root):
+
+```bash
+python3 -m pip install -r pipeline/requirements.txt
+```
+
+```bash
+python3 pipeline/fetch_reference.py
+```
+
+```bash
+python3 pipeline/clip_dem.py
+```
+
+The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed in DATA_SOURCES.md. Its outputs are already committed, so the web app runs without it.
+
 ## Before submitting
 
 - This repository must be public, or the deployed site must be, for judges to open it.
@@ -26,7 +48,7 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 
 ## AI assistance
 
-The planning documents in `docs/` were drafted with an AI coding assistant (Claude Code) from the official challenge pages and live NASA data endpoints, and reviewed by the team. Code written with AI assistance is identified in file headers. The project concept and design decisions are the team's. No AI-generated images, video or audio are used.
+The planning documents in `docs/` were drafted with an AI coding assistant (Claude Code) from the official challenge pages and live NASA data endpoints. The team is responsible for reviewing and correcting them. Code written with AI assistance is identified in file headers. The project concept and design decisions are the team's. No AI-generated images, video or audio are used.
 
 ## Data credits
 

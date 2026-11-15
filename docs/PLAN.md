@@ -10,7 +10,7 @@ Companion documents: [CHALLENGE_BRIEF.md](CHALLENGE_BRIEF.md) (what NASA asks, r
 1. **The hackathon is this weekend.** The official site lists the event as November 14-15, 2026, and submission closes **Sunday November 15 at 11:59 p.m.** in your Local Event's time zone. This plan is written in hours-before-deadline, not days.
 2. **The repository is private, and judges need a public link.** The guide says a final-project link must work with "no logins, permissions, or registrations". Make the repository public, or deploy the site publicly and link that, before you submit.
 3. **AI use is allowed, with conditions.** AI may "accelerate" the work; it "should not be used to come up with your idea of how to solve the challenge", and AI-written code must be acknowledged. The MARSWALK concept is the team's. Keep the decisions yours and disclose the assistance (section 11).
-4. **One external dependency decides the build:** real elevation values for the site (section 6). Resolve it in the first two hours or switch to the fallback.
+4. **The riskiest dependency is already resolved.** Real 1 m elevation values for the site are clipped and committed (`data/dem/aoi_dem_1m.tif`, section 6). The map starter in `web/` already shows the site with live NASA layers.
 
 ## 1. The project in one paragraph
 
@@ -149,15 +149,27 @@ Why these choices:
 - Return time is the time back to the start from the farthest point on the route.
 - The rover's actual track is drawn for comparison: a route a wheeled vehicle is known to have driven.
 
-### The critical dependency, and the fallback
+### Elevation data: resolved
 
-Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, not values.
+Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, not values, so the pipeline reads the source file instead.
 
-- **Plan A:** window-read the AOI from the USGS "MSL Gale Merged DEM 1m" GeoTIFF (about 1,500 by 1,500 pixels). The file URL was not confirmed during planning because the USGS hosts were blocked. Confirm it first.
-- **Plan B:** a HiRISE stereo DTM of the same area from the HiRISE team's archive, if Plan A's file cannot be found.
-- **Plan C (fallback):** read Mars Trek's DEM tiles and calibrate grey level to metres using the 119 Curiosity waypoints inside the AOI (sols 4469 to 4916, elevations -3709 to -3562 m), which carry elevations from rover localization. Eight bits over the mosaic's elevation range gives steps of several metres, so individual ridges blur and only broad slope survives. If we ship Plan C, the briefing says so in its limits section.
+- `pipeline/clip_dem.py` window-reads the AOI from the USGS "Mars MSL Gale Merged DEM 1m" GeoTIFF in about 15 seconds and writes `data/dem/aoi_dem_1m.tif` (1,423 by 1,541 cells, no gaps). It has been run; the clip is committed.
+- What the clip shows (DATA_SOURCES section 2a): the area is steep, with about 30 percent of cells over 20 degrees, and it carries metre-scale relief consistent with the ridges.
+- Smooth before computing slope. At a 1 m baseline the slope is noisy; use a 3 to 5 m window, and route on a 2 m grid.
+- The rover's published elevations come from this same DEM, so they cannot validate it. Rover tilt can, loosely.
+- With 30 percent of the area above the default 20 degree limit, test early that the default stations are connected. If they are not, raise the limit or route on slope along the direction of travel rather than maximum slope.
 
-**Gate: two hours after the build starts, if no elevation clip is on disk, go to Plan C and do not look back.**
+### What exists in the repository now
+
+| Path | State |
+| --- | --- |
+| `web/` | Vite, React, TypeScript, Leaflet. Shows the AOI with HiRISE, CTX, DEM picture and THEMIS layers from Mars Trek, the rover track and the stations. Builds cleanly; checked in a browser with live tiles. No routing, comparison or briefing yet. |
+| `pipeline/fetch_reference.py` | Run. Writes rover track, waypoints and the 30 newest REMS records to `web/public/data/`. |
+| `pipeline/clip_dem.py` | Run. Writes the DEM clip and `web/public/data/aoi.json`. |
+| `data/dem/aoi_dem_1m.tif` | The 1 m elevation clip. |
+| `data/reference/stations.geojson` | The four stations. |
+
+Not yet written: slope and cost grids, the routing worker, the comparison panel, the briefing, the radiation and conditions panels, deployment.
 
 ## 7. Schedule
 
@@ -165,7 +177,7 @@ Counted in hours before the deadline. Assumes about 20 working hours remain; if 
 
 | Hours to deadline | Data | UI | Science and presentation |
 | --- | --- | --- | --- |
-| 20 to 18 | Confirm DEM source, clip the AOI. Gate at 18. | Map with HiRISE base, stations, rover track | Confirm registration, Local Event, team page. Make the repository public or pick the public host. |
+| 20 to 18 | Done already: DEM clip, reference data scripts. Start the slope grid. | Done already: map with HiRISE base, stations, rover track. Start layer panel. | Confirm registration, Local Event, team page. Make the repository public or pick the public host. |
 | 18 to 14 | Slope, roughness, cost grids; write data files | Layer toggles, hazard overlay, thermal overlay | Write the science objective, station notes, source table |
 | 14 to 10 | A* worker, two cost profiles, route statistics | Route drawing, comparison panel | Radiation and conditions content; open and confirm the "cited, not opened" sources |
 | 10 to 7 | Elevation profile data, bundled base image | Briefing card, provenance labels | Briefing copy, limits section |
@@ -206,7 +218,8 @@ The submission guide says most of the evaluation rests on the project page, so t
 
 | Risk | Likelihood | Response |
 | --- | --- | --- |
-| No quantitative DEM in time | Medium | Plan C at the two-hour gate |
+| Default stations not connected under the slope limit | Medium | Test in the first hour of routing work; adjust the limit or the slope definition |
+| DEM noise read as obstacles | Medium | Smooth 3 to 5 m before slope; show slope as bands, not exact degrees |
 | Mars Trek tiles slow or down during judging | Low to medium | Bundle one AOI base image as a fallback layer |
 | Image hotlinks from mars.nasa.gov fail | Low | Store a handful of station photos in the repository with credits |
 | Scope creep | High | The "will not build" list; freeze at three hours |
@@ -219,8 +232,8 @@ The submission guide says most of the evaluation rests on the project page, so t
 
 Keep this true as the project changes, and reuse it in the form's SI field.
 
-- This plan, the challenge brief summary and the data-source catalog were drafted with an AI coding assistant (Claude Code) from the official pages and live NASA endpoints, then reviewed by the team.
-- Code written with AI assistance is marked in the README and in file headers.
+- This plan, the challenge brief summary and the data-source catalog were drafted with an AI coding assistant (Claude Code) from the official pages and live NASA endpoints. The team reviews and corrects them; say so only once that has happened.
+- The starter map in `web/` and the scripts in `pipeline/` were written with AI assistance and say so in their file headers. Keep doing this for new files.
 - No AI-generated images, video or audio are used. If that changes, add a visible watermark.
 - No NASA logos or mission insignia appear in anything AI-generated.
 - The project idea, the choice of site and the design decisions are the team's.
