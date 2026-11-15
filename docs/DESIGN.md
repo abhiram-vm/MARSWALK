@@ -1,150 +1,136 @@
-# Design direction
+# Design
 
-How MARSWALK looks and behaves. A working example of everything here is `preview/index.html`.
-
-This is the second direction. The first was a light "flight document" page with a static map. It was tidy but did not feel like a tool you would use on Mars. This version makes the terrain the interface.
+How MARSWALK looks and behaves. The final app is `web/`; its build is `web/dist/index.html`.
 
 ## 1. Design read
 
-Reading this as: a single-screen planning tool for a crew member and for judges who will give it a few minutes, in a dark, instrument-like language, built on our own CSS tokens with no component library.
+Reading this as: a mission-planning tool that judges from NASA and industry will use for a few minutes and astronauts would use for an hour, in a dark, instrument-like language with one cinematic signature (walking the route at eye level), built on three.js and plain TypeScript with our own tokens.
 
-It is a product interface, not a landing page. The landing-page guide the team chose says in its own scope note that it is not for product UI, so we take its universal rules (section 7) and leave its hero and section rules aside. The interface guide sets the direction.
+Two guides shaped it. From the landing-page guide we keep the universal rules (section 7); its hero and section rules do not apply to a single-screen tool, as its own scope note says. The interface guide set the direction: commit to one idea and execute it precisely.
 
-## 2. The idea: the terrain is the interface
+## 2. The idea
 
-- The map fills the screen. Everything else floats over it and can be read at a glance.
-- One committed dark look. A crew reads this in a dim habitat or through a visor; a bright page would be wrong for the setting.
-- One accent, a safety orange, used for the chosen route, the active point and the main action. Green and red appear only for the go or no-go call, where they carry meaning.
-- Depth comes from real data: relief shading computed from the terrain model, laid over the orbital image. No invented textures, glows or gradients.
-- The thing people should remember: you click anywhere on Mars, and within a tenth of a second you have two routes, a go or no-go call and a guide for the walk.
+**Mars, at walking scale, before you walk it.**
 
-## 3. Cinematic, but never slow
+- The terrain fills the screen. Panels float over it and never cover the route.
+- The look is dark and quiet so the ground carries the colour. One accent, a safety orange, marks the chosen route, the destination and the main action. Green and red appear only for GO and NO-GO.
+- Depth comes from data: shading baked from the terrain itself, real Mount Sharp on the horizon, the sun placed for the hour you leave. No invented textures, glows or gradients.
+- The thing people remember: you press **Walk it at eye level** and you are standing on the boxwork, with the destination beacon ahead and a visor telling you the next steep stretch is 40 m away.
 
-The team asked for more drama without losing speed. The rule we settled on: **motion only when it explains a change, and nothing moves while you are reading.**
+## 3. Cinematic, never slow
+
+Rule: motion only when it explains a change, and nothing moves while you are reading.
 
 | Moment | What moves | Why |
 | --- | --- | --- |
-| Opening | The camera eases from the whole site down to the route while the title fades | Shows where you are before showing detail |
-| New route | The camera can refit to the route | Confirms the change |
-| Rehearsal | A marker walks the route and the camera follows, with live distance, elevation, slope and time | Lets the crew see the walk before doing it |
-| Field guide | Slides in from the right | State change |
-| Buttons | Press down 1 px | Feedback |
+| Opening | Title fades while the camera descends from above the crater to the route; panels settle in after | Where you are, then what you are doing |
+| New route | The route draws itself from start to destination | Confirms the change and shows direction |
+| Walk it | First person at 1.8 m, true scale; the sun moves with simulated time; letterbox bars | Rehearsal |
+| Fly over | 75 m above the route | The shape of the whole walk |
+| Orbit | Short inertia after a drag | Feels physical; stops in under a second |
 
 How it stays fast:
 
-- The map is one canvas. It redraws only when something changes; it does not run a loop while idle.
-- Routing runs in a background worker, so the page never freezes. A new route across the 550,000-cell grid takes well under a tenth of a second on a laptop.
-- Relief and slope layers are drawn once into off-screen images and reused.
-- No blur effects over the map, no animation library, no scroll listeners.
-- All motion is skipped when the device asks for reduced motion.
-
-Measured in a headless test browser with software rendering: about 36 frames a second during the rehearsal camera move, the heaviest moment. A normal machine with graphics acceleration should do better; check on your own hardware.
+- **Renders on demand.** Idle, it uses no GPU time.
+- **Adaptive resolution.** If frames take longer than about 26 ms the render scale steps down; it steps back up when there is room.
+- **Cheap geometry.** About 275,000 triangles for the site (4 m spacing over the 2 m grid) and 125,000 for the 8 km context. Shading from the terrain is baked once at load, so the GPU does not compute it per frame.
+- **One shadow-casting light.** In walk mode its shadow area shrinks to the 500 m around the walker, which sharpens shadows at no cost.
+- **Routing in a worker,** so the screen never freezes.
+- **No post-processing, no blur over the 3D view,** no animation library.
+- **Reduced motion** skips the opening, camera easing, inertia and the route draw-in.
 
 ## 4. Layout
 
 ```
-+--------------------------------------------------------------------+
-| MARSWALK  site                                          Prototype  |
-| +-------------+ [readout during rehearsal]            [ layers ]   |
-| | Walk        |                                       [ + - fit ]  |
-| | GO / NO-GO  |                                                     |
-| | Routes      |                 MAP                                 |
-| | Elevation   |                                                     |
-| | Rehearse    |                                        [ legend ]  |
-| | Assumptions | [ hint: what a click does now ]                     |
-| +-------------+                                                     |
-+--------------------------------------------------------------------+
++--------------------------------------------------------------------------+
+| MARSWALK | Boxwork unit, Mount Sharp      Weather sol | Layers | Guide   |
+| +--------------+   [ hint ]                                     [ + ]    |
+| | Walk         |                                                [ - ]    |
+| |  start, dest |              3D VIEW                           [fit]    |
+| |  stations    |          pins on stations,                     [ N ]    |
+| | GO / NO-GO   |          beacons at start                               |
+| |  3 figures   |          and destination                                |
+| | Route        |                                                         |
+| |  Direct      |                                                         |
+| |  Cautious    |                                                +------+ |
+| | Walk it      | +----------------------------------------+     | mini | |
+| | Assumptions  | | Daylight: sunrise .. walk .. reserve    |     | map  | |
+| +--------------+ +----------------------------------------+     +------+ |
++--------------------------------------------------------------------------+
 ```
 
-- **Left panel, in the order a person decides:** where from and to, whether to go, which route, what the ground does, then the actions.
-- **Field guide** slides over the right side and can stay open while the map is used.
-- **On a phone** the panel becomes a bottom sheet and the map keeps the top half.
+- **Plan panel** in the order a person decides: where, whether, which, then act.
+- **Daylight timeline:** the walk is drawn as a block (out, at the station, back) between sunrise and sunset, with the last hour of light hatched and the sun's height as a curve. Drag the block to change when you leave; the call and the shadows update as you drag.
+- **Data layers drawer:** every dataset with its mission, instrument and resolution. Base layers are labelled Base; overlays have switches.
+- **Station pins** are buttons. They open a card with the real Curiosity photo and Go here or Start here.
+- **Mini-map** shows the whole planning area, both routes and where the camera is looking. Click it to look somewhere.
+- **Field guide** opens as a light paper sheet over the dark app: the one deliberate change of surface, because it is the document a crew would carry.
+- **Phones:** the plan becomes a bottom sheet, the timeline sits above it, the mini-map is hidden, and the camera frames the route in the visible half.
 
-## 5. Making it obvious to use
+## 5. Making it obvious
 
-- There is always exactly one active point, start or destination, and it is outlined. A click on the map moves it. The hint line always says what a click will do.
-- Named stations are one tap.
-- A click on ground that is too steep moves to the nearest walkable ground and says so. If no route exists, the message names the slope limit and what to change.
-- The go or no-go call is the largest thing in the panel, with the reasons listed under it.
-- The elevation chart can be dragged; a marker on the map follows.
-- Assumptions are sliders in one place. Change one and the routes recompute.
+- One active point, start or destination, always highlighted. The line under it says what a click will do.
+- First visit: a three-step card (click the ground, read the call, walk it). It does not return once dismissed.
+- Clicking steep ground moves to the nearest walkable cell and says so. No route: the message names the limit and where to change it. Outside the planning area: the message says the surroundings are context only.
+- Every decision figure has its reason listed under it.
+- Keyboard: arrow keys orbit, plus and minus zoom, Escape leaves walk mode or closes the guide, Space pauses a walk.
 
 ## 6. Tokens
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `paper` | `#0B0E10` | Behind the map |
-| `surface` | `#14181B` | Panels |
-| `raised` | `#1B2024` | Buttons and cards inside panels |
-| `ink` | `#E8ECEA` | Text |
-| `ink-2` | `#A2ABB0` | Secondary text |
-| `rule` | `#2C3338` | Hairlines |
-| `signal` | `#F26A3A` | The only accent |
-| `go` / `nogo` | `#62C483` / `#EF6258` | The decision only |
+| `bg` | `#0B0D0E` | Behind everything |
+| `panel` | `#0D0F11` at 90% | Panels |
+| `line` | white at 9% | Hairlines |
+| `ink` / `ink-2` / `ink-3` | `#EFEBE6` / `#A8A49F` / `#75716C` | Text levels |
+| `signal` | `#F2662F` | The only accent |
+| `go` / `nogo` | `#63C98A` / `#F06A5D` | The decision only |
+| `amber` | `#F0A43A` | Steep-ground warnings while walking |
+| `paper` / `paper-ink` | `#F3EFE8` / `#1B1714` | Field guide |
 
-- Corners are 2 px everywhere. No shadows.
-- **Type:** B612 for the interface and B612 Mono for every number. Both were designed for aircraft cockpit displays. Self-hosted in the app.
-- **Icons:** Phosphor, one weight.
-- **Routes:** Direct is solid orange; Cautious is dashed off-white. They differ by line style as well as colour.
-- **Slope:** pale yellow from 10 to 15 degrees, amber from 15 degrees to the limit, dark hatching above the limit.
-- **Provenance marks** in the field guide differ by shape: solid for measured, outlined for derived, dashed for assumed, hatched for simulated.
+- Corners 4 px; pills only for map pins and the hint line.
+- **Type:** B612 for interface text and B612 Mono for every number. Both were designed for aircraft cockpit displays. Self-hosted inside the build.
+- **Icons:** Phosphor, bold weight, one family.
+- **Routes:** Direct is solid orange with direction chevrons; Cautious is dashed off-white. They differ by line style as well as colour.
+- **Slope layer:** pale yellow 10 to 15 degrees, amber 15 degrees to the limit, dark hatching above the limit.
+- **Thermal layer:** a perceptual ramp from dark violet (cool at night) to pale yellow (warm at night), stretched between the 2nd and 98th percentiles.
+- **Provenance marks** differ by shape: solid measured, outlined derived, dashed assumed, hatched simulated.
 
 ## 7. Rules that always apply
 
 1. No em-dashes or en-dashes in anything the user reads.
-2. No invented numbers. Every figure comes from `DATA_SOURCES.md` or is marked assumed or simulated.
-3. No decorative dots, version stamps, section numbers or fake telemetry.
-4. Real imagery only, with real credits. No AI-generated pictures of Mars.
+2. No invented numbers. Every figure comes from DATA_SOURCES.md or is marked assumed or simulated.
+3. Real imagery only, with real credits. The Mars colour is a tint on greyscale images and is labelled as one.
+4. No decorative dots, version stamps, fake telemetry or scroll cues.
 5. Plain labels. One label per action.
-6. Every state has a message: computing, no route, point moved, outside the map.
-7. Text passes contrast against its panel; routes and marks read against the image without relying on colour alone.
+6. Every state has a message: loading, computing, no route, point moved, outside the area, no 3D support.
+7. Text passes contrast on its surface; routes and marks never rely on colour alone.
 
 ## 8. Check before each submission
 
-- [ ] Click five different places on the map. Each gives two routes or a clear reason why not.
-- [ ] Raise and lower each assumption. The call and the numbers change sensibly.
-- [ ] Run the rehearsal to the end. Stop it halfway by touching the map.
-- [ ] Open the field guide for both routes. Every figure has a mark.
-- [ ] Try it at phone width.
-- [ ] Turn on reduced motion. Nothing animates and everything still works.
-- [ ] No dash characters in visible text. Every sentence reread by a person.
+- [ ] Open `web/dist/index.html` on the demo laptop. The descent is smooth.
+- [ ] Click five places. Each gives two routes or a clear reason why not.
+- [ ] Drag the daylight block to late afternoon: the call turns NO-GO and the shadows lengthen.
+- [ ] Turn each layer on and off.
+- [ ] Open each station card; Go here works.
+- [ ] Walk it to the end; the arrival photo appears. Stop a walk halfway with Escape.
+- [ ] Open the field guide for both routes; every figure has a mark.
+- [ ] Phone width: the route is visible above the sheet.
+- [ ] Reduced motion on: nothing animates, everything works.
+- [ ] Every sentence reread by a person.
 
-## 9. Option 2: Descent (3D)
+## 9. What was tested, and what was not
 
-A second, more cinematic version of the same planner: `preview/cinematic.html`. Same routing, go or no-go and field guide; the difference is that the site is real 3D terrain.
+In the build environment, at desktop (1440 by 880) and phone (390 by 844) sizes:
 
-### What it adds, and why each piece is there
+- Loads in about 3 seconds from disk, with no errors.
+- Default routes match the Python reference (536 m and 614 m).
+- A click-to-route takes about 0.15 to 0.25 seconds, including the worker round trip.
+- Layers, stations, timeline, walk, flyover, guide and reduced motion all work.
 
-| Feature | What it does for the crew |
-| --- | --- |
-| 3D terrain from the 1 m USGS model, draped with HiRISE | Shows the shape of the ground the numbers describe |
-| Sun placed for the departure time | Computed for Gale crater's latitude and the season in the weather record (Ls 341). Terrain shadows show which ground is shaded when you leave. The sun moves during a walk. |
-| Walk it | First person at 1.8 m eye height, always true scale. A visor HUD with compass, distance, slope (amber over 10 degrees, red over 15), time, Mars clock, the next steep section and a profile. The destination beacon stays visible ahead. |
-| Fly over | A pass 70 m above the route, for the shape of the whole walk |
-| Opening descent | From high above the site down to the route, which draws itself in |
-| Relief ×2 | Doubles heights to read the shape. Walking always resets to true scale. |
-| Mars colour | A warm tint on the greyscale HiRISE image, labelled as a tint in the panel and the guide |
+That environment has no graphics card; it renders in software, so frame rates there say nothing about real hardware. **Run the check in section 8 on your own laptops.**
 
-### How it stays fast
+## 10. Earlier directions
 
-- One terrain mesh of about 137,000 triangles (every second cell of the 2 m grid), one sun with a 2048 shadow map, no post-processing.
-- It draws only when something changes. Idle, it uses no GPU time.
-- Render resolution adapts: if frames take longer than about 26 ms it steps down, and back up when there is headroom.
-- In walk mode the shadow area shrinks to the 500 m around the walker, so shadows are sharper at no extra cost.
-- Routing runs in a background worker, as in Option 1.
-- Reduced-motion settings skip the opening, the camera easing and the route draw-in.
-
-### What I could test, and what I could not
-
-In the build environment it runs without errors at desktop and phone width, and its routes match Option 1 (536 m and 614 m for the default walk). That environment has no graphics card; with software rendering the walk ran at about 3 frames a second, which is expected and says little about real hardware. **The team must try it on the laptops you will demo from.** If it stutters there, the adaptive scale will lower the resolution; if that is not enough, use Option 1.
-
-### Which to submit
-
-| | Option 1, Map | Option 2, Descent |
-| --- | --- | --- |
-| Works on any device | Yes | Needs WebGL; slower on weak laptops and phones |
-| First impression | Clear, professional | Memorable |
-| Risk on the day | Low | Medium, depends on the judge's machine |
-| File | `preview/index.html` | `preview/cinematic.html` |
-
-Recommendation: ship both from one site. Open on Descent if it runs smoothly on your demo laptop, with a visible link to the 2D map. Use the walk in the demo video, where performance on the judge's machine does not matter.
+- `preview/index.html`: 2D planner. Clear, but did not feel like Mars.
+- `preview/cinematic.html`: first 3D version. The team preferred it; the final app keeps its idea and rebuilds the interface, adds the surroundings, stations with photos, the daylight timeline, layers, the mini-map and the paper field guide.

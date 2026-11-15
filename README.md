@@ -4,11 +4,11 @@ A walking-scale traverse planner for one real place on Mars: the boxwork ridges 
 
 Built for the 2026 NASA Space Apps Challenge, ["Interplanetary Survival Guide: Martian Map"](https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/).
 
-**Status:** working prototype in `preview/index.html`. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
+**Status:** final app built. Open `index.html` at the repository root. Submission closes Sunday November 15, 2026, 11:59 p.m. local event time.
 
 ## What it does
 
-An astronaut picks a start point and a science station. MARSWALK overlays NASA orbital imagery, terrain, thermal data, Curiosity's track and ground-level photos on the same 1.5 km patch, computes two routes (fastest and most cautious), compares them, and produces a field briefing in which every number is labelled measured, derived, assumed or simulated.
+The boxwork site in 3D from NASA terrain and orbital images, with Mount Sharp around it. Pick any start and destination; MARSWALK computes two routes (fastest and most cautious), makes a go or no-go call against daylight, lets you walk the route at eye level first, and produces a field guide in which every number is labelled measured, derived, assumed or simulated. Data comes from Mars Reconnaissance Orbiter, Mars Odyssey, Curiosity and Mars Global Surveyor.
 
 ## Documents
 
@@ -22,26 +22,25 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 
 ## Try it
 
-Two versions of the same planner, each one self-contained file:
+Open `index.html` (at the repository root) in a current browser. It is one self-contained file with everything inside it: data, fonts and code. Once the repository is public, GitHub Pages can serve it from the main branch root.
 
-- `preview/index.html`, **Map**: fast 2D planner, works on any device.
-- `preview/cinematic.html`, **Descent**: the site in 3D, with sun shadows at your departure time, a first-person walk of the route and a flyover. Needs WebGL.
+- The camera descends to a default walk between two of Curiosity's 2025 drill sites.
+- Click the ground, or a station photo, to choose where to go. Two routes are computed on the spot.
+- Read the GO or NO-GO call, compare the routes, and drag the walk along the daylight timeline.
+- Open **Data layers** to see each NASA dataset and switch overlays.
+- Press **Walk it at eye level** to rehearse the walk, then open the **Field guide**.
 
-In either:
+Earlier prototypes are in `preview/` (2D and a first 3D version).
 
-- Click anywhere on the map to move the destination. Two routes are computed on the spot.
-- Read the go or no-go call, compare the routes, drag along the elevation chart.
-- Press Rehearse to watch the walk. Open the Field guide for the leg-by-leg plan.
-
-It covers one site, the boxwork unit in Gale crater, using real NASA imagery and terrain.
-
-## Run it
+## Build it
 
 ```bash
-cd web && npm ci && npm run dev
+cd web && npm ci && npm run build
 ```
 
-Data pipeline (Python 3, from the repository root):
+The build writes `web/dist/index.html` and copies it to the repository root. `npm run dev` starts a development server.
+
+The data files in `web/src/data/` are already built. To rebuild them (needs network access to NASA and USGS hosts):
 
 ```bash
 python3 -m pip install -r pipeline/requirements.txt
@@ -56,18 +55,8 @@ python3 pipeline/clip_dem.py
 ```
 
 ```bash
-python3 pipeline/routes.py
+python3 pipeline/build_app_data.py
 ```
-
-```bash
-python3 preview/make_assets.py
-```
-
-```bash
-python3 preview/build.py
-```
-
-The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed in DATA_SOURCES.md. Its outputs are already committed, so the web app runs without it.
 
 ## Before submitting
 
@@ -78,7 +67,7 @@ The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed i
 
 The project concept, the framework and the decisions are our team's. We used Claude Code as an assistant for drafting documents and writing code, and we reviewed what it produced. No AI-generated images, video or audio are used.
 
-3D rendering uses [three.js](https://threejs.org/) r149, MIT licence (`preview/vendor/`).
+3D rendering uses [three.js](https://threejs.org/) (MIT licence): 0.186 in the app, r149 in the earlier prototype (`preview/vendor/`). Icons: Phosphor (MIT). Typefaces: B612 and B612 Mono (Open Font License).
 
 ## Data credits
 

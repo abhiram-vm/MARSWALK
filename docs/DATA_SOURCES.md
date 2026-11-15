@@ -77,13 +77,27 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 
 `trek.nasa.gov`, `mars.nasa.gov`, `astrogeology.usgs.gov`, `planetarymaps.usgs.gov`, `asc-pds-services.s3.us-west-2.amazonaws.com`. All are public and need no key.
 
+### 2b. Added for the final app (built 2026-11-15 by `pipeline/build_app_data.py`)
+
+| # | Data type | Mission / instrument | Product | Resolution | Status | Use |
+| --- | --- | --- | --- | --- | --- | --- |
+| T4 | Topographic | Same as T2 | 8 by 8 km around the site, read from every 16th row and column of the USGS Gale 1 m file | 16 m (meshed at 32 m) | Verified. No missing cells; elevations -4326 to -2812 m, so Mount Sharp rises about 1.5 km above the lowest point. | Real surroundings and horizon in 3D. Context only; no routing. |
+| O3 | Optical | MRO / CTX | "Gale Crater Mosaic" (`Gale_CTX_BlockAdj_dd`), Mars Trek level 12, resampled to 1024 px over 8 km | about 8 m | Verified | Image on the surroundings. Brightness and contrast matched to HiRISE over the site so the seam is less visible. |
+| H2 | Thermal | Mars Odyssey / THEMIS | Night IR, Mars Trek level 9, over the 8 km area | about 80 m per pixel (98 by 99 px) | Verified | Night surface temperature layer, shown as relative values stretched between the 2nd and 98th percentiles. Not degrees. |
+| P2 | Optical (surface) | MSL / Navcam | Full-frame frames at each station: S0 `NLB_802311994EDR_F1161944NCAM00353M_` (sol 4560), S1 `NLB_813579692EDR_F1191722NCAM00354M_` (sol 4687), S2 `NRB_816167292EDR_F1200082NCAM00200M_` (sol 4716) | 1024 px, stored at 720 px | Verified | Station cards, arrival in walk mode, field guide. The S2 frame's name carries site 120, drive 82, the same rover position as S2's waypoint. |
+
+What the thermal layer means: rock and coarse ground hold the day's heat and stay warmer at night; dust and fine sand cool quickly. At 80 m per pixel it shows the neighbourhood, not the path.
+
 ## 3. Derived products (ours)
 
 | Product | Derived from | Method | What it is not |
 | --- | --- | --- | --- |
 | Slope grid, 2 m cells | T2 | Resample to 2 m, Horn slope | Not sensitive to rocks or steps smaller than the DEM can resolve (roughly 1 to 2 m) |
 | Traversal cost grid | Slope | Time per metre from a slope-dependent walking-speed function; cells above the slope limit are blocked | An estimate. See assumptions. |
-| Routes | Cost grid | A* shortest path, 8-connected (`pipeline/routes.py`) | Not a certified safe path |
+| Routes | Cost grid | A* shortest path, 8-connected (`pipeline/routes.py`; the same model runs in the app, `web/src/model.ts`) | Not a certified safe path |
+| Sun position | Season (Ls) from the weather record, site latitude | Standard solar geometry with clock time taken as local solar time | An approximation good to a few degrees; no atmospheric refraction |
+| Terrain shading | Terrain | How much sky each point sees, sampled in 8 directions | A visual aid, not a measurement |
+| Legs | Slope along the route | Slope averaged over about 20 m, classed at 5, 10 and 15 degrees, pieces under 15 m merged | A summary for the guide |
 | EVA dose estimate | R1 | Dose-equivalent rate multiplied by EVA duration | Not a prediction for a future date; ignores suit shielding and solar events |
 
 ### 3a. First routing result (computed 2026-11-15, S0 to S1)
