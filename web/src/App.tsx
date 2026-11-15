@@ -3,9 +3,12 @@
 // Routing, comparison and the briefing are not built yet (docs/PLAN.md).
 
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import { useEffect, useRef } from 'react'
 import { AOI, TREK_LAYERS, trekUrl } from './layers'
+
+// Map marks sit on greyscale imagery in both themes, so they use fixed values:
+// the dark-theme signal orange, off-white and ink. See docs/DESIGN.md.
+const SIGNAL = '#f26a3a'
 
 type Station = {
   id: string
@@ -43,9 +46,9 @@ export default function App() {
     }
     Object.values(bases)[0].addTo(map)
 
-    L.rectangle(aoi, { color: '#f2b84b', weight: 1, fill: false, dashArray: '4 4' }).addTo(map)
+    L.rectangle(aoi, { color: SIGNAL, weight: 1, fill: false, dashArray: '4 4' }).addTo(map)
 
-    const track = L.geoJSON(undefined, { style: { color: '#6ec3ff', weight: 2 } }).addTo(map)
+    const track = L.geoJSON(undefined, { style: { color: '#fafbfa', weight: 2, opacity: 0.9 } }).addTo(map)
     const stations = L.layerGroup().addTo(map)
     overlays['Curiosity track <small>(NASA/JPL-Caltech)</small>'] = track
     overlays['Science stations'] = stations
@@ -62,9 +65,9 @@ export default function App() {
           const p = f.properties
           L.circleMarker([lat, lon], {
             radius: 7,
-            color: '#1b1410',
+            color: '#14181b',
             weight: 2,
-            fillColor: p.id.startsWith('S') ? '#f2b84b' : '#ffffff',
+            fillColor: p.id.startsWith('S') ? SIGNAL : '#fafbfa',
             fillOpacity: 1,
           })
             .bindTooltip(`${p.id} ${p.name}`)
@@ -86,12 +89,17 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app">
-      <header>
-        <h1>MARSWALK</h1>
-        <p>Boxwork unit, Mount Sharp, Gale crater. Starter map: layers and stations only.</p>
+    <div className="flex h-dvh flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-6 border-b border-rule bg-surface px-4">
+        <h1 className="text-base font-bold tracking-[0.2em]">MARSWALK</h1>
+        <p className="hidden truncate font-mono text-xs text-ink-2 md:block">
+          Boxwork unit, Mount Sharp, Gale crater. 4.80 S, 137.38 E
+        </p>
+        <p className="ml-auto shrink-0 border border-rule px-2 py-1 font-mono text-xs text-ink-2">
+          Starter: layers and stations only
+        </p>
       </header>
-      <div ref={el} className="map" />
+      <div ref={el} className="min-h-0 flex-1" />
     </div>
   )
 }

@@ -17,6 +17,7 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 | [docs/PLAN.md](docs/PLAN.md) | The project plan: site, scope, architecture, schedule, risks |
 | [docs/CHALLENGE_BRIEF.md](docs/CHALLENGE_BRIEF.md) | What NASA asks, suggests and leaves optional; rules; judging criteria |
 | [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | Every data layer, its mission, resolution, endpoint, status and limits |
+| [docs/DESIGN.md](docs/DESIGN.md) | Visual direction, tokens, type, layout, copy rules, pre-flight check |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
 
 ## Run it

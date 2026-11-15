@@ -1,21 +1,110 @@
+/* Written with AI assistance (Claude Code). Design tokens: docs/DESIGN.md. */
+@import 'tailwindcss';
+/* Leaflet's stylesheet is imported here, before our overrides, so the overrides win. */
+@import 'leaflet/dist/leaflet.css';
+@import '@fontsource/b612/400.css';
+@import '@fontsource/b612/700.css';
+@import '@fontsource/b612-mono/400.css';
+@import '@fontsource/b612-mono/700.css';
+
+/* One theme strategy: CSS variables, switched by the system colour scheme. */
 :root {
-  color-scheme: dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --bg: #17110e;
-  --panel: #241a15;
-  --text: #f1e7dd;
-  --muted: #b9a797;
-  --accent: #f2b84b;
+  color-scheme: light dark;
+  --paper: #f2f4f3;
+  --surface: #fafbfa;
+  --ink: #14181b;
+  --ink-2: #4a5258;
+  --rule: #c8cdd0;
+  --signal: #c8401a;
+  --on-signal: #fafbfa;
 }
-* { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--text); }
-.app { display: flex; flex-direction: column; height: 100%; }
-header { display: flex; align-items: baseline; gap: 16px; padding: 10px 16px; background: var(--panel); flex-wrap: wrap; }
-header h1 { margin: 0; font-size: 18px; letter-spacing: 0.12em; color: var(--accent); }
-header p { margin: 0; font-size: 13px; color: var(--muted); }
-.map { flex: 1; min-height: 0; background: #000; }
-.leaflet-control-layers { max-width: min(340px, 80vw); color: #1b1410; }
-.leaflet-control-layers label { font-size: 13px; margin-bottom: 4px; }
-.leaflet-control-layers small { color: #5f5148; }
-.leaflet-container { font: inherit; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1214;
+    --surface: #171b1e;
+    --ink: #e8ecea;
+    --ink-2: #a2abb0;
+    --rule: #2b3237;
+    --signal: #f26a3a;
+    --on-signal: #0f1214;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-rule: var(--rule);
+  --color-signal: var(--signal);
+  --color-on-signal: var(--on-signal);
+  --font-sans: 'B612', ui-sans-serif, sans-serif;
+  --font-mono: 'B612 Mono', ui-monospace, monospace;
+  /* Shape lock: one radius everywhere. */
+  --radius-card: 2px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--signal);
+}
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* Leaflet controls take the same tokens as the rest of the interface. */
+.leaflet-container {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  background: #0b0d0e;
+}
+.leaflet-control-layers,
+.leaflet-bar a,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 2px;
+}
+.leaflet-control-layers {
+  max-width: min(320px, 80vw);
+  border: 1px solid var(--rule);
+  box-shadow: none;
+}
+.leaflet-control-layers label {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.leaflet-control-layers small {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.leaflet-bar,
+.leaflet-touch .leaflet-bar {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  box-shadow: none;
+}
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  border-bottom-color: var(--rule);
+  color: var(--ink);
+  background: var(--surface);
+}
+.leaflet-container .leaflet-control-attribution {
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.leaflet-control-attribution a {
+  color: var(--ink);
+}

@@ -3,7 +3,7 @@
 NASA Space Apps Challenge 2026, "Interplanetary Survival Guide: Martian Map".
 Written 2026-11-14 for a team of two or three using AI-assisted coding.
 
-Companion documents: [CHALLENGE_BRIEF.md](CHALLENGE_BRIEF.md) (what NASA asks, rules, judging), [DATA_SOURCES.md](DATA_SOURCES.md) (every layer, its source and its limits), [SUBMISSION.md](SUBMISSION.md) (form fields and demo).
+Companion documents: [CHALLENGE_BRIEF.md](CHALLENGE_BRIEF.md) (what NASA asks, rules, judging), [DATA_SOURCES.md](DATA_SOURCES.md) (every layer, its source and its limits), [DESIGN.md](DESIGN.md) (look, type, colour, layout, copy rules), [SUBMISSION.md](SUBMISSION.md) (form fields and demo).
 
 ## 0. Read this first
 
@@ -64,7 +64,7 @@ The cost of this choice is originality of location: other teams will pick the br
 
 | Option | Decision |
 | --- | --- |
-| 1. Format | Habitat planning display (desktop web) plus a phone-width field briefing card. No HUD. |
+| 1. Format | Habitat planning display (desktop web) plus a phone-width field briefing card styled as a printed flight document. No HUD. |
 | 2. Static, interactive or generator | Interactive, one site. Not a generator. |
 | 3. Inspiration from other missions | The field card borrows from Apollo traverse maps and cuff checklists. Use only if a team member confirms the reference. |
 | 4. Time frame | Terrain: no time frame. Conditions: latest available REMS sol, clearly dated. |
@@ -98,6 +98,7 @@ If steps 1 to 6 work on real data, the project is submittable.
 | Should | Elevation profile chart per route | UI |
 | Should | Curiosity photos at stations | Science |
 | Should | Bundled AOI base image so the map works if Mars Trek is slow | Data |
+| Should | Landing view: one-viewport hero with the live map, then the place, the layers, the limits (two hours at most; DESIGN.md section 8) | UI |
 | Stretch | "Solar storm" scenario that flips the go/no-go | Science |
 | Stretch | Assumption sliders (suit factor, slope limit) that recompute live | UI |
 | Stretch | Station notes on rover chemistry results | Science |
@@ -112,7 +113,7 @@ Cut from the bottom when time runs short. Do not cut the limits section or the p
 A static site with no server. Everything heavy is precomputed.
 
 ```
-pipeline/  (Python, run once)            web/  (Vite + React + TypeScript + Leaflet)
+pipeline/  (Python, run once)            web/  (Vite, React, TypeScript, Leaflet, Tailwind v4)
   fetch DEM clip for the AOI               Leaflet map, CRS EPSG4326
   slope, roughness, cost grids      ->     layers from Mars Trek tiles (live)
   subset waypoints, stations               static data from web/public/data
@@ -127,6 +128,20 @@ Why these choices:
 - **Routing in the browser** so the user can pick any two points. The grid is about 700 by 750 cells at 2 m; A* with a binary heap is well under a second.
 - **No backend** so there is nothing to keep running during judging.
 - **Deterministic briefing text** from templates, not a language model. Every sentence is reproducible and checkable.
+
+### Design
+
+Full direction is in [DESIGN.md](DESIGN.md). The decisions that affect the build:
+
+- **A flight document, not a sci-fi console.** Light by default with a dark variant that follows the system setting; cool paper and ink; one safety-orange accent; 2 px corners; no shadows, glows or gradients.
+- **Type:** B612 and B612 Mono, faces designed for aircraft cockpit displays, self-hosted. All numbers in mono.
+- **Tokens are CSS variables** exposed to Tailwind v4, already in `web/src/index.css`. Use the token classes (`bg-surface`, `text-ink-2`, `border-rule`, `bg-signal`), never raw colours.
+- **Icons:** Phosphor only.
+- **Two routes are told apart by line style as well as colour** (solid orange, dashed off-white), and blocked ground is hatched, so nothing depends on colour alone.
+- **Provenance marks** on the field card differ by shape (solid, outlined, dashed, hatched), so they print in greyscale.
+- **Motion is CSS only** and limited to five transitions that each explain a change.
+- **Copy rules:** no em-dashes, no invented numbers, plain labels, one label per action.
+- The landing-page design guide the team chose excludes dense product UI by its own scope note. It governs the landing view, field card and slides in full, and only its universal rules apply to the map tool.
 
 ### Data files the pipeline writes
 
@@ -163,7 +178,7 @@ Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, n
 
 | Path | State |
 | --- | --- |
-| `web/` | Vite, React, TypeScript, Leaflet. Shows the AOI with HiRISE, CTX, DEM picture and THEMIS layers from Mars Trek, the rover track and the stations. Builds cleanly; checked in a browser with live tiles. No routing, comparison or briefing yet. |
+| `web/` | Vite, React, TypeScript, Leaflet, Tailwind v4, with the design tokens and fonts in place and checked in light and dark. Shows the AOI with HiRISE, CTX, DEM picture and THEMIS layers from Mars Trek, the rover track and the stations. Builds cleanly; checked in a browser with live tiles. No routing, comparison or briefing yet. |
 | `pipeline/fetch_reference.py` | Run. Writes rover track, waypoints and the 30 newest REMS records to `web/public/data/`. |
 | `pipeline/clip_dem.py` | Run. Writes the DEM clip and `web/public/data/aoi.json`. |
 | `data/dem/aoi_dem_1m.tif` | The 1 m elevation clip. |
@@ -182,7 +197,7 @@ Counted in hours before the deadline. Assumes about 20 working hours remain; if 
 | 14 to 10 | A* worker, two cost profiles, route statistics | Route drawing, comparison panel | Radiation and conditions content; open and confirm the "cited, not opened" sources |
 | 10 to 7 | Elevation profile data, bundled base image | Briefing card, provenance labels | Briefing copy, limits section |
 | 7 to 5 | Fix what the demo path exposes | Polish the demo path only | Deploy. Test the public link in a private window. **First "Submit for Judging" with what exists.** |
-| 5 to 3 | Stretch items or fixes | Stretch items or fixes | Demo (seven slides or a 30-second video). Final project page text. |
+| 5 to 3 | Stretch items or fixes | Run the DESIGN.md pre-flight check; fix what fails | Demo (seven slides or a 30-second video) in the same type and colours. Final project page text. |
 | 3 to 1 | Freeze code | Freeze code | Resubmit. Check every link logged out. |
 | Last hour | Nothing | Nothing | Buffer only |
 
@@ -202,7 +217,7 @@ Submitting early is safe: the guide says you can "edit and resubmit your project
 | Creativity | (1) Provenance labels on every number. (2) Radiation treated honestly as a mission-level number, not a fake heat map. (3) The rover's real track and photos as ground truth for a human route. (4) A field card, not only a dashboard. | Briefing, radiation panel, map |
 | Validity | Real elevation data drives the routes; assumptions are visible and adjustable; limits are written down | Briefing limits section, DATA_SOURCES |
 | Relevance | Four NASA missions, five data types, Mars Trek as the tile source, all doing work in the route computation or the briefing | Layer panel with mission and instrument credits |
-| Presentation | One clear story: a real place, a real question, two routes, one decision | Demo and project page |
+| Presentation | One clear story: a real place, a real question, two routes, one decision. A look that is recognisably ours and consistent across site, card and slides (DESIGN.md). | Landing view, demo and project page |
 
 The submission guide says most of the evaluation rests on the project page, so the page text gets real time (SUBMISSION.md).
 
