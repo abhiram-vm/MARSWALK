@@ -108,3 +108,43 @@ Measured in a headless test browser with software rendering: about 36 frames a s
 - [ ] Try it at phone width.
 - [ ] Turn on reduced motion. Nothing animates and everything still works.
 - [ ] No dash characters in visible text. Every sentence reread by a person.
+
+## 9. Option 2: Descent (3D)
+
+A second, more cinematic version of the same planner: `preview/cinematic.html`. Same routing, go or no-go and field guide; the difference is that the site is real 3D terrain.
+
+### What it adds, and why each piece is there
+
+| Feature | What it does for the crew |
+| --- | --- |
+| 3D terrain from the 1 m USGS model, draped with HiRISE | Shows the shape of the ground the numbers describe |
+| Sun placed for the departure time | Computed for Gale crater's latitude and the season in the weather record (Ls 341). Terrain shadows show which ground is shaded when you leave. The sun moves during a walk. |
+| Walk it | First person at 1.8 m eye height, always true scale. A visor HUD with compass, distance, slope (amber over 10 degrees, red over 15), time, Mars clock, the next steep section and a profile. The destination beacon stays visible ahead. |
+| Fly over | A pass 70 m above the route, for the shape of the whole walk |
+| Opening descent | From high above the site down to the route, which draws itself in |
+| Relief ×2 | Doubles heights to read the shape. Walking always resets to true scale. |
+| Mars colour | A warm tint on the greyscale HiRISE image, labelled as a tint in the panel and the guide |
+
+### How it stays fast
+
+- One terrain mesh of about 137,000 triangles (every second cell of the 2 m grid), one sun with a 2048 shadow map, no post-processing.
+- It draws only when something changes. Idle, it uses no GPU time.
+- Render resolution adapts: if frames take longer than about 26 ms it steps down, and back up when there is headroom.
+- In walk mode the shadow area shrinks to the 500 m around the walker, so shadows are sharper at no extra cost.
+- Routing runs in a background worker, as in Option 1.
+- Reduced-motion settings skip the opening, the camera easing and the route draw-in.
+
+### What I could test, and what I could not
+
+In the build environment it runs without errors at desktop and phone width, and its routes match Option 1 (536 m and 614 m for the default walk). That environment has no graphics card; with software rendering the walk ran at about 3 frames a second, which is expected and says little about real hardware. **The team must try it on the laptops you will demo from.** If it stutters there, the adaptive scale will lower the resolution; if that is not enough, use Option 1.
+
+### Which to submit
+
+| | Option 1, Map | Option 2, Descent |
+| --- | --- | --- |
+| Works on any device | Yes | Needs WebGL; slower on weak laptops and phones |
+| First impression | Clear, professional | Memorable |
+| Risk on the day | Low | Medium, depends on the judge's machine |
+| File | `preview/index.html` | `preview/cinematic.html` |
+
+Recommendation: ship both from one site. Open on Descent if it runs smoothly on your demo laptop, with a visible link to the 2D map. Use the walk in the demo video, where performance on the judge's machine does not matter.

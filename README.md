@@ -22,7 +22,12 @@ An astronaut picks a start point and a science station. MARSWALK overlays NASA o
 
 ## Try it
 
-Open `preview/index.html` in a browser. It is one self-contained file.
+Two versions of the same planner, each one self-contained file:
+
+- `preview/index.html`, **Map**: fast 2D planner, works on any device.
+- `preview/cinematic.html`, **Descent**: the site in 3D, with sun shadows at your departure time, a first-person walk of the route and a flyover. Needs WebGL.
+
+In either:
 
 - Click anywhere on the map to move the destination. Two routes are computed on the spot.
 - Read the go or no-go call, compare the routes, drag along the elevation chart.
@@ -72,6 +77,8 @@ The pipeline needs network access to `mars.nasa.gov` and the USGS hosts listed i
 ## AI assistance
 
 The project concept, the framework and the decisions are our team's. We used Claude Code as an assistant for drafting documents and writing code, and we reviewed what it produced. No AI-generated images, video or audio are used.
+
+3D rendering uses [three.js](https://threejs.org/) r149, MIT licence (`preview/vendor/`).
 
 ## Data credits
 

@@ -173,13 +173,14 @@ Routing needs real elevation values. Mars Trek's DEM tiles are 8-bit pictures, n
 | Path | State |
 | --- | --- |
 | `preview/index.html` | **The working prototype.** One self-contained file, about 2.5 MB, opens from disk. Full-screen map of the whole site, click-to-place points, live routing, go or no-go, route comparison, elevation chart, rehearsal, field guide, adjustable assumptions. Tested in a browser at desktop and phone width with no errors. |
-| `preview/template.html`, `build.py`, `make_assets.py` | Source of the prototype and the scripts that rebuild it |
+| `preview/cinematic.html` | **Option 2, Descent.** The same planner in 3D with three.js: sun shadows at departure time, first-person walk, flyover. Self-contained, about 3 MB. See DESIGN.md section 9. |
+| `preview/template.html`, `cinematic_template.html`, `build.py`, `make_assets.py`, `vendor/` | Source of both prototypes and the scripts that rebuild them. `vendor/three.min.js` is three.js r149 (MIT). |
 | `pipeline/routes.py` | Reference implementation of the routing model in Python. The prototype's in-browser result matches it (536 m against 537 m for the default Direct route). |
 | `pipeline/fetch_reference.py`, `clip_dem.py` | Fetch Curiosity waypoints and weather; clip the terrain |
 | `data/dem/aoi_dem_1m.tif` | The 1 m elevation clip |
 | `web/` | Earlier starter (React and Leaflet with live Mars Trek tiles). Kept for the live-tile recipe. The prototype has overtaken it. |
 
-**Recommended path to submission:** ship the prototype. Deploy `preview/index.html` as the site (it is a static file with no server), and spend the remaining time on checking the cited sources, the demo and the project page. Porting it into the React app would cost hours and add nothing a judge can see.
+**Recommended path to submission:** ship the prototypes, Descent first if it runs smoothly on your demo laptop, with a link to the 2D map (DESIGN.md section 9). Deploy `preview/index.html` as the site (it is a static file with no server), and spend the remaining time on checking the cited sources, the demo and the project page. Porting it into the React app would cost hours and add nothing a judge can see.
 
 Not built: the night-thermal layer in the prototype, photos for stations other than S1, live Mars Trek tiles in the prototype (it carries its own image so that it works offline and during judging).
 
@@ -192,7 +193,7 @@ The build is ahead of the original plan: the prototype covers the "must" tier. W
 | Now | Everyone opens the prototype and clicks around for ten minutes. Write down anything confusing or wrong. Decide the open questions in section 12. |
 | Next 2 | Science owner opens every source marked "cited, not opened" in DATA_SOURCES.md and confirms or removes the figure. Fix what the ten-minute test found. |
 | Next 2 | Make the repository public or deploy `preview/index.html` to a public address. Test the link in a private window. **First "Submit for Judging".** |
-| Next 3 | Demo: seven slides or a 30-second video, built around the demo path in section 4. Write the project page text. |
+| Next 3 | Demo: seven slides or a 30-second video, built around the demo path in section 4. A screen recording of Descent's walk makes the strongest few seconds. Write the project page text. |
 | If time remains | Night-thermal layer, photos at more stations, a short landing line above the map |
 | Last 3 | Freeze. Run the DESIGN.md check. Resubmit. Check every link logged out. |
 | Last hour | Buffer only |

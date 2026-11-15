@@ -8,7 +8,7 @@ The page computes routes in the browser from the packed terrain grid.
 
 Run from the repository root, after `npm ci` in web/ (for the font files):
   python3 preview/make_assets.py     (only when the site data changes)
-  python3 preview/build.py [extra_output_fragment.html]
+  python3 preview/build.py [option1_fragment.html] [option2_fragment.html]
 """
 import base64, json, pathlib, sys
 
@@ -32,6 +32,26 @@ def font_faces():
     return "\n".join(out)
 
 
+def fill_page(template, fill):
+    page = (HERE / template).read_text()
+    for k, v in fill.items():
+        page = page.replace("{{" + k + "}}", v)
+    assert "{{" not in page, page[page.index("{{"):][:60]
+    for bad in ("\u2014", "\u2013"):
+        assert bad not in page, "dash character found in page text"
+    return page
+
+
+def standalone(page):
+    head, body = page.split("</style>", 1)
+    return ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            f"{head}</style>\n</head>\n<body>{body}</body>\n</html>\n")
+
+
+THREE_CDN = '<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>'
+
+
 def main():
     icons = json.loads((A / "icons.json").read_text())
     fill = {
@@ -45,20 +65,25 @@ def main():
         "I_ARROW": icons["ArrowRight"], "I_PLUS": icons["Plus"], "I_MINUS": icons["Minus"],
         "I_FIT": icons["CornersOut"], "I_X": icons["X"],
     }
-    page = (HERE / "template.html").read_text()
-    for k, v in fill.items():
-        page = page.replace("{{" + k + "}}", v)
-    assert "{{" not in page, page[page.index("{{"):][:60]
-    for bad in ("—", "–"):
-        assert bad not in page, "dash character found in page text"
-    head, body = page.split("</style>", 1)
-    standalone = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
-                  '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-                  f"{head}</style>\n</head>\n<body>{body}</body>\n</html>\n")
-    (HERE / "index.html").write_text(standalone)
-    print("preview/index.html", round(len(standalone) / 1024), "KB")
+    page = fill_page("template.html", fill)
+    (HERE / "index.html").write_text(standalone(page))
+    print("preview/index.html", round(len(standalone(page)) / 1024), "KB")
+
+    # Option 2: the cinematic 3D view. The repository copy carries three.js
+    # inside the file so it works offline; the hosted copy loads it from a CDN.
+    fill.update({
+        "ICONS_JSON": json.dumps({k: icons[k] for k in ("CheckCircle", "WarningCircle")}),
+        "I_WALK": icons["PersonSimpleWalk"], "I_PLANE": icons["Airplane"],
+        "I_PAUSE": icons["Pause"], "I_NORTH": icons["NavigationArrow"],
+    })
+    three = (HERE / "vendor" / "three.min.js").read_text()
+    local = fill_page("cinematic_template.html", {**fill, "THREE_SCRIPT": "<script>\n" + three + "\n</script>"})
+    (HERE / "cinematic.html").write_text(standalone(local))
+    print("preview/cinematic.html", round(len(standalone(local)) / 1024), "KB")
     if len(sys.argv) > 1:
         pathlib.Path(sys.argv[1]).write_text(page)
+    if len(sys.argv) > 2:
+        pathlib.Path(sys.argv[2]).write_text(fill_page("cinematic_template.html", {**fill, "THREE_SCRIPT": THREE_CDN}))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,906 @@
+<title>MARSWALK Descent</title>
+<style>
+/* Option 2, "Descent": the same planner in real 3D. The terrain is a WebGL
+   mesh of the 1 m USGS model under a Mars sky, lit by the sun at the chosen
+   departure time. AI-assisted (Claude Code). Tokens follow docs/DESIGN.md. */
+:root {
+  color-scheme: dark;
+  --paper: #0b0e10;
+  --surface: rgba(17, 21, 24, 0.9);
+  --raised: #1b2024;
+  --ink: #ece9e4;
+  --ink-2: #a9aeb0;
+  --rule: rgba(255, 255, 255, 0.12);
+  --signal: #f26a3a;
+  --on-signal: #0f1214;
+  --go: #62c483;
+  --nogo: #ef6258;
+  --sans: 'B612', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'B612 Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --panel-w: 352px;
+  --gap-l: max(14px, env(safe-area-inset-left, 0px));
+  --gap-r: max(14px, env(safe-area-inset-right, 0px));
+}
+{{FONT_FACES}}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: #0b0e10; color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45; overflow: hidden; }
+h1, h2, h3, p, ul, dl, dd, figure { margin: 0; padding: 0; }
+ul { list-style: none; }
+[hidden] { display: none !important; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.app { position: relative; height: 100%; overflow: hidden; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#gl.dragging { cursor: grabbing; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); padding: 2px 6px; font: 700 11px var(--mono); letter-spacing: 0.04em; color: #f6f4f1; background: rgba(11, 14, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 2px; white-space: nowrap; will-change: transform; }
+.tag.dest { border-color: var(--signal); }
+.tag.small { font-weight: 400; color: var(--ink-2); }
+
+/* Top bar */
+.top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 var(--gap-r) 0 var(--gap-l); background: linear-gradient(rgba(8, 10, 12, 0.7), rgba(8, 10, 12, 0)); pointer-events: none; }
+.top b { letter-spacing: 0.22em; font-size: 15px; }
+.top span { font: 11px var(--mono); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .state { margin-left: auto; border: 1px solid var(--rule); background: var(--surface); padding: 3px 8px; border-radius: 2px; flex: none; }
+
+/* Planning panel */
+.panel { position: absolute; top: 56px; bottom: 14px; left: var(--gap-l); width: var(--panel-w); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; }
+.panel .scroll { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
+.sec { padding: 13px 15px; border-bottom: 1px solid var(--rule); }
+.sec:last-child { border-bottom: 0; }
+.sec h2 { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 9px; }
+.ends { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.ends .stack { display: grid; gap: 7px; }
+.end { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 1px 10px; align-items: center; text-align: left; padding: 8px 10px; background: var(--raised); border: 1px solid var(--rule); border-radius: 2px; }
+.end[aria-pressed="true"] { border-color: var(--signal); box-shadow: inset 3px 0 0 var(--signal); }
+.end i { grid-row: span 2; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #0b0e10; outline: 1px solid var(--ink-2); }
+.dot-start { background: #fafbfa; } .dot-dest { background: var(--signal); }
+.end small { color: var(--ink-2); font-size: 11px; }
+.end strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swap { width: 36px; background: var(--raised); border: 1px solid var(--rule); border-radius: 2px; display: grid; place-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.chip { padding: 4px 8px; background: transparent; border: 1px solid var(--rule); border-radius: 2px; font-size: 12px; }
+.chip b { font-family: var(--mono); margin-right: 5px; }
+.help { margin-top: 9px; font-size: 12px; color: var(--ink-2); }
+
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 13px; align-items: center; }
+.verdict .call { grid-row: span 2; font: 700 24px var(--sans); letter-spacing: 0.06em; padding: 5px 11px; border: 2px solid currentColor; border-radius: 2px; }
+.verdict.go .call { color: var(--go); } .verdict.nogo .call { color: var(--nogo); }
+.verdict .why { font-size: 12px; color: var(--ink-2); }
+.checks { margin-top: 10px; display: grid; gap: 5px; font-size: 12.5px; }
+.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 7px; align-items: start; }
+.ok svg { color: var(--go); } .bad svg { color: var(--nogo); } .info svg { color: var(--ink-2); }
+
+.routes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.route { text-align: left; padding: 9px; background: var(--raised); border: 1px solid var(--rule); border-top: 3px solid var(--rule); border-radius: 2px; display: grid; gap: 5px; }
+.route[aria-pressed="true"] { border-color: var(--ink-2); border-top-color: var(--signal); }
+.route .name { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
+.route .line { width: 30px; border-top: 3px solid var(--signal); } .route .line.dash { border-top: 3px dashed #fafbfa; }
+.route dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 6px; font-size: 11.5px; }
+.route dt { color: var(--ink-2); white-space: nowrap; } .route dd { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.route .big { font: 700 19px var(--mono); }
+
+.views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--rule); background: var(--raised); border-radius: 2px; font-weight: 700; white-space: nowrap; }
+.btn.primary { background: var(--signal); color: var(--on-signal); border-color: var(--signal); grid-column: 1 / -1; padding-block: 12px; }
+.btn:active, .chip:active, .end:active, .route:active, .tool:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; margin-top: 11px; font-size: 13px; }
+.field output { font-family: var(--mono); }
+.field input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--signal); }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 12px; font-size: 13px; }
+.toggles label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.toggles input { accent-color: var(--signal); }
+.fine { margin-top: 10px; font-size: 11.5px; color: var(--ink-2); }
+
+.hint { position: absolute; left: calc(var(--gap-l) + var(--panel-w) + 14px); bottom: 14px; max-width: 46ch; padding: 8px 12px; background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--signal); border-radius: 2px; font-size: 13px; }
+.hint.warn { border-left-color: var(--nogo); }
+.tools { position: absolute; top: 56px; right: var(--gap-r); display: grid; background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; }
+.tool { width: 38px; height: 38px; display: grid; place-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--rule); }
+.tool:last-child { border-bottom: 0; }
+
+/* Cinematic modes */
+.bar { position: absolute; left: 0; right: 0; height: 9vh; background: #050607; pointer-events: none; transform: scaleY(0); }
+.bar.t { top: 0; transform-origin: top; } .bar.b { bottom: 0; transform-origin: bottom; }
+.cine .bar { transform: scaleY(1); }
+.cine .panel, .cine .tools, .cine .hint, .cine .top { opacity: 0; pointer-events: none; }
+.visor { position: absolute; inset: 9vh 0; pointer-events: none; }
+.visor::before, .visor::after { content: ''; position: absolute; width: 46px; height: 46px; border: 2px solid rgba(255, 255, 255, 0.55); }
+.visor::before { left: 26px; top: 20px; border-right: 0; border-bottom: 0; }
+.visor::after { right: 26px; bottom: 20px; border-left: 0; border-top: 0; }
+.compass { position: absolute; top: calc(9vh + 14px); left: 50%; width: min(420px, 70vw); height: 34px; transform: translateX(-50%); overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
+.compass .strip { position: absolute; top: 0; left: 50%; height: 100%; display: flex; will-change: transform; }
+.compass .strip span { flex: none; width: 40px; text-align: center; font: 11px var(--mono); color: rgba(255, 255, 255, 0.75); border-left: 1px solid rgba(255, 255, 255, 0.35); padding-top: 14px; margin-left: -1px; height: 100%; }
+.compass .strip span.card { color: #fff; font-weight: 700; }
+.compass::after { content: ''; position: absolute; left: 50%; top: 0; height: 12px; border-left: 2px solid var(--signal); }
+.hud { position: absolute; left: 50%; bottom: calc(9vh + 14px); transform: translateX(-50%); width: min(820px, calc(100% - 28px)); display: grid; gap: 8px; pointer-events: none; }
+.hud .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 26px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); }
+.hud .row div { font-size: 11px; color: rgba(255, 255, 255, 0.78); text-align: center; }
+.hud .row b { display: block; font: 700 18px var(--mono); color: #fff; }
+.hud .row b.warn { color: #ffb15c; } .hud .row b.alarm { color: #ff7a6e; }
+.hud .next { justify-self: center; padding: 4px 12px; font-size: 13px; color: #fff; background: rgba(5, 6, 7, 0.55); border-left: 3px solid var(--signal); }
+.hud svg { width: 100%; height: 44px; display: block; }
+.hud .pf { fill: rgba(255, 255, 255, 0.08); stroke: rgba(255, 255, 255, 0.7); stroke-width: 1.5; }
+.hud .cur { stroke: var(--signal); stroke-width: 2; }
+.ctrl { position: absolute; top: calc(9vh + 12px); right: var(--gap-r); display: flex; gap: 8px; }
+.ctrl .btn { background: rgba(17, 21, 24, 0.85); }
+.mode-name { position: absolute; top: calc(9vh + 30px); left: calc(var(--gap-l) + 70px); font: 700 12px var(--mono); letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.85); }
+
+/* Field guide */
+.guide { position: absolute; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: #14181b; border-left: 1px solid var(--rule); display: flex; flex-direction: column; }
+.guide[hidden] { display: flex !important; transform: translateX(102%); visibility: hidden; }
+.guide header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 2px solid var(--ink); }
+.guide header b { letter-spacing: 0.16em; } .guide header span { display: block; font: 12px var(--mono); color: var(--ink-2); margin-top: 2px; }
+.guide .body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 18px 22px; }
+.guide h3 { margin: 18px 0 8px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 0; border-bottom: 1px solid var(--rule); font: 11px var(--mono); color: var(--ink-2); }
+.guide li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 0; }
+.guide li.plain { grid-template-columns: minmax(0, 1fr); }
+.guide .v { font-family: var(--mono); }
+.mk { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--ink); transform: translateY(1px); }
+.mk-m { background: var(--ink); } .mk-a { border-style: dashed; }
+.mk-s { background: repeating-linear-gradient(135deg, var(--ink) 0 1.5px, transparent 1.5px 4px); }
+.leg { display: grid; grid-template-columns: 8px 104px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 13px; }
+.leg i { width: 8px; height: 22px; } .leg .mono { color: var(--ink-2); font-size: 12px; }
+.s0 { background: #5d666c; } .s1 { background: #f0d66e; } .s2 { background: #e29628; } .s3 { background: var(--nogo); }
+.guide figure img { width: 100%; display: block; border: 1px solid var(--rule); border-radius: 2px; }
+.guide figcaption { margin-top: 6px; font: 11px var(--mono); color: var(--ink-2); }
+.limits { margin-top: 18px; border-top: 2px solid var(--ink); }
+.guide a { color: inherit; text-underline-offset: 3px; }
+
+.intro { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 10px; pointer-events: none; opacity: 0; }
+.intro b { font-size: clamp(30px, 6.4vw, 64px); letter-spacing: 0.32em; margin-right: -0.32em; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6); }
+.intro span { font: 13px var(--mono); color: #e6dcd2; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); }
+.nogl { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; padding: 24px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar { transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .panel, .tools, .hint, .top { transition: opacity 300ms; }
+  .guide { transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), visibility 220ms; }
+  .intro.show { animation: title 3.4s ease both; }
+  @keyframes title { 0% { opacity: 0; } 20%, 62% { opacity: 1; } 100% { opacity: 0; } }
+}
+@media (max-width: 860px) {
+  .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 45%; border-width: 1px 0 0; }
+  .hint { left: var(--gap-l); right: var(--gap-r); bottom: calc(45% + 10px); max-width: none; }
+  .top span:not(.state) { display: none; }
+  .hud .row { gap: 4px 14px; } .hud .row b { font-size: 15px; }
+  .mode-name { display: none; }
+}
+</style>
+
+<div class="app" id="app">
+  <canvas id="gl" aria-label="3D view of the boxwork unit. Drag to orbit, right-drag or two fingers to pan, scroll to zoom, click the ground to place the active point."></canvas>
+  <div class="labels" id="labels"></div>
+
+  <div class="top"><b>MARSWALK</b><span>Descent. Boxwork unit, Mount Sharp, Gale crater</span><span class="state">3D prototype</span></div>
+
+  <aside class="panel" aria-label="Plan a walk">
+    <div class="scroll">
+      <div class="sec">
+        <h2>Walk</h2>
+        <div class="ends">
+          <div class="stack">
+            <button class="end" id="end-start" aria-pressed="false"><i class="dot-start"></i><small>Start</small><strong id="lbl-start"></strong></button>
+            <button class="end" id="end-dest" aria-pressed="true"><i class="dot-dest"></i><small>Destination</small><strong id="lbl-dest"></strong></button>
+          </div>
+          <button class="swap" id="swap" aria-label="Swap start and destination" title="Swap start and destination">{{I_SWAP}}</button>
+        </div>
+        <div class="chips" id="chips" aria-label="Stations"></div>
+        <p class="help" id="help"></p>
+      </div>
+
+      <div class="sec" aria-live="polite">
+        <div class="verdict" id="verdict"><span class="call" id="call"></span><strong id="headline"></strong><span class="why" id="why"></span></div>
+        <ul class="checks" id="checks"></ul>
+      </div>
+
+      <div class="sec">
+        <h2>Routes</h2>
+        <div class="routes">
+          <button class="route" id="rt-direct" aria-pressed="true"><span class="name">Direct<i class="line"></i></span><span class="big" id="d-time"></span><dl id="d-stats"></dl></button>
+          <button class="route" id="rt-cautious" aria-pressed="false"><span class="name">Cautious<i class="line dash"></i></span><span class="big" id="c-time"></span><dl id="c-stats"></dl></button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>Experience the route</h2>
+        <div class="views">
+          <button class="btn primary" id="v-walk">{{I_WALK}}<span>Walk it</span></button>
+          <button class="btn" id="v-fly">{{I_PLANE}}<span>Fly over</span></button>
+          <button class="btn" id="v-guide">Field guide {{I_ARROW}}</button>
+        </div>
+        <div class="field"><label for="in-depart">Leave at, local Mars time</label><output id="out-depart"></output>
+          <input type="range" id="in-depart" min="420" max="1050" step="10" value="540"></div>
+        <p class="fine" id="sun-note"></p>
+        <div class="toggles">
+          <label><input type="checkbox" id="t-slope"> Slope bands</label>
+          <label><input type="checkbox" id="t-track"> Curiosity track</label>
+          <label><input type="checkbox" id="t-color" checked> Mars colour</label>
+          <label><input type="checkbox" id="t-exag"> Relief ×2</label>
+        </div>
+        <p class="fine">HiRISE images are greyscale. Mars colour is a tint added for the view, not data. Relief ×2 doubles heights for reading the shape; walking always uses true scale.</p>
+      </div>
+
+      <div class="sec">
+        <details>
+          <summary class="fine" style="cursor:pointer; font-weight:700">Assumptions</summary>
+          <div class="field"><label for="in-suit">Suit factor on walking speed</label><output id="out-suit"></output>
+            <input type="range" id="in-suit" min="0.3" max="0.8" step="0.05" value="0.5"></div>
+          <div class="field"><label for="in-limit">Steepest ground allowed</label><output id="out-limit"></output>
+            <input type="range" id="in-limit" min="12" max="30" step="1" value="20"></div>
+          <div class="field"><label for="in-work">Time at the destination</label><output id="out-work"></output>
+            <input type="range" id="in-work" min="0" max="120" step="10" value="30"></div>
+          <p class="fine">The team's assumptions, not NASA values. Routes recompute when they change. Render scale <span class="mono" id="q"></span>, adjusted automatically to keep motion smooth.</p>
+        </details>
+      </div>
+    </div>
+  </aside>
+
+  <div class="tools">
+    <button class="tool" id="z-in" aria-label="Zoom in">{{I_PLUS}}</button>
+    <button class="tool" id="z-out" aria-label="Zoom out">{{I_MINUS}}</button>
+    <button class="tool" id="z-fit" aria-label="Frame the route" title="Frame the route">{{I_FIT}}</button>
+    <button class="tool" id="z-north" aria-label="Face north" title="Face north">{{I_NORTH}}</button>
+  </div>
+
+  <div class="hint" id="hint" role="status"></div>
+
+  <div class="bar t"></div><div class="bar b"></div>
+  <div id="cine-ui" hidden>
+    <div class="visor"></div>
+    <div class="mode-name" id="mode-name"></div>
+    <div class="compass" aria-hidden="true"><div class="strip" id="strip"></div></div>
+    <div class="ctrl">
+      <button class="btn" id="c-pause">{{I_PAUSE}}<span>Pause</span></button>
+      <button class="btn" id="c-exit">{{I_X}}<span>Exit</span></button>
+    </div>
+    <div class="hud" aria-live="off">
+      <div class="next" id="h-next"></div>
+      <div class="row">
+        <div>Walked<b id="h-dist"></b></div><div>Elevation<b id="h-elev"></b></div><div>Slope<b id="h-slope"></b></div>
+        <div>Time in<b id="h-time"></b></div><div>Mars time<b id="h-clock"></b></div><div>Playback<b id="h-speed"></b></div>
+      </div>
+      <svg id="h-prof" viewBox="0 0 800 44" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </div>
+  </div>
+
+  <aside class="guide" id="guide" hidden aria-label="Field guide">
+    <header><div><b>FIELD GUIDE</b><span id="g-sub"></span></div><button class="tool" id="close-guide" aria-label="Close field guide">{{I_X}}</button></header>
+    <div class="body" id="g-body"></div>
+  </aside>
+
+  <div class="intro" id="intro"><b>MARSWALK</b><span>Gale crater, Mars. 4.80 S 137.38 E</span></div>
+  <div class="nogl" id="nogl" hidden><b>3D is not available in this browser.</b><span class="mono">WebGL could not start. The 2D planner in preview/index.html works everywhere.</span></div>
+</div>
+
+{{THREE_SCRIPT}}
+<script>
+// AI-assisted (Claude Code). Routing and guide logic match preview/index.html
+// and pipeline/routes.py. Rendering: one terrain mesh, one sun with shadows,
+// redraws only when something changes.
+(function () {
+'use strict';
+var SITE = {{SITE_JSON}};
+var ICON = {{ICONS_JSON}};
+var NAVCAM = "{{NAVCAM}}";
+var $ = function (id) { return document.getElementById(id); };
+if (!window.THREE) { $('nogl').hidden = false; return; }
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var RATE_MSV_PER_SOL = 0.67, SOL_HOURS = 24.6597, MARS_MIN = 1.0275, RESERVE_MIN = 60;
+var COLS = SITE.cols, ROWS = SITE.rows, CELL = SITE.cell_m, N = COLS * ROWS, STEP = 2;
+var elev = new Float32Array(N), slope = new Float32Array(N), zmid = 0;
+var P = { suit: 0.5, limit: 20, work: 30, depart: 540 };
+var S = { start: null, dest: null, mode: 'dest', sel: 'direct', routes: null, busy: false };
+var LAT = -4.8 * Math.PI / 180, DEC = Math.asin(Math.sin(25.19 * Math.PI / 180) * Math.sin(+SITE.conditions.ls * Math.PI / 180));
+
+// ---------------- routing (same model as the 2D planner) ----------------
+function astar(elev, slope, COLS, ROWS, CELL, s, g, limit, suit, cautious) {
+  var N = COLS * ROWS, best = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1);
+  var hf = [], hn = [], gx = g % COLS, gy = (g / COLS) | 0, vmax = 6 * suit / 3.6;
+  var DX = [0, 0, -1, 1, -1, 1, -1, 1], DY = [-1, 1, 0, 0, -1, -1, 1, 1];
+  function push(f, n) { var i = hf.length; hf.push(f); hn.push(n);
+    while (i > 0) { var p = (i - 1) >> 1; if (hf[p] <= f) break; hf[i] = hf[p]; hn[i] = hn[p]; i = p; } hf[i] = f; hn[i] = n; }
+  function pop() { var n = hn[0], lf = hf.pop(), ln = hn.pop(), len = hf.length;
+    if (len) { var i = 0; for (;;) { var c = 2 * i + 1; if (c >= len) break; if (c + 1 < len && hf[c + 1] < hf[c]) c++; if (hf[c] >= lf) break; hf[i] = hf[c]; hn[i] = hn[c]; i = c; } hf[i] = lf; hn[i] = ln; }
+    return n; }
+  best[s] = 0; push(0, s);
+  while (hf.length) {
+    var cur = pop();
+    if (cur === g) { var path = []; for (var n = g; n !== -1; n = came[n]) path.push(n); return path.reverse(); }
+    var cx = cur % COLS, cy = (cur / COLS) | 0, gc = best[cur];
+    for (var k = 0; k < 8; k++) {
+      var nx = cx + DX[k], ny = cy + DY[k];
+      if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+      var ni = ny * COLS + nx, sl = slope[ni];
+      if (sl > limit) continue;
+      var dist = k < 4 ? CELL : CELL * 1.41421356, tan = (elev[ni] - elev[cur]) / dist;
+      var t = dist / (6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * suit / 3.6);
+      if (cautious && sl > 10) t *= 1 + (sl - 10) * 0.6;
+      var ng = gc + t;
+      if (ng < best[ni]) { best[ni] = ng; came[ni] = cur; var hx = nx - gx, hy = ny - gy; push(ng + Math.sqrt(hx * hx + hy * hy) * CELL / vmax, ni); }
+    }
+  }
+  return null;
+}
+var worker = null, jobId = 0, pending = null;
+function makeWorker() {
+  try {
+    var src = astar.toString() + ';var E,SL,C,R,CL;onmessage=function(e){var d=e.data;if(d.init){E=d.elev;SL=d.slope;C=d.cols;R=d.rows;CL=d.cell;return;}' +
+      'postMessage({id:d.id,direct:astar(E,SL,C,R,CL,d.s,d.g,d.limit,d.suit,false),cautious:astar(E,SL,C,R,CL,d.s,d.g,d.limit,d.suit,true)});};';
+    worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    worker.postMessage({ init: true, elev: elev, slope: slope, cols: COLS, rows: ROWS, cell: CELL });
+    worker.onmessage = function (e) { if (pending && e.data.id === pending.id) { var p = pending; pending = null; p.done(e.data); } };
+    worker.onerror = function () { worker = null; if (pending) { var p = pending; pending = null; p.done(solveHere(p)); } };
+  } catch (err) { worker = null; }
+}
+function solveHere(j) { return { direct: astar(elev, slope, COLS, ROWS, CELL, j.s, j.g, j.limit, j.suit, false), cautious: astar(elev, slope, COLS, ROWS, CELL, j.s, j.g, j.limit, j.suit, true) }; }
+function solve(done) {
+  var job = { id: ++jobId, s: idx(S.start), g: idx(S.dest), limit: P.limit, suit: P.suit, done: done };
+  if (worker) { pending = job; worker.postMessage({ id: job.id, s: job.s, g: job.g, limit: job.limit, suit: job.suit }); }
+  else setTimeout(function () { if (job.id === jobId) done(solveHere(job)); }, 20);
+}
+
+// ---------------- helpers ----------------
+function idx(p) { return Math.round(p.y) * COLS + Math.round(p.x); }
+function speed(tan) { return 6 * Math.exp(-3.5 * Math.abs(tan + 0.05)) * P.suit / 3.6; }
+function fmtMin(m) { m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + ('0' + (m % 60)).slice(-2) + ' min'; }
+function clock(m) { m = ((Math.round(m) % 1440) + 1440) % 1440; return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+function parseClock(s) { var a = s.split(':'); return +a[0] * 60 + +a[1]; }
+function round10(m) { return Math.round(m / 10) * 10; }
+function lonlat(p) {
+  var lon = SITE.west + (p.x + 0.5) / COLS * (SITE.east - SITE.west), lat = SITE.north - (p.y + 0.5) / ROWS * (SITE.north - SITE.south);
+  return Math.abs(lat).toFixed(4) + (lat < 0 ? ' S ' : ' N ') + lon.toFixed(4) + ' E';
+}
+function nearStation(p) { for (var i = 0; i < SITE.stations.length; i++) { var s = SITE.stations[i]; if (Math.hypot(s.xy[0] - p.x, s.xy[1] - p.y) < 3) return s; } return null; }
+function label(p) { var s = nearStation(p); return s ? s.id + ' ' + s.name.replace(/ \(.*/, '') : lonlat(p); }
+function snap(p) {
+  var x0 = Math.max(0, Math.min(COLS - 1, Math.round(p.x))), y0 = Math.max(0, Math.min(ROWS - 1, Math.round(p.y)));
+  if (slope[y0 * COLS + x0] <= P.limit) return { x: x0, y: y0, moved: false };
+  for (var r = 1; r <= 15; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    var x = x0 + dx, y = y0 + dy;
+    if (x >= 0 && y >= 0 && x < COLS && y < ROWS && slope[y * COLS + x] <= P.limit) return { x: x, y: y, moved: true };
+  }
+  return null;
+}
+function analyse(path) {
+  if (!path) return null;
+  var n = path.length, d = new Float32Array(n), t = new Float32Array(n), dist = 0, out = 0, back = 0, climb = 0, over10 = 0, maxS = 0;
+  for (var i = 1; i < n; i++) {
+    var a = path[i - 1], b = path[i], diag = (a % COLS !== b % COLS) && (((a / COLS) | 0) !== ((b / COLS) | 0));
+    var step = diag ? CELL * 1.41421356 : CELL, dz = elev[b] - elev[a];
+    dist += step; out += step / speed(dz / step); back += step / speed(-dz / step);
+    if (dz > 0) climb += dz; if (slope[b] > 10) over10 += step; if (slope[b] > maxS) maxS = slope[b];
+    d[i] = dist; t[i] = out;
+  }
+  var outMin = out / 60, backMin = back / 60, walk = outMin + backMin + P.work;
+  return { path: path, d: d, t: t, dist: dist, climb: climb, over10: dist ? over10 / dist : 0, maxS: maxS, outMin: outMin, backMin: backMin, walk: walk, dose: RATE_MSV_PER_SOL * (walk / 60) / SOL_HOURS };
+}
+function at(r, frac) {
+  var target = frac * r.dist, lo = 0, hi = r.path.length - 1;
+  while (lo < hi) { var mid = (lo + hi) >> 1; if (r.d[mid] < target) lo = mid + 1; else hi = mid; }
+  var c = r.path[lo]; return { i: lo, dist: r.d[lo], elev: elev[c], slope: slope[c], time: r.t[lo] / 60 };
+}
+function sunAt(minutes) {
+  var H = (minutes / 60 - 12) * 15 * Math.PI / 180;
+  var E = -Math.cos(DEC) * Math.sin(H), Nn = Math.cos(LAT) * Math.sin(DEC) - Math.sin(LAT) * Math.cos(DEC) * Math.cos(H), U = Math.sin(LAT) * Math.sin(DEC) + Math.cos(LAT) * Math.cos(DEC) * Math.cos(H);
+  var el = Math.asin(U) * 180 / Math.PI, az = (Math.atan2(E, Nn) * 180 / Math.PI + 360) % 360;
+  return { v: new THREE.Vector3(E, U, -Nn).normalize(), el: el, az: az };
+}
+function compassWord(a) { return ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(a / 45) % 8]; }
+
+// ---------------- 3D scene ----------------
+var cv = $('gl'), renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' }); }
+catch (err) { $('nogl').hidden = false; return; }
+var maxPR = Math.min(2, window.devicePixelRatio || 1), pr = Math.min(1.5, maxPR);
+renderer.setPixelRatio(pr);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+var scene = new THREE.Scene();
+var HAZE = new THREE.Color(0xc9a283);
+scene.fog = new THREE.Fog(HAZE, 900, 5200);
+var camera = new THREE.PerspectiveCamera(50, 1, 0.5, 24000);
+var world = new THREE.Group(); scene.add(world);
+var sun = new THREE.DirectionalLight(0xfff1e0, 1.25), sunTarget = new THREE.Object3D();
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 1.2;
+sun.target = sunTarget; scene.add(sun); scene.add(sunTarget);
+var hemi = new THREE.HemisphereLight(0xd9b89a, 0x4a3426, 0.55); scene.add(hemi);
+
+var sky = new THREE.Mesh(new THREE.SphereGeometry(16000, 40, 20), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x6e5141) }, horizon: { value: new THREE.Color(0xd2ab8a) }, low: { value: new THREE.Color(0x8a6550) }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color(0xfff2e2) }, dusk: { value: 0 } },
+  vertexShader: 'varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 top, horizon, low, sunCol, sunDir; uniform float dusk; varying vec3 vDir;' +
+    'void main(){ vec3 d = normalize(vDir); float h = d.y; vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h, 0.0, 1.0), 0.5)) : mix(horizon, low, clamp(-h * 4.0, 0.0, 1.0));' +
+    'float s = max(dot(d, normalize(sunDir)), 0.0); vec3 halo = mix(sunCol, vec3(0.55, 0.68, 0.85), dusk);' +
+    'c += halo * (pow(s, 900.0) * 1.4 + pow(s, 40.0) * 0.28 + pow(s, 6.0) * 0.10 * (1.0 + dusk)); c *= mix(1.0, 0.55, dusk);' +
+    'gl_FragColor = vec4(c, 1.0); }'
+}));
+sky.renderOrder = -1; scene.add(sky);
+
+var terrain, bandsMesh, bandsTex, ribbons = {}, marks = {}, trackLine, siteTex;
+function wx(c) { return (c + 0.5 - COLS / 2) * CELL; }
+function wz(r) { return (r + 0.5 - ROWS / 2) * CELL; }
+function gc(x) { return x / CELL + COLS / 2 - 0.5; }
+function gr(z) { return z / CELL + ROWS / 2 - 0.5; }
+function hRaw(c, r) {
+  c = Math.max(0, Math.min(COLS - 1.001, c)); r = Math.max(0, Math.min(ROWS - 1.001, r));
+  var c0 = Math.floor(c), r0 = Math.floor(r), fc = c - c0, fr = r - r0, i = r0 * COLS + c0;
+  return (elev[i] * (1 - fc) + elev[i + 1] * fc) * (1 - fr) + (elev[i + COLS] * (1 - fc) + elev[i + COLS + 1] * fc) * fr - zmid;
+}
+function hAt(x, z) { return hRaw(gc(x), gr(z)); }
+function inside(x, z) { var c = gc(x), r = gr(z); return c >= 0 && r >= 0 && c <= COLS - 1 && r <= ROWS - 1; }
+function groundY(x, z) { return hAt(x, z) * world.scale.y; }
+
+function buildTerrain() {
+  var nx = Math.floor((COLS - 1) / STEP) + 1, nz = Math.floor((ROWS - 1) / STEP) + 1;
+  var pos = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), ind = new Uint32Array((nx - 1) * (nz - 1) * 6), k = 0;
+  for (var j = 0; j < nz; j++) for (var i = 0; i < nx; i++) {
+    var c = i * STEP, r = j * STEP, v = j * nx + i;
+    pos[v * 3] = wx(c); pos[v * 3 + 1] = elev[r * COLS + c] - zmid; pos[v * 3 + 2] = wz(r);
+    uv[v * 2] = (c + 0.5) / COLS; uv[v * 2 + 1] = 1 - (r + 0.5) / ROWS;
+  }
+  for (j = 0; j < nz - 1; j++) for (i = 0; i < nx - 1; i++) {
+    var a = j * nx + i, b = a + 1, d = a + nx, e = d + 1;
+    ind[k++] = a; ind[k++] = d; ind[k++] = b; ind[k++] = b; ind[k++] = d; ind[k++] = e;
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(ind, 1)); geo.computeVertexNormals(); geo.computeBoundingSphere();
+  siteTex = new THREE.Texture(siteImg); siteTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); siteTex.needsUpdate = true;
+  terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: siteTex, color: 0xe2b48e, roughness: 0.96, metalness: 0 }));
+  terrain.castShadow = terrain.receiveShadow = true; world.add(terrain);
+  // skirt: a dark apron so the edge of the data reads as an edge, not a cliff into the void
+  var apron = new THREE.Mesh(new THREE.PlaneGeometry(12000, 12000), new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 1 }));
+  apron.rotation.x = -Math.PI / 2; apron.position.y = -260; apron.receiveShadow = false; world.add(apron);
+  bandsTex = new THREE.CanvasTexture(document.createElement('canvas'));
+  bandsMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: bandsTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, fog: true }));
+  bandsMesh.visible = false; bandsMesh.renderOrder = 1; world.add(bandsMesh);
+  buildBands();
+  var tp = SITE.track.map(function (p) { return new THREE.Vector3(wx(p[0]), hRaw(p[0], p[1]) + 1.2, wz(p[1])); });
+  trackLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(tp), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, fog: false }));
+  trackLine.visible = false; world.add(trackLine);
+}
+function buildBands() {
+  var c = bandsTex.image; c.width = COLS; c.height = ROWS; var x = c.getContext('2d'), im = x.createImageData(COLS, ROWS), d = im.data;
+  for (var i = 0; i < N; i++) { var s = slope[i], o = i * 4;
+    if (s > P.limit) { var st = (((i % COLS) + ((i / COLS) | 0)) % 6) < 2; d[o] = 18; d[o + 1] = 14; d[o + 2] = 12; d[o + 3] = st ? 210 : 70; }
+    else if (s > 15) { d[o] = 236; d[o + 1] = 146; d[o + 2] = 36; d[o + 3] = 150; }
+    else if (s > 10) { d[o] = 244; d[o + 1] = 214; d[o + 2] = 104; d[o + 3] = 110; } }
+  x.putImageData(im, 0, 0); bandsTex.needsUpdate = true;
+}
+
+// Route ribbon: width, lift and reveal are uniforms, so one geometry serves the
+// overview (wide, easy to see) and the walk (narrow, on the ground).
+var ribbonVS = 'attribute vec3 side; attribute float along; attribute float edge; uniform float width, lift; varying float vA; varying float vE;' +
+  'void main(){ vec3 p = position + side * edge * width * 0.5; p.y += lift; vA = along; vE = edge; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }';
+var ribbonFS = 'uniform vec3 color; uniform float reveal, dashed, dash, opacity; varying float vA; varying float vE;' +
+  'void main(){ if (vA > reveal) discard; if (dashed > 0.5 && mod(vA, dash * 2.0) > dash) discard;' +
+  'vec3 c = abs(vE) > 0.68 ? vec3(0.05, 0.05, 0.06) : color; gl_FragColor = vec4(c, opacity); }';
+function smoothPath(path) {
+  var pts = [];
+  for (var i = 0; i < path.length; i += 3) pts.push([path[i] % COLS, (path[i] / COLS) | 0]);
+  var last = path[path.length - 1]; pts.push([last % COLS, (last / COLS) | 0]);
+  for (var it = 0; it < 3; it++) { var q = [pts[0]];
+    for (i = 0; i < pts.length - 1; i++) { var a = pts[i], b = pts[i + 1]; q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); }
+    q.push(pts[pts.length - 1]); pts = q; }
+  var out = [], acc = 0;
+  for (i = 0; i < pts.length; i++) { var x = wx(pts[i][0]), z = wz(pts[i][1]);
+    if (i) acc += Math.hypot(x - out[i - 1].x, z - out[i - 1].z);
+    out.push({ x: x, z: z, h: hRaw(pts[i][0], pts[i][1]), s: acc }); }
+  return out;
+}
+function samplePath(sp, s) {
+  var lo = 0, hi = sp.length - 1; s = Math.max(0, Math.min(sp[hi].s, s));
+  while (hi - lo > 1) { var m = (lo + hi) >> 1; if (sp[m].s < s) lo = m; else hi = m; }
+  var a = sp[lo], b = sp[hi], f = b.s > a.s ? (s - a.s) / (b.s - a.s) : 0;
+  return { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
+}
+function makeRibbon(sp, color, dashed) {
+  var n = sp.length, pos = new Float32Array(n * 6), side = new Float32Array(n * 6), along = new Float32Array(n * 2), edge = new Float32Array(n * 2), ind = [];
+  for (var i = 0; i < n; i++) {
+    var a = sp[Math.max(0, i - 1)], b = sp[Math.min(n - 1, i + 1)], tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz) || 1;
+    var sx = -tz / l, sz = tx / l, dh = hAt(sp[i].x + sx, sp[i].z + sz) - hAt(sp[i].x - sx, sp[i].z - sz);
+    for (var e = 0; e < 2; e++) { var v = i * 2 + e;
+      pos[v * 3] = sp[i].x; pos[v * 3 + 1] = sp[i].h; pos[v * 3 + 2] = sp[i].z;
+      side[v * 3] = sx; side[v * 3 + 1] = dh / 2; side[v * 3 + 2] = sz; along[v] = sp[i].s; edge[v] = e ? 1 : -1; }
+    if (i < n - 1) ind.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('side', new THREE.BufferAttribute(side, 3));
+  g.setAttribute('along', new THREE.BufferAttribute(along, 1)); g.setAttribute('edge', new THREE.BufferAttribute(edge, 1)); g.setIndex(ind);
+  g.computeBoundingSphere(); g.boundingSphere.radius += 20;
+  var m = new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: ribbonVS, fragmentShader: ribbonFS, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+    uniforms: { color: { value: new THREE.Color(color) }, width: { value: 7 }, lift: { value: 1.2 }, reveal: { value: 1e9 }, dashed: { value: dashed ? 1 : 0 }, dash: { value: 12 }, opacity: { value: 1 } } }));
+  m.renderOrder = 2; m.frustumCulled = false; return m;
+}
+function beacon(color, tall) {
+  var g = new THREE.Group();
+  var col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, tall, 8, 1, true), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.7, depthWrite: false, fog: false }));
+  col.position.y = tall / 2; g.add(col);
+  var ring = new THREE.Mesh(new THREE.RingGeometry(2.6, 3.6, 40), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.6; g.add(ring);
+  g.renderOrder = 3; world.add(g); return g;
+}
+var tags = {};
+function tag(id, text, cls) { var el = tags[id]; if (!el) { el = document.createElement('div'); el.className = 'tag ' + (cls || ''); $('labels').appendChild(el); tags[id] = el; } el.textContent = text; return el; }
+var tagAnchors = {};
+
+function setRoutes() {
+  ['direct', 'cautious'].forEach(function (k) {
+    if (ribbons[k]) { world.remove(ribbons[k]); ribbons[k].geometry.dispose(); ribbons[k].material.dispose(); ribbons[k] = null; }
+    var r = S.routes && S.routes[k]; if (!r) return;
+    r.sp = smoothPath(r.path);
+    ribbons[k] = makeRibbon(r.sp, k === 'direct' ? 0xf26a3a : 0xfafbfa, k === 'cautious'); world.add(ribbons[k]);
+  });
+  styleRibbons();
+}
+function styleRibbons() {
+  ['direct', 'cautious'].forEach(function (k) { var m = ribbons[k]; if (!m) return; var sel = k === S.sel, u = m.material.uniforms;
+    var walk = mode === 'walk', fly = mode === 'fly'; u.width.value = walk ? (sel ? 1.1 : 0.6) : fly ? (sel ? 3.2 : 2.2) : (sel ? 7 : 4.5); u.lift.value = walk ? 0.12 : 1.4; u.dash.value = walk ? 2.5 : 12;
+    u.opacity.value = sel ? 1 : (walk ? 0 : 0.5); m.renderOrder = sel ? 3 : 2; });
+}
+function placeMarks() {
+  if (!marks.start) { marks.start = beacon(0xfafbfa, 46); marks.dest = beacon(0xf26a3a, 70); }
+  [['start', S.start], ['dest', S.dest]].forEach(function (e) { var p = e[1], m = marks[e[0]];
+    m.position.set(wx(p.x), hRaw(p.x, p.y), wz(p.y)); tagAnchors[e[0]] = { x: p.x, y: p.y, lift: e[0] === 'dest' ? 74 : 50 };
+    tag(e[0], (e[0] === 'start' ? 'START ' : 'DEST ') + label(p), e[0] === 'dest' ? 'dest' : ''); });
+  SITE.stations.forEach(function (s) { var used = Math.hypot(S.start.x - s.xy[0], S.start.y - s.xy[1]) < 9 || Math.hypot(S.dest.x - s.xy[0], S.dest.y - s.xy[1]) < 9;
+    tagAnchors['st-' + s.id] = used ? null : { x: s.xy[0], y: s.xy[1], lift: 6 }; tag('st-' + s.id, s.id, 'small').hidden = used; });
+}
+
+// ---------------- camera ----------------
+var orbit = { target: new THREE.Vector3(), dist: 900, yaw: 0.5, pitch: 0.55 };
+var mode = 'orbit', tween = null, cine = null, dirty = true, raf = 0, frames = [];
+function applyOrbit() {
+  var cp = Math.cos(orbit.pitch);
+  camera.position.set(orbit.target.x + orbit.dist * cp * Math.sin(orbit.yaw), orbit.target.y + orbit.dist * Math.sin(orbit.pitch), orbit.target.z + orbit.dist * cp * Math.cos(orbit.yaw));
+  var g = groundY(camera.position.x, camera.position.z) + 12; if (inside(camera.position.x, camera.position.z) && camera.position.y < g) camera.position.y = g;
+  camera.lookAt(orbit.target);
+}
+function routeFrame() {
+  var r = S.routes && (S.routes[S.sel] || S.routes.direct), pts = [];
+  if (r && r.sp) pts = r.sp; else pts = [{ x: wx(S.start.x), z: wz(S.start.y) }, { x: wx(S.dest.x), z: wz(S.dest.y) }];
+  var x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; pts.forEach(function (p) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); });
+  var cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, span = Math.max(160, Math.hypot(x1 - x0, z1 - z0));
+  var wide = innerWidth > 860, offset = wide ? 0.18 : 0;
+  // aim a little to the right of centre on desktop so the panel does not hide the route
+  var yaw = Math.atan2(x1 - x0, z1 - z0) + Math.PI / 2;
+  if (Math.abs(((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) < 0.2) yaw += 0.6;
+  var dist = span * (wide ? 1.55 : 2.1), t = new THREE.Vector3(cx, groundY(cx, cz), cz);
+  var right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)); t.addScaledVector(right, -span * offset);
+  return { target: t, dist: dist, yaw: yaw, pitch: 0.62 };
+}
+function flyTo(to, ms) {
+  if (reduce || !ms) { orbit.target.copy(to.target); orbit.dist = to.dist; orbit.yaw = to.yaw; orbit.pitch = to.pitch; tween = null; return invalidate(); }
+  var dy = to.yaw - orbit.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  tween = { t0: performance.now(), ms: ms, a: { target: orbit.target.clone(), dist: orbit.dist, yaw: orbit.yaw, pitch: orbit.pitch }, b: { target: to.target.clone(), dist: to.dist, yaw: orbit.yaw + dy, pitch: to.pitch } };
+  invalidate();
+}
+function stepTween(now) {
+  var k = Math.min(1, (now - tween.t0) / tween.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2, a = tween.a, b = tween.b;
+  orbit.target.lerpVectors(a.target, b.target, e); orbit.dist = a.dist * Math.pow(b.dist / a.dist, e); orbit.yaw = a.yaw + (b.yaw - a.yaw) * e; orbit.pitch = a.pitch + (b.pitch - a.pitch) * e;
+  if (k >= 1) tween = null;
+}
+
+// ---------------- render loop: draws only when needed ----------------
+function invalidate() { dirty = true; if (!raf) raf = requestAnimationFrame(loop); }
+var lastT = 0;
+function loop(now) {
+  raf = 0; var active = false;
+  if (tween) { stepTween(now); active = true; }
+  if (cine) { stepCine(now); active = !!cine || active; }
+  if (introReveal) { var k = Math.min(1, (now - introReveal.t0) / introReveal.ms); setReveal(k); if (k >= 1) introReveal = null; active = true; }
+  if (mode === 'orbit') applyOrbit();
+  render();
+  if (active) { adapt(now); raf = requestAnimationFrame(loop); } else lastT = 0;
+  dirty = false;
+}
+function adapt(now) {
+  if (lastT) { frames.push(now - lastT); if (frames.length > 45) frames.shift(); }
+  lastT = now; if (frames.length < 45) return;
+  var avg = frames.reduce(function (a, b) { return a + b; }, 0) / frames.length;
+  if (avg > 26 && pr > 0.75) { pr = Math.max(0.75, pr - 0.25); renderer.setPixelRatio(pr); resize(); frames = []; }
+  else if (avg < 13 && pr < maxPR) { pr = Math.min(maxPR, pr + 0.25); renderer.setPixelRatio(pr); resize(); frames = []; }
+  $('q').textContent = Math.round(pr * 100) + '%';
+}
+var v3 = new THREE.Vector3();
+function render() {
+  sky.position.copy(camera.position);
+  renderer.render(scene, camera);
+  var w = cv.clientWidth, h = cv.clientHeight;
+  Object.keys(tagAnchors).forEach(function (id) { var a = tagAnchors[id], el = tags[id]; if (!el) return;
+    if (!a || mode === 'walk' && id.indexOf('st-') === 0) { el.style.visibility = 'hidden'; return; }
+    v3.set(wx(a.x), (hRaw(a.x, a.y) + a.lift) * world.scale.y, wz(a.y)).project(camera);
+    var vis = v3.z < 1 && v3.x > -1.1 && v3.x < 1.1 && v3.y > -1.1 && v3.y < 1.1;
+    el.style.visibility = vis ? 'visible' : 'hidden'; if (vis) el.style.transform = 'translate(' + ((v3.x + 1) / 2 * w).toFixed(1) + 'px,' + ((1 - v3.y) / 2 * h).toFixed(1) + 'px) translate(-50%,-110%)'; });
+}
+function resize() { var w = cv.clientWidth, h = cv.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); invalidate(); }
+
+// ---------------- light ----------------
+function setSun(minutes, focus, radius) {
+  var s = sunAt(minutes), el = Math.max(1.5, s.el) * Math.PI / 180, dir = s.el > 1.5 ? s.v.clone() : new THREE.Vector3(s.v.x, Math.sin(el), s.v.z).normalize();
+  focus = focus || new THREE.Vector3(0, 0, 0); radius = radius || 1150;
+  sun.position.copy(focus).addScaledVector(dir, 3000); sunTarget.position.copy(focus);
+  var cam = sun.shadow.camera; cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius; cam.near = 100; cam.far = 6500; cam.updateProjectionMatrix();
+  var low = Math.max(0, Math.min(1, (s.el - 2) / 22)), dusk = 1 - Math.max(0, Math.min(1, (s.el + 2) / 14));
+  sun.intensity = 0.35 + 1.0 * low; sun.color.setHSL(0.08, 0.55 - 0.3 * low, 0.72 + 0.16 * low);
+  hemi.intensity = 0.38 + 0.22 * low;
+  sky.material.uniforms.sunDir.value.copy(s.v); sky.material.uniforms.dusk.value = dusk;
+  scene.fog.color.copy(HAZE).multiplyScalar(1 - 0.42 * dusk);
+  return s;
+}
+function sunNote() { var s = sunAt(P.depart);
+  $('out-depart').textContent = clock(P.depart);
+  $('sun-note').textContent = s.el > 0 ? 'Sun ' + Math.round(s.el) + '° above the ' + compassWord(s.az) + ' horizon at departure. Shadows on the ground are for this time. Computed for Gale crater at Ls ' + SITE.conditions.ls + '.' : 'The sun is below the horizon at this time.'; }
+
+// ---------------- input ----------------
+var ptr = {}, moved = 0, pinch = 0, button = 0, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+cv.addEventListener('pointerdown', function (e) { cv.setPointerCapture(e.pointerId); ptr[e.pointerId] = { x: e.clientX, y: e.clientY }; moved = 0; pinch = 0; button = e.button; if (tween) tween = null; });
+cv.addEventListener('pointermove', function (e) {
+  var p = ptr[e.pointerId]; if (!p) return; var dx = e.clientX - p.x, dy = e.clientY - p.y, ids = Object.keys(ptr);
+  moved += Math.abs(dx) + Math.abs(dy); p.x = e.clientX; p.y = e.clientY; if (moved < 5) return; cv.classList.add('dragging');
+  if (mode === 'walk' && cine) { cine.lookYaw -= dx * 0.004; cine.lookPitch = Math.max(-0.6, Math.min(0.5, cine.lookPitch - dy * 0.003)); cine.lookHold = performance.now(); return; }
+  if (mode !== 'orbit') return;
+  if (ids.length === 2) { var o = ptr[ids[0] == e.pointerId ? ids[1] : ids[0]], d = Math.hypot(e.clientX - o.x, e.clientY - o.y); if (pinch) { orbit.dist = clampDist(orbit.dist * pinch / d); } pinch = d; pan(dx * 0.5, dy * 0.5); }
+  else if (button === 2 || e.shiftKey) pan(dx, dy);
+  else { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.12, Math.min(1.45, orbit.pitch + dy * 0.004)); }
+  invalidate();
+});
+function pan(dx, dy) { var s = orbit.dist / cv.clientHeight * 1.1, cy = Math.cos(orbit.yaw), sy = Math.sin(orbit.yaw);
+  orbit.target.x += (-dx * cy - dy * sy) * s; orbit.target.z += (dx * sy - dy * cy) * s;
+  orbit.target.x = Math.max(-COLS * CELL / 2, Math.min(COLS * CELL / 2, orbit.target.x)); orbit.target.z = Math.max(-ROWS * CELL / 2, Math.min(ROWS * CELL / 2, orbit.target.z));
+  orbit.target.y = groundY(orbit.target.x, orbit.target.z); }
+function clampDist(d) { return Math.max(60, Math.min(5200, d)); }
+function up(e) { var was = ptr[e.pointerId]; delete ptr[e.pointerId]; cv.classList.remove('dragging'); pinch = 0;
+  if (was && moved < 5 && e.type === 'pointerup' && mode === 'orbit' && e.button === 0) { var hit = pick(e.clientX, e.clientY); if (hit) place({ x: gc(hit.x), y: gr(hit.z) }); else hint('That is outside the mapped area.', true); } }
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', function (e) { e.preventDefault(); if (mode !== 'orbit') return; tween = null; orbit.dist = clampDist(orbit.dist * Math.exp(e.deltaY * 0.0012)); invalidate(); }, { passive: false });
+function pick(x, y) {
+  var b = cv.getBoundingClientRect(); ndc.set((x - b.left) / b.width * 2 - 1, -((y - b.top) / b.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+  var o = ray.ray.origin, d = ray.ray.direction, k = world.scale.y, t = 0, prev = -1, stepLen = 3;
+  for (var i = 0; i < 3000; i++) { t += stepLen; var px = o.x + d.x * t, py = o.y + d.y * t, pz = o.z + d.z * t;
+    if (inside(px, pz) && py <= hAt(px, pz) * k) { var lo = t - stepLen, hi = t;
+      for (var j = 0; j < 12; j++) { var m = (lo + hi) / 2; if (o.y + d.y * m <= hAt(o.x + d.x * m, o.z + d.z * m) * k) hi = m; else lo = m; }
+      return { x: o.x + d.x * hi, z: o.z + d.z * hi }; }
+    if (py < -400 * k) break; }
+  return null;
+}
+
+// ---------------- cinematic modes ----------------
+function enterCine(kind) {
+  var r = S.routes && S.routes[S.sel]; if (!r) return;
+  $('guide').hidden = true; mode = kind; $('app').classList.add('cine'); $('cine-ui').hidden = false;
+  if (kind === 'walk' && world.scale.y !== 1) { world.scale.y = 1; }
+  var outSec = r.outMin * 60, dur = kind === 'walk' ? Math.max(28, Math.min(70, outSec / 24)) : Math.max(14, Math.min(26, r.dist / 32));
+  cine = { kind: kind, r: r, t0: performance.now(), dur: dur * 1000, paused: 0, pausedAt: 0, pos: null, look: null, lookYaw: 0, lookPitch: 0, lookHold: 0, f: 0 };
+  $('mode-name').textContent = kind === 'walk' ? 'WALK. EYE HEIGHT 1.8 M. TRUE SCALE.' : 'FLYOVER. 70 M ABOVE THE ROUTE.';
+  $('h-speed').textContent = '×' + Math.round(outSec / dur);
+  $('c-pause').querySelector('span').textContent = 'Pause';
+  styleRibbons(); hudProfile(r); buildStrip(); invalidate();
+}
+function exitCine() {
+  if (!cine && mode === 'orbit') return;
+  cine = null; mode = 'orbit'; $('app').classList.remove('cine'); $('cine-ui').hidden = true;
+  world.scale.y = $('t-exag').checked ? 2 : 1;
+  camera.fov = 50; camera.updateProjectionMatrix();
+  setSun(P.depart); styleRibbons();
+  var f = routeFrame(); var dir = new THREE.Vector3().subVectors(camera.position, f.target);
+  orbit.target.copy(f.target); orbit.dist = Math.max(200, Math.min(4000, dir.length())); orbit.yaw = Math.atan2(dir.x, dir.z); orbit.pitch = Math.max(0.12, Math.min(1.4, Math.asin(Math.max(-1, Math.min(1, dir.y / dir.length())))));
+  flyTo(f, 1400);
+}
+function stepCine(now) {
+  var c = cine; if (c.paused) return;
+  var f = Math.min(1, (now - c.t0) / c.dur); c.f = f; var r = c.r, sp = r.sp, total = sp[sp.length - 1].s, s = f * total;
+  var here = samplePath(sp, s), ahead = samplePath(sp, s + (c.kind === 'walk' ? 14 : 70)), back = samplePath(sp, s - 90);
+  var a = at(r, f), simMin = P.depart + a.time / MARS_MIN;
+  var heading = (Math.atan2(ahead.x - here.x, -(ahead.z - here.z)) * 180 / Math.PI + 360) % 360;
+  var wantPos, wantLook;
+  if (c.kind === 'walk') {
+    wantPos = new THREE.Vector3(here.x, hAt(here.x, here.z) + 1.8, here.z);
+    wantLook = new THREE.Vector3(ahead.x, hAt(ahead.x, ahead.z) + 1.25, ahead.z);
+    if (now - c.lookHold > 1400) { c.lookYaw *= 0.94; c.lookPitch *= 0.94; }
+    camera.fov = 62;
+  } else {
+    var lead = samplePath(sp, s + 160);
+    wantPos = new THREE.Vector3(back.x, groundY(back.x, back.z) + 70, back.z);
+    wantLook = new THREE.Vector3(lead.x, groundY(lead.x, lead.z), lead.z);
+    camera.fov = 50;
+  }
+  camera.updateProjectionMatrix();
+  var k = reduce ? 1 : (c.pos ? 0.12 : 1);
+  c.pos = c.pos ? c.pos.lerp(wantPos, k) : wantPos.clone(); c.look = c.look ? c.look.lerp(wantLook, k * 0.8) : wantLook.clone();
+  camera.position.copy(c.pos); camera.lookAt(c.look);
+  if (c.lookYaw || c.lookPitch) { camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), c.lookYaw); camera.rotateX(c.lookPitch); }
+  setSun(simMin, c.kind === 'walk' ? new THREE.Vector3(here.x, hAt(here.x, here.z), here.z) : null, c.kind === 'walk' ? 260 : 1150);
+  hud(r, a, f, heading, simMin);
+  if (f >= 1) { cine = null; hint('Arrived. Open the field guide for the leg by leg plan, or walk it again.'); setTimeout(exitCine, reduce ? 0 : 1600); }
+}
+function buildStrip() {
+  if ($('strip').childNodes.length) return; var h = '';
+  for (var i = -2; i < 26; i++) { var d = ((i * 15) % 360 + 360) % 360, w = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' }[d];
+    h += '<span' + (w ? ' class="card"' : '') + '>' + (w || d) + '</span>'; }
+  $('strip').innerHTML = h;
+}
+function hud(r, a, f, heading, simMin) {
+  $('strip').style.transform = 'translateX(' + (-((heading / 15 + 2) * 40 + 20)).toFixed(1) + 'px)';
+  $('h-dist').textContent = Math.round(a.dist) + ' / ' + round10(r.dist) + ' m'; $('h-elev').textContent = Math.round(a.elev) + ' m';
+  var sl = $('h-slope'); sl.textContent = Math.round(a.slope) + '°'; sl.className = a.slope > 15 ? 'alarm' : a.slope > 10 ? 'warn' : '';
+  $('h-time').textContent = Math.round(a.time) + ' / ' + Math.round(r.outMin) + ' min'; $('h-clock').textContent = clock(simMin);
+  var next = '', L = r.legs || (r.legs = legs(r));
+  for (var i = 0; i < L.length; i++) { if (L[i].from > a.dist + 2 && L[i].k >= 2) { next = (L[i].k === 3 ? 'Very steep ground' : 'Steep ground') + ' in ' + Math.max(5, round10(L[i].from - a.dist)) + ' m. Slow down.'; break; } }
+  if (!next) { var left = r.dist - a.dist; next = left > 15 ? 'Destination in ' + round10(left) + ' m. Beacon ahead.' : 'At the destination.'; }
+  $('h-next').textContent = next;
+  var cx = (a.dist / r.dist * 800).toFixed(1); var cur = $('h-prof').querySelector('.cur'); if (cur) { cur.setAttribute('x1', cx); cur.setAttribute('x2', cx); }
+}
+function hudProfile(r) {
+  var lo = Infinity, hi = -Infinity, i, s = ''; for (i = 0; i < r.path.length; i += 2) { var z = elev[r.path[i]]; lo = Math.min(lo, z); hi = Math.max(hi, z); }
+  if (hi - lo < 6) { hi += 3; lo -= 3; }
+  for (i = 0; i < r.path.length; i += 2) s += (i ? 'L' : 'M') + (r.d[i] / r.dist * 800).toFixed(1) + ' ' + (4 + (hi - elev[r.path[i]]) / (hi - lo) * 36).toFixed(1);
+  $('h-prof').innerHTML = '<path class="pf" vector-effect="non-scaling-stroke" d="' + s + 'L800 44 L0 44 Z"/><line class="cur" x1="0" x2="0" y1="0" y2="44" vector-effect="non-scaling-stroke"/>';
+}
+$('c-exit').addEventListener('click', exitCine);
+$('c-pause').addEventListener('click', function () { if (!cine) return; var now = performance.now();
+  if (cine.paused) { cine.t0 += now - cine.pausedAt; cine.paused = 0; this.querySelector('span').textContent = 'Pause'; invalidate(); }
+  else { cine.paused = 1; cine.pausedAt = now; this.querySelector('span').textContent = 'Resume'; } });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (mode !== 'orbit') exitCine(); else $('guide').hidden = true; } else if (e.key === ' ' && mode !== 'orbit') { e.preventDefault(); $('c-pause').click(); } });
+
+// ---------------- planning state ----------------
+function hint(text, warn) { var h = $('hint'); h.textContent = text; h.classList.toggle('warn', !!warn); }
+function place(p) {
+  var s = snap(p); if (!s) return hint('That ground is steeper than the ' + P.limit + '° limit, with nothing walkable within 30 m. Pick another point or raise the limit under Assumptions.', true);
+  S[S.mode] = { x: s.x, y: s.y }; recompute(s.moved ? 'Moved to the nearest walkable ground.' : '', false);
+}
+function recompute(note, fit) {
+  S.busy = true; $('headline').textContent = 'Computing routes'; placeMarks(); invalidate();
+  solve(function (res) {
+    S.busy = false; S.routes = { direct: analyse(res.direct), cautious: analyse(res.cautious) };
+    if (!S.routes[S.sel]) S.sel = 'direct';
+    setRoutes(); ui();
+    if (!S.routes.direct) hint('No walkable route between these points under the ' + P.limit + '° limit. Move a point, or raise the limit under Assumptions.', true);
+    else { hint((note ? note + ' ' : '') + 'Click the ground to move the ' + (S.mode === 'dest' ? 'destination' : 'start') + '. Drag to orbit, right-drag to pan, scroll to zoom.');
+      if (!reduce && !fit) { introReveal = { t0: performance.now(), ms: 900 }; setReveal(0); } }
+    if (fit) flyTo(routeFrame(), 1300); else invalidate();
+  });
+}
+var introReveal = null;
+function setReveal(k) { ['direct', 'cautious'].forEach(function (n) { var m = ribbons[n], r = S.routes && S.routes[n]; if (m && r) m.material.uniforms.reveal.value = k >= 1 ? 1e9 : k * r.sp[r.sp.length - 1].s; }); }
+function verdict() {
+  var r = S.routes && S.routes[S.sel], list = [], c = SITE.conditions;
+  if (!r) return { go: false, head: 'No route', why: 'Blocked by the slope limit', list: [['bad', 'No walkable route between these points under the ' + P.limit + '° limit']] };
+  var sunset = parseClock(c.sunset), back = P.depart + r.walk / MARS_MIN, margin = (sunset - back) * MARS_MIN, okDay = margin >= RESERVE_MIN, sunrise = parseClock(c.sunrise), okDawn = P.depart >= sunrise;
+  list.push([okDawn ? 'ok' : 'bad', okDawn ? 'Leaving after sunrise (' + c.sunrise + ')' : 'Leaving before sunrise (' + c.sunrise + ')']);
+  list.push([okDay ? 'ok' : 'bad', 'Back at ' + clock(back) + ', ' + (margin >= 0 ? fmtMin(margin) + ' before sunset' : fmtMin(-margin) + ' after sunset') + ' (reserve ' + RESERVE_MIN + ' min)']);
+  list.push(['ok', 'Steepest ground ' + Math.round(r.maxS) + '°, inside the ' + P.limit + '° limit']);
+  list.push(['info', 'From the far point, the start is ' + fmtMin(r.backMin) + ' away']);
+  list.push(['info', 'Radiation about ' + r.dose.toFixed(2) + ' mSv for the walk, the same on either route']);
+  var go = okDay && okDawn;
+  return { go: go, head: go ? 'Clear to walk' : (okDawn ? 'Not enough daylight' : 'Too early'), why: fmtMin(r.walk) + ' in all, leaving at ' + clock(P.depart), list: list };
+}
+function stats(r) { if (!r) return '<dt>No route</dt><dd></dd>';
+  return '<dt>Distance</dt><dd>' + round10(r.dist) + ' m</dd><dt>Climb</dt><dd>' + Math.round(r.climb) + ' m</dd><dt>Over 10°</dt><dd>' + Math.round(r.over10 * 100) + '%</dd><dt>Out, back</dt><dd>' + Math.round(r.outMin) + ', ' + Math.round(r.backMin) + ' min</dd>'; }
+function ui() {
+  $('lbl-start').textContent = label(S.start); $('lbl-dest').textContent = label(S.dest);
+  $('end-start').setAttribute('aria-pressed', S.mode === 'start'); $('end-dest').setAttribute('aria-pressed', S.mode === 'dest');
+  $('help').textContent = 'Editing the ' + (S.mode === 'dest' ? 'destination' : 'start') + '. Click the ground or a station to move it.';
+  $('out-suit').textContent = P.suit.toFixed(2); $('out-limit').textContent = P.limit + '°'; $('out-work').textContent = P.work + ' min';
+  var R = S.routes || {}, d = R.direct, c = R.cautious;
+  $('d-time').textContent = d ? fmtMin(d.walk) : 'None'; $('c-time').textContent = c ? fmtMin(c.walk) : 'None';
+  $('d-stats').innerHTML = stats(d); $('c-stats').innerHTML = stats(c);
+  $('rt-direct').setAttribute('aria-pressed', S.sel === 'direct'); $('rt-cautious').setAttribute('aria-pressed', S.sel === 'cautious');
+  if (!S.busy) { var v = verdict(); $('verdict').className = 'verdict ' + (v.go ? 'go' : 'nogo'); $('call').textContent = v.go ? 'GO' : 'NO-GO';
+    $('headline').textContent = v.head; $('why').textContent = v.why;
+    $('checks').innerHTML = v.list.map(function (x) { return '<li class="' + x[0] + '">' + (x[0] === 'bad' ? ICON.WarningCircle : ICON.CheckCircle) + '<span>' + x[1] + '</span></li>'; }).join(''); }
+  var ok = !!(S.routes && S.routes[S.sel]); $('v-walk').disabled = $('v-fly').disabled = $('v-guide').disabled = !ok;
+  sunNote(); if (!$('guide').hidden) guide();
+}
+
+// ---------------- field guide ----------------
+function legs(r) {
+  var out = [], cls = function (s) { return s > 15 ? 3 : s > 10 ? 2 : s > 5 ? 1 : 0; }, cur = null;
+  for (var i = 1; i < r.path.length; i++) { var k = cls(slope[r.path[i]]);
+    if (!cur || k !== cur.k) { if (cur && r.d[i - 1] - cur.from < 16 && out.length) { var p = out[out.length - 1]; p.to = r.d[i - 1]; p.iTo = i - 1; p.k = Math.max(p.k, cur.k); } else if (cur) out.push(cur); cur = { k: k, from: r.d[i - 1], iFrom: i - 1 }; }
+    cur.to = r.d[i]; cur.iTo = i; }
+  if (cur) out.push(cur);
+  var merged = []; out.forEach(function (l) { var p = merged[merged.length - 1]; if (p && p.k === l.k) { p.to = l.to; p.iTo = l.iTo; } else merged.push(l); });
+  return merged;
+}
+function guide() {
+  var r = S.routes[S.sel], c = SITE.conditions, v = verdict(), words = ['Gentle ground', 'Moderate slope', 'Steep, slow down', 'Very steep, take care'], sun = sunAt(P.depart);
+  function li(m, w, t) { return '<li><span class="mk mk-' + m + '" role="img" aria-label="' + w + '"></span><span>' + t + '</span></li>'; }
+  function V(t) { return '<span class="v">' + t + '</span>'; }
+  $('g-sub').textContent = (S.sel === 'direct' ? 'Direct' : 'Cautious') + ' route, ' + label(S.start) + ' to ' + label(S.dest);
+  var L = legs(r).map(function (l) { var dz = elev[r.path[l.iTo]] - elev[r.path[l.iFrom]];
+    return '<div class="leg"><i class="s' + l.k + '"></i><span class="mono">' + Math.round(l.from) + ' to ' + Math.round(l.to) + ' m</span><span>' + words[l.k] + '</span><span class="mono">' + (dz >= 0 ? 'up ' : 'down ') + Math.abs(Math.round(dz)) + ' m</span></div>'; }).join('');
+  var st = nearStation(S.dest), atS1 = st && /S1|S2/.test(st.id);
+  $('g-body').innerHTML =
+    '<div class="key"><span><i class="mk mk-m"></i> measured</span><span><i class="mk mk-d"></i> derived</span><span><i class="mk mk-a"></i> assumed</span><span><i class="mk mk-s"></i> simulated</span></div>' +
+    '<h3>Decision</h3><ul>' + li('d', 'Derived', '<b style="color:var(--' + (v.go ? 'go' : 'nogo') + ')">' + (v.go ? 'GO' : 'NO-GO') + '</b>. ' + v.head + '. ' + v.list[1][1] + '.') + '</ul>' +
+    '<h3>Objective</h3><ul><li class="plain">Sample one hollow and one adjacent ridge of the boxwork unit, to learn why the ridges resisted erosion.</li></ul>' +
+    '<h3>Route</h3><ul>' + li('s', 'Simulated', 'Start at ' + V(label(S.start)) + ', a notional rover park') +
+      li('d', 'Derived', 'Distance ' + V(round10(r.dist) + ' m') + ', climb ' + V(Math.round(r.climb) + ' m') + ', ' + V(Math.round(r.over10 * 100) + '%') + ' on ground over 10°') +
+      li('a', 'Assumed', 'Out ' + V(Math.round(r.outMin) + ' min') + ', back ' + V(Math.round(r.backMin) + ' min') + ', at the destination ' + V(P.work + ' min')) +
+      li('a', 'Assumed', 'Leave ' + V(clock(P.depart)) + ', whole walk about ' + V(fmtMin(r.walk))) + '</ul>' +
+    '<h3>Leg by leg</h3><div>' + L + '</div>' +
+    '<h3>Turn back if</h3><ul>' + li('a', 'Assumed', 'You are not at the destination ' + V(fmtMin(r.outMin * 1.5)) + ' after leaving. That is one and a half times the planned time out.') +
+      li('d', 'Derived', 'From the far point the start is ' + V(fmtMin(r.backMin)) + ' away') + '</ul>' +
+    '<h3>Light</h3><ul>' + li('d', 'Derived', 'At departure the sun is ' + V(Math.round(sun.el) + '°') + ' above the ' + compassWord(sun.az) + ' horizon. The 3D view shows which ground is in shadow.') + '</ul>' +
+    '<h3>Conditions</h3><ul>' + li('m', 'Measured', 'Air ' + V(c.min_temp + ' to ' + c.max_temp + ' °C') + ', ground ' + V(c.min_gts_temp + ' to ' + c.max_gts_temp + ' °C')) +
+      li('m', 'Measured', 'Daylight ' + V(c.sunrise + ' to ' + c.sunset) + ' local time, sky ' + c.atmo_opacity.toLowerCase()) + '</ul>' +
+    '<h3>Radiation</h3><ul>' + li('m', 'Measured', V(RATE_MSV_PER_SOL + ' mSv') + ' per Mars day at Gale crater (Curiosity RAD, 2012 to 2013)') +
+      li('d', 'Derived', 'About ' + V(r.dose.toFixed(2) + ' mSv') + ' for this walk. No route-scale radiation data exists, so the route does not change it.') + '</ul>' +
+    (st ? '<h3>At the destination</h3><ul><li class="plain">' + st.note + '.</li></ul>' : '') +
+    (atS1 ? '<figure><img alt="Greyscale photo of fractured bedrock slabs and loose rocks beside a rover wheel" src="' + NAVCAM + '"><figcaption>The ground here, from Curiosity\'s left navigation camera, sol 4687 (12 October 2025). NASA/JPL-Caltech.</figcaption></figure>' : '') +
+    '<div class="limits"><h3>Limits</h3><ul>' +
+      '<li class="plain">Rocks smaller than about 1 m are not in the terrain model. Watch your feet.</li>' +
+      '<li class="plain">Walking speed is an Earth hiking model scaled by a suit factor of ' + P.suit.toFixed(2) + ', which is an assumption.</li>' +
+      '<li class="plain">The ' + P.limit + '° slope limit and the ' + RESERVE_MIN + ' minute daylight reserve are assumptions, not NASA limits.</li>' +
+      '<li class="plain">Sun position is a simple calculation for latitude and season. Shadows come from the 4 m terrain mesh, so small rocks cast none.</li>' +
+      '<li class="plain">The colour of the ground is a tint. HiRISE images used here are greyscale.</li>' +
+      '<li class="plain">Conditions are from sol ' + c.sol + ' (' + c.terrestrial_date + '), not today. The radiation rate is quoted from a summary of Hassler et al. (2014).</li></ul></div>' +
+    '<h3>Sources</h3><ul>' +
+      '<li class="plain">Image: HiRISE, NASA/JPL-Caltech/University of Arizona, served by <a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek</a></li>' +
+      '<li class="plain">Terrain: <a href="https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" target="_blank" rel="noopener">USGS Mars MSL Gale Merged DEM 1m</a></li>' +
+      '<li class="plain">Weather, track, photo, radiation: Curiosity (REMS, localization, Navcam, RAD), NASA/JPL-Caltech</li>' +
+      '<li class="plain">3D rendering: three.js (MIT licence)</li></ul>';
+}
+$('v-guide').addEventListener('click', function () { guide(); $('guide').hidden = false; $('close-guide').focus(); });
+$('close-guide').addEventListener('click', function () { $('guide').hidden = true; $('v-guide').focus(); });
+
+// ---------------- controls ----------------
+function setMode(m) { S.mode = m; ui(); hint('Click the ground to move the ' + (m === 'dest' ? 'destination' : 'start') + '.'); }
+$('end-start').addEventListener('click', function () { setMode('start'); }); $('end-dest').addEventListener('click', function () { setMode('dest'); });
+$('swap').addEventListener('click', function () { var t = S.start; S.start = S.dest; S.dest = t; recompute('', true); });
+['direct', 'cautious'].forEach(function (k) { $('rt-' + k).addEventListener('click', function () { if (S.routes && S.routes[k]) { S.sel = k; styleRibbons(); ui(); invalidate(); } }); });
+$('chips').innerHTML = SITE.stations.map(function (s, i) { return '<button class="chip" data-i="' + i + '" title="' + s.note + '"><b>' + s.id + '</b>' + s.name.replace(/ \(.*/, '') + '</button>'; }).join('');
+$('chips').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var s = SITE.stations[+b.dataset.i], p = snap({ x: s.xy[0], y: s.xy[1] });
+  if (!p) return hint('That station is on ground over the slope limit.', true); S[S.mode] = { x: p.x, y: p.y }; recompute('', true); });
+$('v-walk').addEventListener('click', function () { enterCine('walk'); });
+$('v-fly').addEventListener('click', function () { enterCine('fly'); });
+$('in-depart').addEventListener('input', function () { P.depart = +this.value; setSun(P.depart); ui(); invalidate(); });
+$('in-work').addEventListener('input', function () { P.work = +this.value; if (S.routes) { var o = S.routes; S.routes = { direct: analyse(o.direct && o.direct.path), cautious: analyse(o.cautious && o.cautious.path) };
+  ['direct', 'cautious'].forEach(function (k) { if (S.routes[k] && o[k]) S.routes[k].sp = o[k].sp; }); } ui(); });
+var timer = 0; function later() { clearTimeout(timer); timer = setTimeout(function () { recompute(''); }, 250); }
+$('in-suit').addEventListener('input', function () { P.suit = +this.value; $('out-suit').textContent = P.suit.toFixed(2); later(); });
+$('in-limit').addEventListener('input', function () { P.limit = +this.value; $('out-limit').textContent = P.limit + '°'; buildBands();
+  ['start', 'dest'].forEach(function (k) { var p = snap(S[k]); if (p) S[k] = { x: p.x, y: p.y }; }); invalidate(); later(); });
+$('t-slope').addEventListener('change', function () { bandsMesh.visible = this.checked; invalidate(); });
+$('t-track').addEventListener('change', function () { trackLine.visible = this.checked; invalidate(); });
+$('t-color').addEventListener('change', function () { terrain.material.color.set(this.checked ? 0xe2b48e : 0xffffff); invalidate(); });
+$('t-exag').addEventListener('change', function () { world.scale.y = this.checked ? 2 : 1; orbit.target.y = groundY(orbit.target.x, orbit.target.z); invalidate(); });
+$('z-in').addEventListener('click', function () { orbit.dist = clampDist(orbit.dist / 1.4); invalidate(); });
+$('z-out').addEventListener('click', function () { orbit.dist = clampDist(orbit.dist * 1.4); invalidate(); });
+$('z-fit').addEventListener('click', function () { flyTo(routeFrame(), 1100); });
+$('z-north').addEventListener('click', function () { flyTo({ target: orbit.target.clone(), dist: orbit.dist, yaw: 0, pitch: orbit.pitch }, 700); });
+window.addEventListener('resize', resize);
+
+// ---------------- start ----------------
+var siteImg = new Image(), terrImg = new Image(), loaded = 0;
+function ready() { if (++loaded < 2) return;
+  var c = document.createElement('canvas'); c.width = COLS; c.height = ROWS; var x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(terrImg, 0, 0);
+  var d = x.getImageData(0, 0, COLS, ROWS).data, lo = Infinity, hi = -Infinity;
+  for (var i = 0; i < N; i++) { var z = SITE.zmin + ((d[i * 4] << 8) | d[i * 4 + 1]) / 100; elev[i] = z; slope[i] = d[i * 4 + 2] / 4; if (z < lo) lo = z; if (z > hi) hi = z; }
+  zmid = (lo + hi) / 2;
+  buildTerrain(); makeWorker();
+  var st = {}; SITE.stations.forEach(function (s) { st[s.id] = s; });
+  S.start = snap({ x: st.S0.xy[0], y: st.S0.xy[1] }); S.dest = snap({ x: st.S1.xy[0], y: st.S1.xy[1] });
+  setSun(P.depart); resize();
+  orbit.target.set(0, 0, 0); orbit.dist = 4300; orbit.yaw = 0.35; orbit.pitch = 1.2; applyOrbit();
+  placeMarks(); ui();
+  if (!reduce) $('intro').classList.add('show');
+  recompute('', false);
+  setTimeout(function () { flyTo(routeFrame(), reduce ? 0 : 4200); }, reduce ? 0 : 700);
+}
+siteImg.onload = ready; terrImg.onload = ready;
+siteImg.src = "{{SITE_IMG}}"; terrImg.src = "{{TERRAIN}}";
+window.__marswalk = { S: S, P: P, enterCine: enterCine, exitCine: exitCine, get mode() { return mode; }, get pr() { return pr; } };
+})();
+</script>
