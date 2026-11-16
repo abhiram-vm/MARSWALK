@@ -1,6 +1,12 @@
 # Plan: the cinematic story site
 
-Status: plan only. Nothing here is built yet.
+Status: built in the beta (`beta/index.html`, `web/src/story.ts`), 2026-11-16. What shipped differs from the plan below in these ways:
+
+- All nine chapters (0 to 8) are in, in one page with the planner. A first visit opens the story; `#plan` links and returning visitors go straight to the planner; the planner's **Story** button reopens it.
+- Chapters 0 and 1 draw a globe from the Viking colour mosaic (NASA and USGS, via Mars Trek, `pipeline/fetch_globe.py`), with a dusty atmosphere, stars, drifting dust and a marker on Gale. Global relief (MOLA) was not added.
+- Chapters 2 to 8 use the planner's own terrain and camera. Effects: contour lines every 10 m (brighter every 50 m) that spread outward, a scan line that sweeps the slope layer and then night temperature across the ground, Curiosity's track drawing itself, and the route drawing in. Chapter 7 switches to the pair plan.
+- Display face: Instrument Serif (OFL) for chapter titles; B612 for everything else.
+- Not built: astronaut figures in chapter 7 and a separate loader animation (the planner's loader is reused).
 
 A scroll-driven 3D story that explains MARSWALK in about a minute and then hands the visitor to the planner. Judges see the story first, so it has to make the problem and the data obvious, look exceptional, and never stutter.
 

@@ -5,7 +5,7 @@ const { chromium } = require('playwright')
 const path = require('path')
 
 // E2E_BETA=1 tests the beta copy
-const url = 'file://' + path.resolve(__dirname, process.env.E2E_BETA ? '../dist-beta/index.html' : '../dist/index.html')
+const url = 'file://' + path.resolve(__dirname, process.env.E2E_BETA ? '../dist-beta/index.html' : '../dist/index.html') + '#plan'
 const shots = process.env.SHOTS
 const results = []
 const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`) }
@@ -13,6 +13,7 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
 ;(async () => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] })
   const page = await browser.newPage({ viewport: { width: 1440, height: 880 } })
+  page.setDefaultTimeout(180000) // the software renderer used in CI can stall for many seconds the first time it draws a new view
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
@@ -153,8 +154,30 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
   check('no em or en dashes in visible text', !/[–—]/.test(text))
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '))
 
+  // the story (beta): opens on a first visit, draws the globe, and hands over to the planner
+  if (process.env.E2E_BETA) {
+    const sp = await browser.newPage({ viewport: { width: 1440, height: 880 } }); sp.setDefaultTimeout(180000)
+    const serr = []; sp.on('pageerror', (e) => serr.push(e.message))
+    await sp.goto(url.replace('#plan', ''))
+    await sp.waitForSelector('#loading', { state: 'detached', timeout: 120000 })
+    await sp.waitForSelector('#story', { timeout: 30000 })
+    check('first visit opens the story with the globe', await sp.evaluate(() => document.body.classList.contains('story') && !!window.__mw.world.external))
+    await sp.evaluate(() => { const s = document.getElementById('st-scroll'); s.scrollTop = s.scrollHeight })
+    await sp.waitForTimeout(6000)
+    check('the story reaches the terrain and the last chapter', await sp.evaluate(() => !window.__mw.world.external && document.querySelector('.st-rail button[aria-current="true"]')?.dataset.i === '8'))
+    await sp.click('#st-go'); await sp.waitForTimeout(1500)
+    check('Plan a walk hands over to the planner', await sp.evaluate(() => !document.body.classList.contains('story') && location.hash === '#plan' && !!window.__mw.S.routes.direct[0]))
+    await sp.click('#b-story'); await sp.waitForTimeout(800)
+    check('the Story button reopens it', await sp.evaluate(() => document.body.classList.contains('story')))
+    await sp.keyboard.press('Escape'); await sp.waitForTimeout(800)
+    check('Escape leaves the story', await sp.evaluate(() => !document.body.classList.contains('story')))
+    check('story: no page errors', serr.length === 0, serr.join(' | '))
+    await sp.close()
+  }
+
   // phone and reduced motion
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' })
+  phone.setDefaultTimeout(180000)
   const perr = []; phone.on('pageerror', (e) => perr.push(e.message))
   await phone.goto(url); await phone.waitForSelector('#loading', { state: 'detached', timeout: 60000 }); await phone.waitForTimeout(3000)
   check('phone: no horizontal scroll', (await phone.evaluate(() => document.documentElement.scrollWidth)) <= 390)

@@ -13,6 +13,7 @@ import {
   MARS_MIN, RATE_MSV_PER_DAY, RESERVE_MIN, type Check, type PairCheck, type Params, type Pt, type Route, type SpaceWeather, type Verdict,
 } from './model'
 import { World } from './world'
+import { createStory } from './story'
 
 type Kind = Route['kind']
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T
@@ -98,10 +99,30 @@ async function boot() {
   W.setPose({ target: new THREE.Vector3(0, 0, 0), dist: 9200, yaw: 0.25, pitch: 1.18 })
   $('#loading').classList.add('done')
   setTimeout(() => $('#loading').remove(), 700)
-  if (!reduce) $('#title').classList.add('show')
+  story = createStory({
+    world: W, data: D, routePose,
+    showPlan: (which) => { setPlan(PRESETS[which === 'pair' ? 1 : 0], false); recompute({ fit: false, quiet: true }) },
+    summary: () => { const a = agg(S.sel), v = currentVerdict(); return a ? `${v.go ? 'GO' : 'NO-GO'}. ${v.head}. Whole walk ${fmtMin(a.walk)}, back by ${clock(v.back)}.` : '' },
+    exit: () => { history.replaceState(null, '', '#plan'); renderAll(); W.flyTo(routePose(), reduce ? 0 : 1400); setTimeout(showCoach, reduce ? 0 : 1600) },
+  })
+  addEventListener('hashchange', () => { if (location.hash === '#story') openStory(); else if (location.hash === '#plan' && story.active) story.leave(true) })
   renderAll()
-  recompute({ fit: true, delay: reduce ? 0 : 900, ms: reduce ? 0 : 4600, first: true })
   refreshSpaceWeather()
+  // First visit opens the story; a returning visitor (or a #plan link) goes straight to the planner.
+  if (location.hash === '#story' || (location.hash !== '#plan' && !store.get('mw-story'))) {
+    recompute({ fit: false, quiet: true })
+    openStory()
+    return
+  }
+  if (!reduce) $('#title').classList.add('show')
+  recompute({ fit: true, delay: reduce ? 0 : 900, ms: reduce ? 0 : 4600, first: true })
+}
+let story: ReturnType<typeof createStory>
+function openStory() {
+  if (W.mode !== 'orbit') stopWalk()
+  closeGuide(); closeDrawer(); dismissCoach(); $('#hint').hidden = true
+  if (location.hash !== '#story') history.replaceState(null, '', '#story')
+  story.enter()
 }
 
 // ---------------------------------------------------------------- ready-made plans
@@ -191,7 +212,7 @@ function snap(p: Pt): (Pt & { moved?: boolean }) | null {
 const idx = (p: Pt) => Math.round(p.y) * D.grid.cols + Math.round(p.x)
 const pointColors = () => S.pts.map((_, i) => (i === 0 ? 0xf4f1ec : S.pair && S.who[i] === 1 ? 0x5fb4ff : 0xf2662f))
 type Snapshot = { pts: Pt[]; who: number[]; routes: Record<Kind, (Route | null)[]>; pc: Record<Kind, PairCheck | null> }
-let pendingOpts: { fit: boolean; delay?: number; ms?: number; first?: boolean; note?: string; was?: number; prev?: Snapshot } = { fit: false }
+let pendingOpts: { fit: boolean; delay?: number; ms?: number; first?: boolean; note?: string; was?: number; prev?: Snapshot; quiet?: boolean } = { fit: false }
 function recompute(opts: typeof pendingOpts) {
   pendingOpts = opts
   S.busy = true
@@ -220,7 +241,7 @@ function onSolved(r: { id: number; direct: (Int32Array | null)[][]; cautious: (I
   }
   if (!ready(S.sel)) S.sel = 'direct'
   updatePairChecks()
-  W.setRoutes(S.routes, S.sel, !o.first)
+  W.setRoutes(S.routes, S.sel, !o.first && !o.quiet)
   renderAll()
   if (!ready('direct')) {
     const w = r.direct.findIndex((legs) => legs.some((l) => !l)), bad = r.direct[w].findIndex((l) => !l)
@@ -228,7 +249,7 @@ function onSolved(r: { id: number; direct: (Int32Array | null)[][]; cautious: (I
   } else if (o.was !== undefined) {
     const now = agg(S.sel)!.walk
     hint(`New order: ${S.pair ? 'longest walk' : 'whole walk'} ${fmtMin(now)}, ${now < o.was - 0.5 ? `${fmtMin(o.was - now)} quicker` : 'slightly quicker'}.`)
-  } else hint(o.note ?? `Click the ground to move ${pointName(S.active).toLowerCase()}, or drag any beacon.`)
+  } else if (!o.quiet) hint(o.note ?? `Click the ground to move ${pointName(S.active).toLowerCase()}, or drag any beacon.`)
   if (o.fit) setTimeout(() => W.flyTo(routePose(), o.ms ?? 1300), o.delay ?? 0)
   if (o.first) setTimeout(showCoach, reduce ? 0 : 5200)
 }
@@ -321,6 +342,7 @@ function buildUI() {
     <div class="place"><b>Boxwork unit, Mount Sharp</b><span>Gale crater, 4.80° S 137.38° E</span></div>
     <div class="right">
       <span class="stamp">Weather: sol ${c.sol}, ${c.terrestrial_date}</span>
+      <button class="btn" id="b-story" title="The story of this place and this tool">${icon.Play}<span>Story</span></button>
       <button class="btn" id="b-sites" aria-pressed="false">${icon.Images}<span>Science sites</span></button>
       <button class="btn" id="b-layers" aria-pressed="false">${icon.Stack}<span>Data layers</span></button>
       <button class="btn" id="b-guide">${icon.FileText}<span>Field guide</span></button>
@@ -478,6 +500,7 @@ function buildUI() {
     if (b.id === 'b-guide2') openGuide()
   })
   $('#b-guide').onclick = openGuide
+  $('#b-story').onclick = openStory
   $('#b-layers').onclick = () => (S.drawer === 'layers' ? closeDrawer() : openLayers())
   $('#b-sites').onclick = () => (S.drawer === 'sites' ? closeDrawer() : openSites())
   $('#z-in').onclick = () => W.zoom(1 / 1.4)
@@ -745,18 +768,20 @@ function renderDay() {
   for (let m = T0; m <= T1; m += 10) { const el = sunAt(m, D.sun).el; curve += `${m === T0 ? 'M' : 'L'}${tx(m).toFixed(1)} ${(44 - (Math.max(0, el) / 90) * 38).toFixed(1)}` }
   const reserveStart = sunset - RESERVE_MIN / MARS_MIN
   const rows = cur(), segs: string[] = []
-  const lane = S.pair ? [{ y: 22, h: 10 }, { y: 35, h: 10 }] : [{ y: 30, h: 12 }]
+  // lanes follow the routes being drawn (right after a plan switch they can still be the old ones)
+  const lane = rows.length > 1 ? [{ y: 22, h: 10 }, { y: 35, h: 10 }] : [{ y: 30, h: 12 }]
   rows.forEach((r, w) => {
     if (!r) return
     let t = P.depart
-    const { y, h } = lane[w], b = S.pair && w ? ' b' : ''
+    if (!lane[w]) return
+    const { y, h } = lane[w], b = rows.length > 1 && w ? ' b' : ''
     r.legMin.forEach((m, i) => {
       const a = t, e = a + m / MARS_MIN
       segs.push(`<rect class="${i === r.legMin.length - 1 ? 'seg-back' : 'seg-out'}${b}" x="${tx(a)}" y="${y}" width="${Math.max(1, tx(e) - tx(a))}" height="${h}" rx="1.5"/>`)
       t = e
       if (i < r.legMin.length - 1) { const c = t + P.work / MARS_MIN; segs.push(`<rect class="seg-work" x="${tx(t)}" y="${y}" width="${Math.max(0, tx(c) - tx(t))}" height="${h}"/>`); t = c }
     })
-    if (S.pair) segs.push(`<text class="lane" x="${tx(P.depart) - 4}" y="${y + h - 1.5}" text-anchor="end">${WHO[w]}</text>`)
+    if (rows.length > 1) segs.push(`<text class="lane" x="${tx(P.depart) - 4}" y="${y + h - 1.5}" text-anchor="end">${WHO[w]}</text>`)
   })
   const walk = rows.some(Boolean) ? `<g class="walk ${v.go ? '' : 'bad'}">${segs.join('')}<line class="grip" x1="${tx(P.depart)}" x2="${tx(P.depart)}" y1="18" y2="48"/></g>` : ''
   let ticks = ''

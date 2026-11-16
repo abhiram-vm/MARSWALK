@@ -234,6 +234,8 @@ export class World {
   private ov = {
     slopeOn: { value: 0 }, slopeMap: { value: null as THREE.Texture | null },
     thermOn: { value: 0 }, thermMap: { value: null as THREE.Texture | null }, thermHalf: { value: 4000 },
+    // story effects: layers drawn only west of a moving scan line, and glowing contour lines
+    slopeScan: { value: 1e9 }, thermScan: { value: 1e9 }, contour: { value: 0 }, contourR: { value: 0 },
   }
   private withOverlays(mat: THREE.MeshStandardMaterial, slope: boolean) {
     if (slope) mat.defines = { ...(mat.defines ?? {}), SLOPE_LAYER: '' }
@@ -241,17 +243,31 @@ export class World {
       Object.assign(sh.uniforms, this.ov)
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;')
+        .replace('#include <common>', '#include <common>\nvarying float vWorldY;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;\nvWorldY = transformed.y;')
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;\nuniform float slopeOn, thermOn, thermHalf;\nuniform sampler2D slopeMap, thermMap;')
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;\nvarying float vWorldY;\nuniform float slopeOn, thermOn, thermHalf, slopeScan, thermScan, contour, contourR;\nuniform sampler2D slopeMap, thermMap;')
         .replace('#include <map_fragment>', `#include <map_fragment>
           #ifdef SLOPE_LAYER
-          if (slopeOn > 0.5) { vec4 sl = texture2D(slopeMap, vMapUv); diffuseColor.rgb = mix(diffuseColor.rgb, sl.rgb, sl.a); }
+          if (slopeOn > 0.5 && vWorldXZ.x < slopeScan) { vec4 sl = texture2D(slopeMap, vMapUv); diffuseColor.rgb = mix(diffuseColor.rgb, sl.rgb, sl.a); }
           #endif
           if (thermOn > 0.5) {
             vec2 tu = vec2(vWorldXZ.x + thermHalf, thermHalf - vWorldXZ.y) / (2.0 * thermHalf);
-            if (tu.x > 0.0 && tu.x < 1.0 && tu.y > 0.0 && tu.y < 1.0) { vec4 th = texture2D(thermMap, tu); diffuseColor.rgb = mix(diffuseColor.rgb, th.rgb, th.a); }
+            if (tu.x > 0.0 && tu.x < 1.0 && tu.y > 0.0 && tu.y < 1.0 && vWorldXZ.x < thermScan) { vec4 th = texture2D(thermMap, tu); diffuseColor.rgb = mix(diffuseColor.rgb, th.rgb, th.a); }
           }`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          if (contour > 0.0) {
+            // a line every 10 m of height, brighter every 50 m, revealed outward from the centre
+            float h = vWorldY / 10.0, fw = max(fwidth(h), 1e-4);
+            float line = 1.0 - min(abs(fract(h - 0.5) - 0.5) / fw, 1.0);
+            float h5 = vWorldY / 50.0, major = 1.0 - min(abs(fract(h5 - 0.5) - 0.5) / max(fwidth(h5), 1e-4), 1.0);
+            float reveal = smoothstep(contourR, contourR - 400.0, length(vWorldXZ));
+            totalEmissiveRadiance += vec3(1.0, 0.56, 0.3) * (line * 0.35 + major * 0.8) * contour * reveal;
+          }
+          float band = 0.0;
+          if (slopeScan < 1e8) band += exp(-abs(vWorldXZ.x - slopeScan) / 18.0);
+          if (thermScan < 1e8) band += exp(-abs(vWorldXZ.x - thermScan) / 18.0);
+          totalEmissiveRadiance += vec3(1.0, 0.62, 0.36) * band * 0.9;`)
     }
     return mat
   }
@@ -871,8 +887,32 @@ export class World {
 
   // ---------- render loop: only when something changed ----------
   invalidate() { if (!this.raf) this.raf = requestAnimationFrame((t) => this.loop(t)) }
+  /** When set, draws instead of the terrain scene (the story's globe uses it). */
+  external: ((r: THREE.WebGLRenderer) => void) | null = null
+  /** Story effects; each resets to the planner's state when given null or 0. */
+  storyFx(fx: { slopeScan?: number | null; thermScan?: number | null; contour?: number; contourR?: number; fog?: number | null; track?: number | null; routes?: number | null }) {
+    const o = this.ov
+    if (fx.slopeScan !== undefined) { o.slopeScan.value = fx.slopeScan ?? 1e9; o.slopeOn.value = fx.slopeScan === null ? o.slopeOn.value : 1 }
+    if (fx.thermScan !== undefined) { o.thermScan.value = fx.thermScan ?? 1e9; o.thermOn.value = fx.thermScan === null ? o.thermOn.value : 1 }
+    if (fx.contour !== undefined) o.contour.value = fx.contour
+    if (fx.contourR !== undefined) o.contourR.value = fx.contourR
+    if (fx.fog !== undefined) (this.scene.fog as THREE.FogExp2).density = fx.fog ?? 0.000115
+    if (fx.track !== undefined) {
+      const g = this.track.geometry, n = g.attributes.position.count
+      this.track.visible = fx.track !== null && fx.track > 0
+      g.setDrawRange(0, fx.track === null ? n : Math.max(2, Math.round(n * fx.track)))
+    }
+    if (fx.routes !== undefined) this.setReveal(fx.routes ?? 1)
+    this.invalidate()
+  }
+  get trackCentre() {
+    const p = this.track.geometry.attributes.position, c = new THREE.Vector3()
+    for (let i = 0; i < p.count; i++) c.add(new THREE.Vector3(p.getX(i), 0, p.getZ(i)))
+    return c.divideScalar(Math.max(1, p.count))
+  }
   private loop(now: number) {
     this.raf = 0
+    if (this.external) { this.external(this.renderer); return }
     let active = false
     if (this.tween) {
       const tw = this.tween, k = Math.min(1, (now - tw.t0) / tw.ms), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2

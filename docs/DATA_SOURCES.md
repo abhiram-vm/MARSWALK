@@ -108,6 +108,12 @@ The build carries a snapshot; a hosted copy also asks DONKI for the latest runs 
 - Ambient occlusion (sky visibility) is computed in the pipeline (`site_ao.png`, `context_ao.png`, `outer_ao.png`) instead of in the browser.
 - Science sites: 114 in the bigger area (sols 4080 to 5070), 10 of them named. One photo (sol 4329) had a band lost in transmission and is not shown.
 
+### 2c3. Story globe (added 2026-11-16)
+
+| # | Data | Source | Status | Use |
+| --- | --- | --- | --- | --- |
+| G1 | Global colour image of Mars, 2048 by 1024, equirectangular | Viking MDIM 2.1 colour mosaic (NASA/USGS), NASA Mars Trek level 2, `pipeline/fetch_globe.py` | Verified: longitudes run from -180 at the left edge (Olympus Mons and Valles Marineris fall where expected) | Globe in the story's first two chapters. Gale crater marked at 137.4° E, 5.4° S |
+
 ### 2d. Science sites (added 2026-11-16)
 
 | # | Data | Source | Status | Use |
