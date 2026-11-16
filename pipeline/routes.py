@@ -2,7 +2,7 @@
 
 Written with AI assistance (Claude Code).
 
-This is the reference implementation of the routing model in docs/PLAN.md
+This is the reference implementation of the routing model
 section 6. The web app will run the same model in a Web Worker; this script
 exists so the numbers can be checked independently of the browser.
 

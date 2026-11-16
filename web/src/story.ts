@@ -1,7 +1,6 @@
 // The story: a scroll-driven introduction that ends inside the planner. AI-assisted (Claude Code).
 // One page, one renderer. Chapters 0 and 1 draw a globe of Mars; from chapter 2 the camera is
 // over the same terrain the planner uses, so the hand-off at the end has no cut.
-// Design notes are in docs/DESIGN.md; the original plan is in git history (docs/LANDING_PLAN.md).
 import * as THREE from 'three'
 import { NAME } from './brand'
 import globeUrl from './data/globe.jpg'

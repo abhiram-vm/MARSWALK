@@ -1,5 +1,5 @@
 // MARSWALK app: state, panels, timeline, HUD and field guide.
-// AI-assisted (Claude Code). Behaviour is described in docs/DESIGN.md.
+// AI-assisted (Claude Code).
 import './style.css'
 import { NAME } from './brand'
 document.title = NAME
