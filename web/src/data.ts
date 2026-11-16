@@ -5,17 +5,21 @@ import siteImageUrl from './data/site_hirise.jpg'
 import ctxTerrainUrl from './data/context_terrain.png'
 import ctxImageUrl from './data/context_ctx.jpg'
 import themisUrl from './data/context_themis.png'
-import photoS0 from './data/photo_S0.jpg'
-import photoS1 from './data/photo_S1.jpg'
-import photoS2 from './data/photo_S2.jpg'
 import type { Grid, SpaceWeather, SunModel } from './model'
 
-export interface Station { id: string; name: string; note: string; sol: number; xy: [number, number] }
+export interface Photo { sol: number; camera: string; date: string; url: string; src: string }
+/** A place Curiosity stopped to work, from its waypoints and raw-image record (pipeline/find_stops.py). */
+export interface Station {
+  id: string; rmc: string; name: string
+  kind: 'drill' | 'named' | 'stop'
+  note: string | null; source: string | null
+  sols: [number, number]; visits: [number, number][]; stay: number; mahli: number; chemcam: number
+  xy: [number, number]; photo: Photo | null
+}
 export interface Conditions {
   sol: string; terrestrial_date: string; ls: string; min_temp: string; max_temp: string; min_gts_temp: string; max_gts_temp: string
   pressure: string; atmo_opacity: string; local_uv_irradiance_index: string; sunrise: string; sunset: string
 }
-export interface Photo { sol: number; camera: string; date: string; url: string }
 export interface SiteData {
   grid: Grid
   zmid: number
@@ -24,13 +28,13 @@ export interface SiteData {
   stations: Station[]
   track: [number, number][]
   conditions: Conditions
-  photos: Record<string, Photo & { src: string }>
   sun: SunModel & { date: string }
   spaceWeather: SpaceWeather & { source: string }
   images: { site: HTMLImageElement; ctx: HTMLImageElement; themis: HTMLImageElement }
 }
 
-const PHOTO_SRC: Record<string, string> = { S0: photoS0, S1: photoS1, S2: photoS2 }
+// every stop's Navcam photo, inlined by the build
+const PHOTO_SRC = import.meta.glob('./data/photos/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
 
 function image(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -64,17 +68,18 @@ export async function loadSite(progress: (f: number) => void): Promise<SiteData>
   }
   const c = siteJson.context, cp = pixels(ctxTerr), h = new Float32Array(c.n * c.n)
   for (let i = 0; i < c.n * c.n; i++) h[i] = c.zmin + ((cp[i * 4] << 8) | cp[i * 4 + 1]) / c.per_m
-  const photos: SiteData['photos'] = {}
-  for (const [k, v] of Object.entries(siteJson.photos as Record<string, Photo>)) photos[k] = { ...v, src: PHOTO_SRC[k] }
+  type RawStation = Omit<Station, 'photo'> & { photo: Omit<Photo, 'src'> | null }
+  const stations = (siteJson.stations as unknown as RawStation[]).map((st) => ({
+    ...st, photo: st.photo ? { ...st.photo, src: PHOTO_SRC[`./data/photos/${st.id}.jpg`] } : null,
+  })) as Station[]
   return {
     grid: { cols, rows, cell: s.cell, elev, slope },
     zmid: (lo + hi) / 2,
     bounds: { west: s.west, east: s.east, south: s.south, north: s.north },
     ctx: { n: c.n, cell: c.cell, h },
-    stations: siteJson.stations as Station[],
+    stations,
     track: siteJson.track as [number, number][],
     conditions: siteJson.conditions as Conditions,
-    photos,
     sun: siteJson.sun,
     spaceWeather: siteJson.spaceWeather as SiteData['spaceWeather'],
     images: { site, ctx, themis },

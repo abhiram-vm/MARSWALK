@@ -25,8 +25,7 @@ Rule: motion only when it explains a change, and nothing moves while you are rea
 | --- | --- | --- |
 | Opening | Title fades while the camera descends from above the crater to the route; panels settle in after | Where you are, then what you are doing |
 | New route | The route draws itself from start to destination | Confirms the change and shows direction |
-| Walk it | First person at 1.8 m, true scale; the sun moves with simulated time; letterbox bars | Rehearsal |
-| Fly over | 75 m above the route | The shape of the whole walk |
+| Walk it | First person at 1.8 m, true scale; the sun moves with simulated time; pauses at each stop; in a pair the partner walks too | Rehearsal |
 | Orbit | Short inertia after a drag | Feels physical; stops in under a second |
 
 How it stays fast:
@@ -59,12 +58,15 @@ How it stays fast:
 +--------------------------------------------------------------------------+
 ```
 
-- **Plan panel** in the order a person decides: where (an itinerary: start, numbered stops, back to start, with walking time per leg), whether, which, then act, then space weather and assumptions.
-- **Itinerary:** the selected row is outlined in orange and a click on the ground moves it. Add a stop, remove one, or reverse the order. Stops are numbered the same way on the map, the mini-map, the 3D tags and in the guide.
+- **Plan panel** in the order a person decides: who (Solo or Pair), where (an itinerary: start, numbered stops, back to start, with walking time per leg), whether, which, then act, then space weather and assumptions.
+- **Itinerary:** the selected row is outlined in orange and a click on the ground moves it. Beacons can also be dragged. Add a stop, remove one, reverse the order, or press **Quickest order**. Stops are numbered the same way on the map, the mini-map, the 3D tags and in the guide. Four ready-made plans sit under it.
+- **Pairs:** each stop has an A or B badge; click it to hand the stop to the other astronaut. A is orange, B is blue (`b` token), on the map, tags, timeline lanes and walk buttons. A pair section shows the furthest separation, the share of time in sight, and a bar of when they are out of sight or too far apart.
+- **Hover readout:** over the ground, a small card gives the slope, whether it is walkable, the height against the start, and the site name if there is one.
 - **Space weather card:** NASA's latest forecasts of solar storms reaching Mars, with a plain one-line status and when it was checked. It says "live from NASA" when the hosted page has refreshed it, "snapshot" otherwise.
 - **Daylight timeline:** the walk is drawn as blocks (each leg, each stop, the way back) between sunrise and sunset, with the last hour of light hatched and the sun's height as a curve. Drag the block to change when you leave; the call and the shadows update as you drag.
 - **Data layers drawer:** every dataset with its mission, instrument and resolution. Base layers are labelled Base; overlays have switches.
-- **Station pins** are buttons. They open a card with the real Curiosity photo and Go here or Start here.
+- **Science sites:** a drawer lists all 49 places Curiosity worked here, grouped into drill sites, named sites and other stops, each with its photo and an Add button. On the map, named and drill sites have labelled pins; other stops are small dots that appear when zoomed in. Pins never show through panels and hide rather than overlap.
+- **Site cards** show the real Curiosity photo, what was done there, a link to the blog post for named sites, and Add as stop or Start here.
 - **Mini-map** shows the whole planning area, both routes and where the camera is looking. Click it to look somewhere.
 - **Field guide** opens as a light paper sheet over the dark app: the one deliberate change of surface, because it is the document a crew would carry.
 - **Phones:** the plan becomes a bottom sheet, the timeline sits above it, the mini-map is hidden, and the camera frames the route in the visible half.
@@ -75,7 +77,7 @@ How it stays fast:
 - First visit: a three-step card (click the ground, read the call, walk it). It does not return once dismissed.
 - Clicking steep ground moves to the nearest walkable cell and says so. No route: the message names the limit and where to change it. Outside the planning area: the message says the surroundings are context only.
 - Every decision figure has its reason listed under it.
-- Keyboard: arrow keys orbit, plus and minus zoom, Escape leaves walk mode or closes the guide, Space pauses a walk.
+- Keyboard: arrow keys orbit (and look around while walking), plus and minus zoom, Escape leaves walk mode or closes the guide, Space pauses a walk.
 
 ## 6. Tokens
 
@@ -88,12 +90,13 @@ How it stays fast:
 | `signal` | `#F2662F` | The only accent |
 | `go` / `nogo` | `#63C98A` / `#F06A5D` | The decision only |
 | `amber` | `#F0A43A` | Steep-ground warnings while walking |
+| `b` | `#5FB4FF` | Astronaut B in pair mode only |
 | `paper` / `paper-ink` | `#F3EFE8` / `#1B1714` | Field guide |
 
 - Corners 4 px; pills only for map pins and the hint line.
 - **Type:** B612 for interface text and B612 Mono for every number. Both were designed for aircraft cockpit displays. Self-hosted inside the build.
 - **Icons:** Phosphor, bold weight, one family.
-- **Routes:** Direct is solid orange with direction chevrons; Cautious is dashed off-white. They differ by line style as well as colour.
+- **Routes:** Direct is solid orange with direction chevrons; Cautious is dashed off-white. They differ by line style as well as colour. In a pair only the chosen profile is drawn, one line per astronaut. While walking, the path is drawn only ahead of you, fades out at your feet, and your partner's is fainter than yours.
 - **Slope layer:** pale yellow 10 to 15 degrees, amber 15 degrees to the limit, dark hatching above the limit.
 - **Thermal layer:** a perceptual ramp from dark violet (cool at night) to pale yellow (warm at night), stretched between the 2nd and 98th percentiles.
 - **Provenance marks** differ by shape: solid measured, outlined derived, dashed assumed, hatched simulated.
@@ -113,10 +116,11 @@ How it stays fast:
 - [ ] Open `web/dist/index.html` on the demo laptop. The descent is smooth.
 - [ ] `npm test` and `npm run e2e` pass.
 - [ ] Click five places. Each gives two routes or a clear reason why not.
-- [ ] Add a stop, remove it, reverse the stops.
+- [ ] Add a stop, drag it, remove it, reverse the stops, press Quickest order.
+- [ ] Switch to Pair; swap a stop between A and B; load the pair plan; walk as B and find A.
 - [ ] Drag the daylight block to late afternoon: the call turns NO-GO and the shadows lengthen.
 - [ ] Turn each layer on and off.
-- [ ] Open each station card; Go here works.
+- [ ] Open the science sites list and a site card; Add works.
 - [ ] Walk it to the end; the arrival photo appears. Stop a walk halfway with Escape.
 - [ ] Open the field guide for both routes; every figure has a mark.
 - [ ] Phone width: the route is visible above the sheet.
@@ -130,7 +134,7 @@ In the build environment, at desktop (1440 by 880) and phone (390 by 844) sizes:
 - Loads in about 3 seconds from disk, with no errors.
 - The route engine matches a brute-force reference solver on random terrain (AUDIT.md section 5).
 - A click-to-route takes about 0.15 to 0.25 seconds, including the worker round trip.
-- Layers, stations, timeline, walk, flyover, guide and reduced motion all work.
+- Layers, science sites, pairs, quickest order, dragging, hover, timeline, walk (speeds, seeking, stops), guide and reduced motion all work (32 browser checks).
 
 That environment has no graphics card; it renders in software, so frame rates there say nothing about real hardware. **Run the check in section 8 on your own laptops.**
 

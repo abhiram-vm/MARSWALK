@@ -90,13 +90,15 @@ A bug introduced and caught during this audit: a shortcut in the route search co
 cd web && npm test
 ```
 
-17 tests: route search against brute-force Dijkstra on 25 random terrains (both profiles), the slope limit, corner cutting, straightening, distance and time on known terrain, uphill against downhill, stop time, dose units, Mars and Earth minutes, the daylight reserve, sunrise and sunset against Curiosity's weather station, leg classification, space weather timing.
+22 tests: route search against brute-force Dijkstra on 25 random terrains (both profiles), the slope limit, corner cutting, straightening, distance and time on known terrain, uphill against downhill, stop time, dose units, Mars and Earth minutes, the daylight reserve, sunrise and sunset against Curiosity's weather station, leg classification, space weather timing, position along a walk in time, line of sight over a ridge, pair separation, the pair verdict, and the stop-order search against every permutation.
 
 ```bash
 cd web && npm run build && npm run e2e
 ```
 
-21 browser checks: load, default walk, itinerary, click-to-route, removing a stop, late departure turning NO-GO, layers, space weather, station card, walk to the last stop, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion.
+32 browser checks: load, default walk, itinerary, click-to-route, hover readout, dragging a beacon, quickest order never slower, removing a stop, pair mode (two routes, separation and sight figures, two walk buttons), the pair plan, the 49-site list and adding from it, late departure turning NO-GO, layers, space weather, site card with blog source, no flyover, height against the start while walking, walk to the last stop at 4×, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion.
+
+The stop-order search times the raw grid paths. After straightening, a different order can come out a few seconds slower; the app then keeps the old order and says it is already the quickest. The browser test checks the order never gets slower.
 
 ## 6. Not verified
 

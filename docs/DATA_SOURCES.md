@@ -86,6 +86,8 @@ https://trek.nasa.gov/tiles/Mars/EQ/{product}/1.0.0/default/default028mm/{z}/{ro
 | H2 | Thermal | Mars Odyssey / THEMIS | Night IR, Mars Trek level 9, over the 8 km area | about 80 m per pixel (98 by 99 px) | Verified | Night surface temperature layer, shown as relative values stretched between the 2nd and 98th percentiles. Not degrees. |
 | P2 | Optical (surface) | MSL / Navcam | Full-frame frames at each station: S0 `NLB_802311994EDR_F1161944NCAM00353M_` (sol 4560), S1 `NLB_813579692EDR_F1191722NCAM00354M_` (sol 4687), S2 `NRB_816167292EDR_F1200082NCAM00200M_` (sol 4716) | 1024 px, stored at 720 px | Verified | Station cards, arrival in walk mode, field guide. The S2 frame's name carries site 120, drive 82, the same rover position as S2's waypoint. |
 
+P2 described the first three stations. They are now part of the 49 science sites in section 2d, with the same frames for S0 and S1.
+
 What the thermal layer means: rock and coarse ground hold the day's heat and stay warmer at night; dust and fine sand cool quickly. At 80 m per pixel it shows the neighbourhood, not the path.
 
 ### 2c. Sun and space weather (added 2026-11-15)
@@ -97,6 +99,21 @@ What the thermal layer means: rock and coarse ground hold the day's heat and sta
 | SW2 | Solar energetic particle events | NASA DONKI SEP list | Verified: none in the 60 days to 2026-11-15 | Space weather card |
 
 The build carries a snapshot; a hosted copy also asks DONKI for the latest runs when it opens.
+
+### 2d. Science sites (added 2026-11-16)
+
+| # | Data | Source | Status | Use |
+| --- | --- | --- | --- | --- |
+| ST1 | Every place Curiosity stayed three sols or more inside the planning area: 49 sites, sols 4473 to 4916 | Waypoints (W) for position and sols; NASA raw image API (P1) for the count of MAHLI close-ups and ChemCam images at each, `pipeline/find_stops.py` | Verified: positions are the rover's recorded waypoints; counts are the API's totals for the sol range | Science sites list, pins, stops |
+| ST2 | Names and notes for 10 of them, 5 of which are drill sites | Curiosity mission blog posts, one cited per site in `data/reference/named_sites.json` | Read: each note is written from its cited post | Names, notes and "Mission blog" links on site cards and in the guide |
+| ST3 | One Navcam photo per site | NASA raw image API, chosen by `pipeline/find_stops.py` from the site's frames: sky-only, mostly black and calibration frames are rejected, then the frame with the most ground texture wins | Verified by eye for all 49 | Site cards, arrival during the walk, field guide |
+
+Method notes:
+
+- A site is the rover's position for a stay; it places the rover, not the instrument target, which is within about 2 m.
+- Unnamed stays closer than 12 m are merged into one site. Named sites are never merged, so a drill site 2 m from another stay keeps its own entry.
+- "Laser shots" in the app counts ChemCam images returned for the stay, a proxy for how much chemistry was done there, not the number of laser pulses.
+- Heights shown while walking are relative to the start. The underlying values are on the MOLA areoid (Mars has no sea level); this area sits about 3,600 m below it because Gale crater is low.
 
 ## 3. Derived products (ours)
 

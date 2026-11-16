@@ -26,10 +26,12 @@ The boxwork site in 3D from NASA terrain and orbital images, with Mount Sharp ar
 Open `index.html` (at the repository root) in a current browser. It is one self-contained file with everything inside it: data, fonts and code. Once the repository is public, GitHub Pages can serve it from the main branch root.
 
 - The camera descends to a default science walk: from the edge of the boxwork to the hollow and the ridge Curiosity drilled in 2025, and back.
-- Add stops, and click the ground or a station photo to place them. Every leg is routed on the spot, two ways.
+- Add stops by clicking the ground, dragging a beacon, or picking one of 49 places Curiosity worked from **Science sites**. Every leg is routed on the spot, two ways. **Quickest order** reorders the stops; four ready-made plans are one click away.
+- Hover the ground to read its slope and height against your start.
+- Switch to **Pair** to split the stops between two astronauts. MARSWALK checks how far apart they get and whether they can see each other over the terrain.
 - Read the GO or NO-GO call, compare the routes, and drag the walk along the daylight timeline.
 - Open **Data layers** to see each NASA dataset and switch overlays.
-- Press **Walk it at eye level** to rehearse the walk, then open the **Field guide**.
+- Press **Walk it at eye level** (or **Walk as A** or **B** in a pair) to rehearse the walk: it pauses at each stop with Curiosity's photo, runs at ½× to 4×, and you can click the height profile to jump. Then open the **Field guide**.
 
 Earlier prototypes are in `preview/` (2D and a first 3D version).
 

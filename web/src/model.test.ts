@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import siteJson from './data/site.json'
 import {
-  analyse, astar, doseFor, legs, MARS_MIN, parseClock, RESERVE_MIN, segmentMaxSlope, speedMs, straighten, stormNear, sunAt, verdict,
+  analyse, astar, bestOrder, doseFor, legs, lineOfSight, MARS_MIN, pairCheck, parseClock, posAtTime, RESERVE_MIN, sampleTimes, segmentMaxSlope, speedMs, straighten, stormNear, sunAt, verdict,
   type Grid, type Params,
 } from './model'
 
@@ -208,5 +208,55 @@ describe('space weather', () => {
   it('warns within a day of a modelled arrival at Mars', () => {
     expect(stormNear(sw, '2026-11-13T00:00Z')).toMatch(/glancing Mars/)
     expect(stormNear(sw, '2026-11-15T00:00Z')).toBeNull()
+  })
+})
+
+describe('time along a walk', () => {
+  const g = flatGrid(60, 3)
+  const out = Int32Array.from({ length: 51 }, (_, i) => 60 + i), back = Int32Array.from(out).reverse()
+  const r = analyse(g, [out, back], 'direct', P)!
+  const times = sampleTimes(r, P)
+  it('waits at a stop for the planned time', () => {
+    const arrive = times[r.stopAt[0]]
+    expect(posAtTime(r, times, arrive + 1).x).toBeCloseTo(50, 3)
+    expect(posAtTime(r, times, arrive + P.work - 0.5).x).toBeCloseTo(50, 3)
+    expect(posAtTime(r, times, arrive + P.work + 2).x).toBeLessThan(50)
+  })
+  it('ends at the start', () => {
+    expect(times[times.length - 1]).toBeCloseTo(r.walk, 4)
+    expect(posAtTime(r, times, r.walk + 10).x).toBeCloseTo(0, 6)
+  })
+})
+
+describe('working in pairs', () => {
+  it('sees across flat ground and not through a wall', () => {
+    const g = flatGrid(40, 5)
+    expect(lineOfSight(g, { x: 2, y: 2 }, { x: 37, y: 2 })).toBe(true)
+    for (let y = 0; y < 5; y++) g.elev[y * 40 + 20] = 5 // a 5 m wall
+    expect(lineOfSight(g, { x: 2, y: 2 }, { x: 37, y: 2 })).toBe(false)
+  })
+  it('measures how far apart two walkers get', () => {
+    const g = flatGrid(80, 3)
+    const east = Int32Array.from({ length: 31 }, (_, i) => 80 + 40 + i), west = Int32Array.from({ length: 31 }, (_, i) => 80 + 40 - i)
+    const a = analyse(g, [east, Int32Array.from(east).reverse()], 'direct', P)!
+    const b = analyse(g, [west, Int32Array.from(west).reverse()], 'direct', P)!
+    const c = pairCheck(g, a, b, P, 100)
+    expect(c.maxSep).toBeCloseTo(120, 0) // 60 m each way, 2 m cells
+    expect(c.inSight).toBe(1)
+    expect(c.tooFar.length).toBe(1)
+    const v = verdict([a, b], P, 400, 1200, null, undefined, { check: c, sepLimit: 100, gapLimit: 10 })
+    expect(v.go).toBe(false)
+    expect(v.head).toBe('Partners too far apart')
+    expect(verdict([a, b], P, 400, 1200, null, undefined, { check: c, sepLimit: 150, gapLimit: 10 }).go).toBe(true)
+  })
+})
+
+describe('stop order', () => {
+  it('finds the shortest round trip', () => {
+    // points on a line at 0, 3, 1, 2: the best order visits 1 (at 3) last
+    const pos = [0, 3, 1, 2], m = pos.map((a) => pos.map((b) => Math.abs(a - b)))
+    const o = bestOrder(m)
+    const len = (ord: number[]) => m[0][ord[0]] + m[ord[ord.length - 1]][0] + ord.slice(1).reduce((t, x, i) => t + m[ord[i]][x], 0)
+    expect(len(o)).toBe(6)
   })
 })

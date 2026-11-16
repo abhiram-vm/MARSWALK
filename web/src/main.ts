@@ -6,8 +6,9 @@ import RoutingWorker from './routing.worker?worker&inline'
 import { loadSite, type SiteData, type Station } from './data'
 import { icon } from './icons'
 import {
-  analyse, at, astar, clock, compassWord, fmtMin, legs, legOf, parseClock, retime, round10, stormNear, sunAt, verdict,
-  MARS_MIN, RATE_MSV_PER_DAY, RESERVE_MIN, type Check, type Params, type Pt, type Route, type SpaceWeather, type Verdict,
+  analyse, at, astar, bestOrder, clock, compassWord, fmtMin, legs, legOf, lineOfSight, orderMatrix, pairCheck, parseClock, posAtTime,
+  retime, round10, sampleTimes, stormNear, sunAt, verdict,
+  MARS_MIN, RATE_MSV_PER_DAY, RESERVE_MIN, type Check, type PairCheck, type Params, type Pt, type Route, type SpaceWeather, type Verdict,
 } from './model'
 import { World } from './world'
 
@@ -16,24 +17,33 @@ const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = 
 const html = (s: TemplateStringsArray, ...v: unknown[]) => s.reduce((a, b, i) => a + b + (i < v.length ? String(v[i]) : ''), '')
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 const store = { get(k: string) { try { return localStorage.getItem(k) } catch { return null } }, set(k: string, v: string) { try { localStorage.setItem(k, v) } catch { /* private mode */ } } }
-const MAX_STOPS = 4
+const MAX_STOPS = 6
+const COL = ['#f2662f', '#5fb4ff'] // astronaut A, astronaut B
+const WHO = ['A', 'B']
 
 const P: Params = { suit: 0.5, limit: 20, work: 30, depart: 540 }
 const S = {
-  pts: [] as Pt[], // pts[0] is the start; the rest are stops in order; the walk returns to the start
+  pts: [] as Pt[], // pts[0] is the start; the rest are stops in order; every walk returns to the start
+  who: [] as number[], // in pair mode, which astronaut visits each stop (0 = A, 1 = B); who[0] is unused
+  pair: false,
   active: 1, sel: 'direct' as Kind,
-  routes: { direct: null, cautious: null } as Record<Kind, Route | null>, busy: false,
+  routes: { direct: [], cautious: [] } as Record<Kind, (Route | null)[]>,
+  pc: { direct: null, cautious: null } as Record<Kind, PairCheck | null>,
+  busy: false, sepLimit: 300, gapLimit: 10,
   tint: true, exag: false, layers: { slope: false, thermal: false, track: false, boundary: true },
-  drawer: '' as '' | 'layers' | 'station', station: '', sw: null as (SpaceWeather & { source: string; live?: boolean }) | null,
+  drawer: '' as '' | 'layers' | 'station' | 'sites', station: '', siteFilter: 'all' as 'all' | 'drill' | 'named',
+  sw: null as (SpaceWeather & { source: string; live?: boolean }) | null,
 }
 let D: SiteData, W: World, sunrise = 0, sunset = 0
 let worker: Worker | null = null, jobId = 0
+const orderJobs = new Map<number, (d: { order: number[]; reachable: boolean }) => void>()
 
 // ---------------------------------------------------------------- shell
 document.querySelector('#app')!.innerHTML = html`
-  <canvas id="gl" tabindex="0" aria-label="3D view of the boxwork unit on Mount Sharp. Drag to orbit, right-drag or two fingers to pan, scroll to zoom, click the ground to place the selected point."></canvas>
+  <canvas id="gl" tabindex="0" aria-label="3D view of the boxwork unit on Mount Sharp. Drag to orbit, right-drag or two fingers to pan, scroll to zoom, click the ground to place the selected point, drag a beacon to move it."></canvas>
   <div class="vignette"></div>
   <div class="pins" id="pins"></div>
+  <div class="tip" id="tip" hidden></div>
   <div class="loading" id="loading"><b>MARSWALK</b><div class="bar"><i id="load-bar"></i></div><span id="load-msg">Loading terrain and imagery</span></div>
   <div class="title" id="title"><b>MARSWALK</b><span>Boxwork unit, Mount Sharp, Gale crater, Mars</span></div>
 `
@@ -60,17 +70,25 @@ async function boot() {
   try {
     worker = new RoutingWorker()
     worker.postMessage({ init: true, elev: D.grid.elev, slope: D.grid.slope, cols: D.grid.cols, rows: D.grid.rows, cell: D.grid.cell })
-    worker.onmessage = (e) => onSolved(e.data)
+    worker.onmessage = (e) => {
+      const d = e.data
+      if ('order' in d) { orderJobs.get(d.id)?.(d); orderJobs.delete(d.id) } else onSolved(d)
+    }
     worker.onerror = () => { worker = null; if (S.busy) recompute(pendingOpts) }
   } catch { worker = null }
-  // Default walk: from the edge of the boxwork to the hollow Curiosity drilled, then the ridge beside it, and back.
-  S.pts = ['S0', 'S1', 'S2'].map((id) => { const s = byId(id)!; return snap({ x: s.xy[0], y: s.xy[1] })! })
+  // Default walk: from the Altadena drill site at the edge of the boxwork to the hollow
+  // and the ridge Curiosity drilled as a pair in late 2025, and back.
+  setPlan(PRESETS[0], false)
   W.setDepart(P.depart)
-  W.setPoints(S.pts)
   W.onRender = drawOverlay
   W.onPick = onPick
-  W.onCine = onCineFrame
-  W.onCineEnd = onCineEnd
+  W.onCine = onWalkFrame
+  W.onCineEnd = onWalkEnd
+  W.onStopReached = onStopReached
+  W.onHover = onHover
+  W.onHoverEnd = () => ($('#tip').hidden = true)
+  W.dragTest = dragTest
+  W.onDrag = onDrag
   W.onUserMove = () => { if (S.drawer === 'station') closeDrawer() }
   W.onContextLost = () => {
     document.body.insertAdjacentHTML('beforeend', '<div class="fatal surface" style="z-index:30;background:var(--bg)"><b>The graphics were reset by the browser.</b><span class="muted">This can happen when a laptop sleeps or the GPU is busy.</span><button class="btn primary" onclick="location.reload()">Reload MARSWALK</button></div>')
@@ -82,6 +100,23 @@ async function boot() {
   renderAll()
   recompute({ fit: true, delay: reduce ? 0 : 900, ms: reduce ? 0 : 4600, first: true })
   refreshSpaceWeather()
+}
+
+// ---------------------------------------------------------------- ready-made plans
+interface Preset { name: string; what: string; start: string; stops: string[]; who?: number[] }
+const PRESETS: Preset[] = [
+  { name: 'Hollow and ridge', what: 'From the Altadena drill site to the hollow and the ridge Curiosity drilled as a pair', start: 'c4560', stops: ['c4687', 'c4711'] },
+  { name: 'Pair: split the hollows', what: 'Two astronauts split four sites around Monte Grande, one each side, and stay in reach of each other', start: 'c4680', stops: ['c4813', 'c4741', 'c4823', 'c4655'], who: [0, 1, 0, 1] },
+  { name: 'Sulfate drill sites', what: 'Over the southern contact to the Atacama and Campo Marte drill sites', start: 'c4845', stops: ['c4868', 'c4893'] },
+  { name: 'Across the boxwork', what: 'A long day: Altadena, the Laguna hollows and the southern contact', start: 'c4560', stops: ['c4673', 'c4845'] },
+]
+function setPlan(p: Preset, go = true) {
+  const pt = (id: string) => { const s = byId(id)!; return snap({ x: s.xy[0], y: s.xy[1] }) ?? { x: s.xy[0], y: s.xy[1] } }
+  S.pts = [p.start, ...p.stops].map((id) => { const q = pt(id); return { x: q.x, y: q.y } })
+  S.pair = !!p.who
+  S.who = [0, ...(p.who ?? p.stops.map(() => 0))]
+  S.active = 1
+  if (go) { closeDrawer(); dismissCoach(); recompute({ fit: true, note: `${p.name}: ${p.what}.` }) }
 }
 
 // ---------------------------------------------------------------- space weather
@@ -116,6 +151,29 @@ function spaceSummary() {
 }
 const fmtUtc = (iso: string) => iso.replace('T', ' ').replace(/:00Z$|Z$/, '') + ' UTC'
 
+// ---------------------------------------------------------------- walkers
+const walkers = () => (S.pair ? [0, 1] : [0])
+/** Indices into S.pts of the stops one astronaut visits, in order. */
+const stopsOf = (w: number) => S.pts.map((_, i) => i).filter((i) => i > 0 && (!S.pair || S.who[i] === w))
+const walkerOf = (i: number) => (S.pair ? S.who[i] ?? 0 : 0)
+const cur = () => S.routes[S.sel]
+const ready = (k: Kind = S.sel) => S.routes[k].length > 0 && S.routes[k].every(Boolean)
+/** Whole-team figures for a profile: the longest walk sets the time; distance is everyone's total. */
+function agg(k: Kind) {
+  if (!ready(k)) return null
+  const rs = S.routes[k] as Route[], dist = rs.reduce((a, r) => a + r.dist, 0)
+  return {
+    walk: Math.max(...rs.map((r) => r.walk)), dist, climb: Math.max(...rs.map((r) => r.climb)),
+    over10: rs.reduce((a, r) => a + r.over10 * r.dist, 0) / Math.max(1, dist), maxSlope: Math.max(...rs.map((r) => r.maxSlope)),
+    dose: Math.max(...rs.map((r) => r.dose)), backMin: Math.max(...rs.map((r) => r.backMin)),
+  }
+}
+/** Planned minutes for the leg that ends at stop i, from that astronaut's walk. */
+function legTo(i: number) {
+  const w = walkerOf(i), r = cur()[w]
+  return r ? r.legMin[stopsOf(w).indexOf(i)] : null
+}
+
 // ---------------------------------------------------------------- routing
 function snap(p: Pt): (Pt & { moved?: boolean }) | null {
   const { cols, rows, slope } = D.grid
@@ -128,44 +186,63 @@ function snap(p: Pt): (Pt & { moved?: boolean }) | null {
   }
   return null
 }
-let pendingOpts: { fit: boolean; delay?: number; ms?: number; first?: boolean; note?: string } = { fit: false }
+const idx = (p: Pt) => Math.round(p.y) * D.grid.cols + Math.round(p.x)
+const pointColors = () => S.pts.map((_, i) => (i === 0 ? 0xf4f1ec : S.pair && S.who[i] === 1 ? 0x5fb4ff : 0xf2662f))
+type Snapshot = { pts: Pt[]; who: number[]; routes: Record<Kind, (Route | null)[]>; pc: Record<Kind, PairCheck | null> }
+let pendingOpts: { fit: boolean; delay?: number; ms?: number; first?: boolean; note?: string; was?: number; prev?: Snapshot } = { fit: false }
 function recompute(opts: typeof pendingOpts) {
   pendingOpts = opts
   S.busy = true
   renderDecision()
-  W.setPoints(S.pts)
-  const idx = (p: Pt) => Math.round(p.y) * D.grid.cols + Math.round(p.x)
-  const job = { id: ++jobId, points: [...S.pts, S.pts[0]].map(idx), limit: P.limit, suit: P.suit }
+  W.setPoints(S.pts, pointColors())
+  const job = { id: ++jobId, walks: walkers().map((w) => [0, ...stopsOf(w), 0].map((i) => idx(S.pts[i]))), limit: P.limit, suit: P.suit }
   if (worker) worker.postMessage(job)
   else setTimeout(() => {
     if (job.id !== jobId) return
-    const g = D.grid, solve = (c: boolean) => job.points.slice(0, -1).map((s, i) => astar(g.elev, g.slope, g.cols, g.rows, g.cell, s, job.points[i + 1], job.limit, job.suit, c))
+    const g = D.grid, solve = (c: boolean) => job.walks.map((pts) => pts.slice(0, -1).map((s, i) => astar(g.elev, g.slope, g.cols, g.rows, g.cell, s, pts[i + 1], job.limit, job.suit, c)))
     onSolved({ id: job.id, direct: solve(false), cautious: solve(true) })
   }, 20)
 }
-function onSolved(r: { id: number; direct: (Int32Array | null)[]; cautious: (Int32Array | null)[] }) {
+function onSolved(r: { id: number; direct: (Int32Array | null)[][]; cautious: (Int32Array | null)[][] }) {
   if (r.id !== jobId) return
   S.busy = false
-  S.routes = { direct: analyse(D.grid, r.direct, 'direct', P), cautious: analyse(D.grid, r.cautious, 'cautious', P) }
-  if (!S.routes[S.sel]) S.sel = 'direct'
+  for (const k of ['direct', 'cautious'] as const) S.routes[k] = r[k].map((l) => analyse(D.grid, l, k, P))
   const o = pendingOpts
+  // the order search times grid paths; after smoothing a new order can come out a little slower, so keep the old one then
+  if (o.prev && o.was !== undefined && (!ready(S.sel) || agg(S.sel)!.walk >= o.was - 0.05)) {
+    Object.assign(S, { pts: o.prev.pts, who: o.prev.who, routes: o.prev.routes, pc: o.prev.pc })
+    W.setPoints(S.pts, pointColors()); W.setRoutes(S.routes, S.sel, false); renderAll()
+    hint('This is already the quickest order.')
+    return
+  }
+  if (!ready(S.sel)) S.sel = 'direct'
+  updatePairChecks()
   W.setRoutes(S.routes, S.sel, !o.first)
   renderAll()
-  if (!S.routes.direct) {
-    const bad = r.direct.findIndex((l) => !l)
-    hint(`No walkable route for ${legName(bad)} under the ${P.limit}° limit. Move a point, or raise the limit under Assumptions.`, true)
-  } else hint(o.note ?? `Click the ground to move ${pointName(S.active).toLowerCase()}.`)
+  if (!ready('direct')) {
+    const w = r.direct.findIndex((legs) => legs.some((l) => !l)), bad = r.direct[w].findIndex((l) => !l)
+    hint(`No walkable route for ${legName(w, bad)} under the ${P.limit}° limit. Move that point, or raise the limit under Assumptions.`, true)
+  } else if (o.was !== undefined) {
+    const now = agg(S.sel)!.walk
+    hint(`New order: ${S.pair ? 'longest walk' : 'whole walk'} ${fmtMin(now)}, ${now < o.was - 0.5 ? `${fmtMin(o.was - now)} quicker` : 'slightly quicker'}.`)
+  } else hint(o.note ?? `Click the ground to move ${pointName(S.active).toLowerCase()}, or drag any beacon.`)
   if (o.fit) setTimeout(() => W.flyTo(routePose(), o.ms ?? 1300), o.delay ?? 0)
   if (o.first) setTimeout(showCoach, reduce ? 0 : 5200)
 }
+function updatePairChecks() {
+  for (const k of ['direct', 'cautious'] as const) {
+    const [a, b] = S.routes[k]
+    S.pc[k] = S.pair && a && b ? pairCheck(D.grid, a, b, P, S.sepLimit) : null
+  }
+}
 function routePose() {
   const pts: THREE.Vector3[] = S.pts.map((q) => W.cellToWorld(q))
-  const r = S.routes[S.sel] ?? S.routes.direct
-  if (r) for (let i = 0; i < r.xs.length; i += 12) pts.push(W.cellToWorld({ x: r.xs[i], y: r.ys[i] }))
+  for (const r of cur()) if (r) for (let i = 0; i < r.xs.length; i += 12) pts.push(W.cellToWorld({ x: r.xs[i], y: r.ys[i] }))
   return W.frame(pts, innerWidth > 900 ? 400 : 0, innerWidth > 900 ? 0 : innerHeight * 0.5)
 }
 function reanalyse() {
-  for (const k of ['direct', 'cautious'] as const) { const r = S.routes[k]; S.routes[k] = r ? retime(r, P) : null }
+  for (const k of ['direct', 'cautious'] as const) S.routes[k] = S.routes[k].map((r) => (r ? retime(r, P) : null))
+  updatePairChecks()
   renderAll()
 }
 function onPick(cx: number, cy: number, inside: boolean) {
@@ -177,7 +254,59 @@ function onPick(cx: number, cy: number, inside: boolean) {
   recompute({ fit: false, note: p.moved ? 'Moved to the nearest walkable ground.' : undefined })
 }
 const pointName = (i: number) => (i === 0 ? 'The start' : `Stop ${i}`)
-const legName = (i: number) => (i === S.pts.length - 1 ? 'the walk back to the start' : i === 0 ? 'the leg to stop 1' : `the leg from stop ${i} to stop ${i + 1}`)
+function legName(w: number, leg: number) {
+  const st = stopsOf(w), who = S.pair ? `astronaut ${WHO[w]}'s ` : ''
+  if (leg >= st.length) return `${who}walk back to the start`
+  return leg === 0 ? `${who}leg to stop ${st[0]}` : `${who}leg from stop ${st[leg - 1]} to stop ${st[leg]}`
+}
+
+// ---------------------------------------------------------------- planning helpers
+function optimiseOrder() {
+  const a = agg(S.sel)
+  if (!a) return
+  const prev: Snapshot = { pts: S.pts.map((p) => ({ ...p })), who: [...S.who], routes: { ...S.routes }, pc: { ...S.pc } }
+  const ws = walkers().filter((w) => stopsOf(w).length > 1)
+  if (!ws.length) return hint('With one stop per astronaut there is only one order.')
+  hint('Finding the quickest order...')
+  let left = ws.length
+  const results = new Map<number, number[]>()
+  const done = () => {
+    for (const [w, order] of results) {
+      const slots = stopsOf(w), pts = slots.map((i) => S.pts[i])
+      order.forEach((o, j) => (S.pts[slots[j]] = pts[o - 1]))
+    }
+    recompute({ fit: false, was: a.walk, prev })
+  }
+  for (const w of ws) {
+    const pts = [0, ...stopsOf(w)].map((i) => idx(S.pts[i])), id = ++jobId + 1e6
+    const cb = (d: { order: number[]; reachable: boolean }) => { results.set(w, d.order); if (--left === 0) done() }
+    if (worker) { orderJobs.set(id, cb); worker.postMessage({ id, order: pts, limit: P.limit, suit: P.suit, cautious: S.sel === 'cautious' }) }
+    else setTimeout(() => cb({ order: bestOrder(orderMatrix(D.grid, pts, P.limit, P.suit, S.sel === 'cautious')), reachable: true }), 20)
+  }
+}
+function setPair(on: boolean) {
+  if (on === S.pair) return
+  S.pair = on
+  if (on) {
+    // each astronaut needs at least one stop: add the nearest science site if there is only one
+    if (S.pts.length < 3) {
+      const last = S.pts[S.pts.length - 1]
+      const near = D.stations.filter((s) => s.kind !== 'stop' && Math.hypot(s.xy[0] - last.x, s.xy[1] - last.y) > 6)
+        .sort((a, b) => Math.hypot(a.xy[0] - last.x, a.xy[1] - last.y) - Math.hypot(b.xy[0] - last.x, b.xy[1] - last.y))[0]
+      const p = near && snap({ x: near.xy[0], y: near.xy[1] })
+      if (p) S.pts.push({ x: p.x, y: p.y })
+    }
+    S.who = S.pts.map((_, i) => (i === 0 ? 0 : (i - 1) % 2))
+  }
+  S.active = Math.min(S.active, S.pts.length - 1) || 1
+  recompute({ fit: true, note: on ? 'Two astronauts. Stops alternate between A (orange) and B (blue); click A or B next to a stop to swap.' : 'One astronaut visits every stop.' })
+}
+function toggleWho(i: number) {
+  const w = S.who[i], other = 1 - w
+  if (stopsOf(w).length <= 1) return hint(`Astronaut ${WHO[w]} needs at least one stop. Add another stop first.`, true)
+  S.who[i] = other
+  recompute({ fit: false, note: `Stop ${i} now belongs to astronaut ${WHO[other]}.` })
+}
 
 // ---------------------------------------------------------------- UI shell
 function buildUI() {
@@ -188,6 +317,7 @@ function buildUI() {
     <div class="place"><b>Boxwork unit, Mount Sharp</b><span>Gale crater, 4.80° S 137.38° E</span></div>
     <div class="right">
       <span class="stamp">Weather: sol ${c.sol}, ${c.terrestrial_date}</span>
+      <button class="btn" id="b-sites" aria-pressed="false">${icon.Images}<span>Science sites</span></button>
       <button class="btn" id="b-layers" aria-pressed="false">${icon.Stack}<span>Data layers</span></button>
       <button class="btn" id="b-guide">${icon.FileText}<span>Field guide</span></button>
     </div>
@@ -196,10 +326,15 @@ function buildUI() {
   <aside class="rail surface" aria-label="Plan a walk">
     <div class="scroll">
       <section class="sec">
-        <div class="sec-h"><h2>Science walk</h2><span class="aside" id="dist-line"></span></div>
+        <div class="sec-h"><h2>Science walk</h2>
+          <div class="seg" role="group" aria-label="Who walks">
+            <button id="m-solo" aria-pressed="true">${icon.User}<span>Solo</span></button>
+            <button id="m-pair" aria-pressed="false">${icon.Users}<span>Pair</span></button>
+          </div>
+        </div>
         <ol class="itin" id="itin"></ol>
         <p class="edit-hint" id="edit-hint"></p>
-        <div class="stations" id="stations"></div>
+        <div class="plans"><span>Ready-made plans</span><div id="plans"></div></div>
       </section>
 
       <section class="sec" aria-live="polite">
@@ -212,12 +347,13 @@ function buildUI() {
         <p class="compare" id="compare"></p>
       </section>
 
+      <section class="sec pair-sec" id="pair-sec" hidden>
+        <div class="sec-h"><h2>Working in pairs</h2><span class="aside" id="pair-line"></span></div>
+        <div id="pair"></div>
+      </section>
+
       <section class="sec">
-        <div class="actions">
-          <button class="btn primary" id="b-walk">${icon.PersonSimpleWalk}<span>Walk it at eye level</span></button>
-          <button class="btn" id="b-fly">${icon.Airplane}<span>Fly over</span></button>
-          <button class="btn" id="b-guide2">${icon.FileText}<span>Field guide</span></button>
-        </div>
+        <div class="actions" id="actions"></div>
       </section>
 
       <section class="sec">
@@ -234,7 +370,11 @@ function buildUI() {
             <input type="range" id="in-limit" min="12" max="30" step="1" value="20"></div>
           <div class="field"><label for="in-work">Time at each stop</label><output id="o-work"></output>
             <input type="range" id="in-work" min="0" max="120" step="10" value="30"></div>
-          <p class="fine">The team's planning assumptions, not NASA limits. At 50%, flat-ground speed is 2.5 km/h, the figure NASA used for sustained suited walking on the Moon. Routes recompute when you change these.</p>
+          <div class="field"><label for="in-sep">Pairs: furthest apart</label><output id="o-sep"></output>
+            <input type="range" id="in-sep" min="100" max="800" step="50" value="300"></div>
+          <div class="field"><label for="in-gap">Pairs: longest out of sight</label><output id="o-gap"></output>
+            <input type="range" id="in-gap" min="0" max="40" step="5" value="10"></div>
+          <p class="fine">The team's planning assumptions, not NASA limits. At 50%, flat-ground speed is 2.5 km/h, the figure NASA used for sustained suited walking on the Moon. The pair limits stand in for radio range and the buddy rule of keeping your partner in view. Routes recompute when you change these.</p>
         </details>
       </section>
     </div>
@@ -259,35 +399,44 @@ function buildUI() {
   <div class="coach surface" id="coach" hidden>
     <h2>Plan a science walk on Mars</h2>
     <ol>
-      <li><span><b>Pick the stops.</b> Click the ground, or use a station photo. The default visits the hollow and the ridge Curiosity drilled in 2025.</span></li>
-      <li><span><b>Read the call</b> and compare the two routes.</span></li>
+      <li><span><b>Pick the stops.</b> Click the ground, drag a beacon, or add one of ${D.stations.length} places Curiosity worked from <b>Science sites</b>.</span></li>
+      <li><span><b>Read the call</b> and compare the two routes. Switch to <b>Pair</b> to split the stops between two astronauts.</span></li>
       <li><span><b>Walk it</b> at eye level, then open the field guide.</span></li>
     </ol>
     <button class="btn primary" id="coach-ok" style="width:100%">Start planning</button>
   </div>
 
-  <div class="cine-bar t"></div><div class="cine-bar b"></div>
   <div class="hud" id="hud" hidden>
     <div class="frame"></div>
     <div class="mode" id="hud-mode"></div>
     <div class="compass" aria-hidden="true"><div class="strip" id="strip"></div></div>
-    <div class="ctl"><button class="btn" id="h-pause">${icon.Pause}<span>Pause</span></button><button class="btn" id="h-exit">${icon.X}<span>Exit</span></button></div>
+    <div class="ctl">
+      <div class="seg speeds" role="group" aria-label="Playback speed">
+        <button data-v="0.5">½×</button><button data-v="1" aria-pressed="true">1×</button><button data-v="2">2×</button><button data-v="4">4×</button>
+      </div>
+      <button class="btn" id="h-pause">${icon.Pause}<span>Pause</span></button><button class="btn" id="h-exit">${icon.X}<span>Exit</span></button>
+    </div>
     <div class="readouts">
       <div class="next" id="h-next"></div>
       <div class="row">
-        <div>Walked<b id="h-dist"></b></div><div>Elevation<b id="h-elev"></b></div><div>Slope<b id="h-slope"></b></div>
-        <div>Mars time<b id="h-clock"></b></div><div>Sun<b id="h-sun"></b></div><div>Dose so far<b id="h-dose"></b></div><div>Playback<b id="h-speed"></b></div>
+        <div>Walked<b id="h-dist"></b></div>
+        <div title="Height above or below where the walk started. Heights on Mars are measured from a reference surface (the areoid); this area is about ${Math.abs(Math.round(D.zmid / 100) * 100)} m below it because Gale crater is low.">Height vs start<b id="h-elev"></b></div>
+        <div>Slope<b id="h-slope"></b></div>
+        <div>Mars time<b id="h-clock"></b></div><div>Sun<b id="h-sun"></b></div><div>Dose so far<b id="h-dose"></b></div>
+        <div id="h-partner-c" hidden>Partner<b id="h-partner"></b></div>
+        <div>Playback<b id="h-speed"></b></div>
       </div>
-      <svg id="h-prof" viewBox="0 0 1000 46" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <svg id="h-prof" viewBox="0 0 1000 46" preserveAspectRatio="none" role="slider" aria-label="Position along the walk. Click to jump."></svg>
     </div>
     <div class="arrive surface" id="arrive" hidden></div>
   </div>
   <div id="guide-root"></div>
   `)
-  $('#stations').innerHTML = D.stations.filter((s) => D.photos[s.id]).map((s) => html`
-    <button class="station" data-id="${s.id}" title="${s.note}"><img src="${D.photos[s.id].src}" alt=""><span><b>${s.id}</b>${shortName(s)}</span></button>`).join('')
-  $('#stations').addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('.station'); if (b) openStation(b.dataset.id!) })
-  $('#pins').innerHTML = D.stations.map((s) => html`<button class="pin" data-id="${s.id}" style="visibility:hidden">${D.photos[s.id] ? icon.Camera : icon.MapPin}<b>${s.id}</b>${shortName(s)}</button>`).join('') + '<div id="tags"></div>'
+  $('#plans').innerHTML = PRESETS.map((p, i) => `<button class="chip" data-i="${i}" title="${p.what}">${p.who ? icon.Users : icon.Path}<span>${p.name}</span></button>`).join('')
+  $('#plans').addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest<HTMLElement>('.chip'); if (b) setPlan(PRESETS[Number(b.dataset.i)]) })
+  $('#pins').innerHTML = D.stations.map((s) => s.kind === 'stop'
+    ? html`<button class="pin dot" data-id="${s.id}" style="visibility:hidden" aria-label="${siteName(s)}" title="${siteName(s)}"></button>`
+    : html`<button class="pin" data-id="${s.id}" style="visibility:hidden"><i class="k ${s.kind}"></i>${shortName(s)}</button>`).join('') + '<div id="tags"></div><span class="tag dest ptag" id="ptag" hidden></span>'
   $('#pins').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('.pin, .tag')
     if (!b) return
@@ -297,21 +446,40 @@ function buildUI() {
   $('#itin').addEventListener('click', (e) => {
     const t = e.target as HTMLElement, row = t.closest<HTMLElement>('[data-i]')
     if (t.closest('.rm')) { removeStop(Number(row!.dataset.i)); return }
+    if (t.closest('.who')) { toggleWho(Number(row!.dataset.i)); return }
     if (t.closest('#add-stop')) { addStop(); return }
-    if (t.closest('#rev')) { const st = S.pts[0]; S.pts = [st, ...S.pts.slice(1).reverse()]; recompute({ fit: true }); return }
+    if (t.closest('#opt')) { optimiseOrder(); return }
+    if (t.closest('#rev')) { const st = S.pts[0]; S.pts = [st, ...S.pts.slice(1).reverse()]; S.who = [0, ...S.who.slice(1).reverse()]; recompute({ fit: false }); return }
     if (row) setActive(Number(row.dataset.i))
   })
-  $('#b-walk').onclick = () => startCine('walk')
-  $('#b-fly').onclick = () => startCine('fly')
-  $('#b-guide').onclick = $('#b-guide2').onclick = openGuide
+  $('#m-solo').onclick = () => setPair(false)
+  $('#m-pair').onclick = () => setPair(true)
+  $('#actions').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button')
+    if (!b) return
+    if (b.dataset.walk) startWalk(Number(b.dataset.walk))
+    if (b.id === 'b-guide2') openGuide()
+  })
+  $('#b-guide').onclick = openGuide
   $('#b-layers').onclick = () => (S.drawer === 'layers' ? closeDrawer() : openLayers())
+  $('#b-sites').onclick = () => (S.drawer === 'sites' ? closeDrawer() : openSites())
   $('#z-in').onclick = () => W.zoom(1 / 1.4)
   $('#z-out').onclick = () => W.zoom(1.4)
   $('#z-fit').onclick = () => W.flyTo(routePose(), 1100)
   $('#z-north').onclick = () => W.faceNorth()
   $('#coach-ok').onclick = dismissCoach
-  $('#h-exit').onclick = stopCine
-  $('#h-pause').onclick = () => { const paused = W.pauseCine(); $('#h-pause').innerHTML = paused ? `${icon.Play}<span>Resume</span>` : `${icon.Pause}<span>Pause</span>` }
+  $('#h-exit').onclick = stopWalk
+  $('#h-pause').onclick = () => setPaused(W.pauseWalk())
+  $('#hud').querySelector('.speeds')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('button')
+    if (!b) return
+    walkSpeed = Number(b.dataset.v); W.setWalkSpeed(walkSpeed); showSpeed()
+  })
+  $('#h-prof').addEventListener('pointerdown', (e) => {
+    const b = $('#h-prof').getBoundingClientRect()
+    W.seekWalk(((e.clientX - b.left) / b.width) * walkEnd)
+    $('#arrive').hidden = true
+  })
   const bind = (id: string, f: (v: number) => void, slow: boolean) => {
     let t = 0
     $(id).addEventListener('input', (e) => { const v = Number((e.target as HTMLInputElement).value); f(v); renderAssumptions(); if (slow) { clearTimeout(t); t = window.setTimeout(() => recompute({ fit: false }), 220) } else reanalyse() })
@@ -319,96 +487,179 @@ function buildUI() {
   bind('#in-suit', (v) => (P.suit = v), true)
   bind('#in-limit', (v) => { P.limit = v; W.paintSlope(v); S.pts = S.pts.map((q) => { const p = snap(q); return p ? { x: p.x, y: p.y } : q }) }, true)
   bind('#in-work', (v) => (P.work = v), false)
+  bind('#in-sep', (v) => (S.sepLimit = v), false)
+  bind('#in-gap', (v) => (S.gapLimit = v), false)
   bindDay()
   bindMini()
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { if (W.mode !== 'orbit') stopCine(); else if ($('#guide-root').firstChild) closeGuide(); else closeDrawer() }
+    if (e.key === 'Escape') { if (W.mode !== 'orbit') stopWalk(); else if ($('#guide-root').firstChild) closeGuide(); else closeDrawer() }
     if (e.key === ' ' && W.mode !== 'orbit') { e.preventDefault(); $('#h-pause').click() }
   })
 }
 const byId = (id: string) => D.stations.find((s) => s.id === id)
-const shortName = (s: Station) => s.name.replace(/ \(.*/, '').replace('Approach waypoint', 'Approach')
-function nearStation(p: Pt) { return D.stations.find((s) => Math.hypot(s.xy[0] - p.x, s.xy[1] - p.y) < 3.5) }
+const shortName = (s: Station) => (s.kind === 'stop' ? `Sol ${s.sols[0]} stop` : s.name.replace(/ \(.*/, ''))
+const siteName = (s: Station) => (s.kind === 'stop' ? `Curiosity's sol ${s.sols[0]} stop` : s.name)
+function nearStation(p: Pt) {
+  // prefer a named or drill site when several stops are close together
+  const d = (s: Station) => Math.hypot(s.xy[0] - p.x, s.xy[1] - p.y)
+  const near = D.stations.filter((s) => d(s) < 3.5).sort((a, b) => d(a) - d(b))
+  return near.find((s) => s.kind !== 'stop') ?? near[0]
+}
 function lonlat(p: Pt) {
   const b = D.bounds, lon = b.west + ((p.x + 0.5) / D.grid.cols) * (b.east - b.west), lat = b.north - ((p.y + 0.5) / D.grid.rows) * (b.north - b.south)
   return `${Math.abs(lat).toFixed(4)}° S ${lon.toFixed(4)}° E`
 }
-const label = (p: Pt) => { const s = nearStation(p); return s ? `${s.id} ${shortName(s)}` : lonlat(p) }
-function setActive(i: number) { S.active = i; renderItin(); hint(`Click the ground or a station photo to move ${pointName(i).toLowerCase()}.`) }
-function addStop() {
-  if (S.pts.length - 1 >= MAX_STOPS) return
+const label = (p: Pt) => { const s = nearStation(p); return s ? shortName(s) : lonlat(p) }
+function setActive(i: number) { S.active = i; renderItin(); hint(`Click the ground, or a science site, to move ${pointName(i).toLowerCase()}.`) }
+function addStop(at?: Pt) {
+  if (S.pts.length - 1 >= MAX_STOPS) return hint(`Up to ${MAX_STOPS} stops per walk.`, true)
   const last = S.pts[S.pts.length - 1]
-  S.pts.push({ ...last })
+  S.pts.push(at ? { ...at } : { ...last })
+  // in pair mode a new stop goes to whoever has fewer
+  S.who.push(S.pair ? (stopsOf(0).length > stopsOf(1).length ? 1 : 0) : 0)
   S.active = S.pts.length - 1
+  if (at) { recompute({ fit: true }); return }
   renderItin()
-  hint(`Click the ground or a station photo to place stop ${S.active}.`)
+  hint(`Click the ground or a science site to place stop ${S.active}.`)
 }
 function removeStop(i: number) {
   if (S.pts.length <= 2 || i === 0) return
-  S.pts.splice(i, 1)
+  if (S.pair && stopsOf(S.who[i]).length <= 1) return hint(`That is astronaut ${WHO[S.who[i]]}'s only stop. Give them another first, or switch to Solo.`, true)
+  S.pts.splice(i, 1); S.who.splice(i, 1)
   S.active = Math.min(S.active, S.pts.length - 1) || 1
   recompute({ fit: false })
 }
 
+// ---------------------------------------------------------------- dragging beacons, hover readout
+let dragFrom: Pt | null = null
+function dragTest(cx: number, cy: number) {
+  const b = ($('#gl') as HTMLCanvasElement).getBoundingClientRect(), x = cx - b.left, y = cy - b.top
+  let best = -1, bestD = 18
+  S.pts.forEach((p, i) => {
+    const a = W.project(W.cellToWorld(p, 0)), t = W.project(W.cellToWorld(p, 40))
+    if (!a.on) return
+    // distance from the cursor to the beacon's column on screen
+    const vx = t.x - a.x, vy = t.y - a.y, L = vx * vx + vy * vy || 1, k = Math.max(0, Math.min(1, ((x - a.x) * vx + (y - a.y) * vy) / L))
+    const d = Math.hypot(x - a.x - k * vx, y - a.y - k * vy)
+    if (d < bestD) { bestD = d; best = i }
+  })
+  return best
+}
+function onDrag(i: number, cx: number, cy: number, done: boolean) {
+  if (cx === -2) { setActive(i); return } // a tap on a beacon selects it
+  if (!dragFrom) dragFrom = { ...S.pts[i] }
+  if (cx < 0) { S.pts[i] = dragFrom; dragFrom = null; W.setPoints(S.pts, pointColors()); hint('Dropped outside the planning area, so the point stays where it was.', true); return }
+  const p = snap({ x: cx, y: cy })
+  if (p) { S.pts[i] = { x: p.x, y: p.y }; W.setPoints(S.pts, pointColors()); S.active = i }
+  if (done) { dragFrom = null; dismissCoach(); recompute({ fit: false, note: p?.moved ? 'Moved to the nearest walkable ground.' : undefined }) }
+  else { renderTags(); $('#tip').hidden = true }
+}
+function onHover(cx: number, cy: number, clientX: number, clientY: number, inside: boolean) {
+  const tip = $('#tip')
+  if (!inside) tip.innerHTML = '<span class="muted">Outside the planning area: shown for context only</span>'
+  else {
+    const g = D.grid, i = Math.round(cy) * g.cols + Math.round(cx), sl = g.slope[i], dz = g.elev[i] - g.elev[idx(S.pts[0])]
+    const st = nearStation({ x: cx, y: cy })
+    const state = sl > P.limit ? `<span class="bad">Too steep to walk</span>` : sl > 15 ? '<span class="warn">Steep: slow going</span>' : sl > 10 ? 'Moderate slope' : 'Easy ground'
+    tip.innerHTML = `${st ? `<b>${siteName(st)}</b>` : ''}<span>${state}</span><span class="mono">${Math.round(sl)}° slope, ${dz >= 0 ? '+' : ''}${Math.round(dz)} m vs start</span><span class="muted">Click to set ${pointName(S.active).toLowerCase()}</span>`
+  }
+  tip.hidden = false
+  const w = tip.offsetWidth, h = tip.offsetHeight
+  tip.style.transform = `translate(${Math.min(innerWidth - w - 8, clientX + 16)}px, ${Math.max(8, clientY - h - 12)}px)`
+}
+
 // ---------------------------------------------------------------- rendering the panel
-function renderAll() { renderItin(); renderDecision(); renderOptions(); renderAssumptions(); renderDay(); renderSpace(); if (S.drawer === 'layers') openLayers() }
+function renderAll() { renderItin(); renderDecision(); renderOptions(); renderPair(); renderActions(); renderAssumptions(); renderDay(); renderSpace(); if (S.drawer === 'layers') openLayers(); if (S.drawer === 'sites') openSites() }
 function renderItin() {
-  const r = S.routes[S.sel], n = S.pts.length
+  const n = S.pts.length
+  $('#m-solo').setAttribute('aria-pressed', String(!S.pair)); $('#m-pair').setAttribute('aria-pressed', String(S.pair))
   const row = (i: number) => {
-    const p = S.pts[i], leg = r && i > 0 ? `${fmtMin(r.legMin[i - 1])} walk` : ''
+    const p = S.pts[i], m = i > 0 ? legTo(i) : null, w = walkerOf(i)
     return html`<li class="stop ${S.active === i ? 'on' : ''}" data-i="${i}">
-      <i class="${i === 0 ? 's' : 'd'}">${i === 0 ? '' : i}</i>
-      <button class="end" aria-pressed="${S.active === i}"><small>${i === 0 ? 'Start' : `Stop ${i}`}${leg ? ` <span class="mono">${leg}</span>` : ''}</small><strong>${label(p)}</strong></button>
+      <i class="${i === 0 ? 's' : `d ${S.pair && w ? 'b' : ''}`}">${i === 0 ? '' : i}</i>
+      <button class="end" aria-pressed="${S.active === i}"><small>${i === 0 ? 'Start' : `Stop ${i}`}${m !== null ? ` <span class="mono">${fmtMin(m)} walk</span>` : ''}</small><strong>${label(p)}</strong></button>
+      ${S.pair && i > 0 ? `<button class="who ${w ? 'b' : ''}" title="Visited by astronaut ${WHO[w]}. Click to give it to ${WHO[1 - w]}." aria-label="Stop ${i} visited by astronaut ${WHO[w]}; switch">${WHO[w]}</button>` : '<span></span>'}
       ${i > 0 && n > 2 ? `<button class="icon-btn rm" aria-label="Remove stop ${i}" title="Remove stop ${i}">${icon.X}</button>` : '<span></span>'}
     </li>`
   }
+  const back = walkers().map((w) => { const r = cur()[w]; return r ? `${S.pair ? `${WHO[w]} ` : ''}${fmtMin(r.backMin)}` : '' }).filter(Boolean).join(', ')
+  $('#itin').className = `itin ${S.pair ? 'paired' : ''}`
   $('#itin').innerHTML = S.pts.map((_, i) => row(i)).join('') + html`
-    <li class="stop back"><i class="s"></i><span class="end"><small>Back to the start${r ? ` <span class="mono">${fmtMin(r.backMin)} walk</span>` : ''}</small><strong>${label(S.pts[0])}</strong></span><span></span></li>
-    <li class="itin-actions">${n - 1 < MAX_STOPS ? `<button class="btn" id="add-stop">${icon.Plus}<span>Add a stop</span></button>` : ''}${n > 2 ? `<button class="btn" id="rev">${icon.ArrowsDownUp}<span>Reverse stops</span></button>` : ''}</li>`
-  $('#edit-hint').innerHTML = `${icon.Crosshair}<span>Click the ground or a station photo to set ${pointName(S.active).toLowerCase()}.</span>`
-  $('#dist-line').textContent = r ? `${round10(r.dist)} m round trip` : ''
+    <li class="stop back"><i class="s"></i><span class="end"><small>Back to the start${back ? ` <span class="mono">${back} walk</span>` : ''}</small><strong>${label(S.pts[0])}</strong></span><span></span><span></span></li>
+    <li class="itin-actions">${n - 1 < MAX_STOPS ? `<button class="btn" id="add-stop">${icon.Plus}<span>Add a stop</span></button>` : ''}${n > 3 ? `<button class="btn" id="opt" title="Reorder the stops for the least walking">${icon.Shuffle}<span>Quickest order</span></button>` : ''}${n > 2 ? `<button class="btn" id="rev" aria-label="Reverse the stops" title="Reverse the stops">${icon.ArrowsDownUp}</button>` : ''}</li>`
+  $('#edit-hint').innerHTML = `${icon.Crosshair}<span>Click the ground to set <b>${pointName(S.active).toLowerCase()}</b>, or drag any beacon. Hover to read the slope.</span>`
   renderTags()
 }
 function renderTags() {
-  $('#tags').innerHTML = S.pts.map((p, i) => { const s = nearStation(p); return `<button class="tag ${i ? 'dest' : ''}" data-i="${i}">${i ? `STOP ${i}` : 'START'}${s ? ` ${s.id}` : ''}</button>` }).join('')
+  $('#tags').innerHTML = S.pts.map((p, i) => { const s = nearStation(p); return `<button class="tag ${i ? 'dest' : ''} ${S.pair && i && S.who[i] ? 'b' : ''}" data-i="${i}">${i ? `${S.pair ? WHO[S.who[i]] : ''}${i}` : 'START'}${s ? ` ${shortName(s)}` : ''}</button>` }).join('')
 }
-function currentVerdict(): Verdict { return verdict(S.routes[S.sel], P, sunrise, sunset, S.sw, new Date().toISOString()) }
+function currentVerdict(): Verdict {
+  const pc = S.pc[S.sel]
+  return verdict(S.pair ? cur() : cur()[0] ?? null, P, sunrise, sunset, S.sw, new Date().toISOString(), S.pair && pc ? { check: pc, sepLimit: S.sepLimit, gapLimit: S.gapLimit } : undefined)
+}
 const checkIcon = (c: Check) => (c.state === 'bad' || c.state === 'warn' ? icon.WarningCircle : c.state === 'ok' ? icon.CheckCircle : icon.Info)
 function renderDecision() {
   const el = $('#decision')
   if (S.busy) { el.className = 'decision'; el.innerHTML = '<div class="call-row"><span class="call" style="color:var(--ink-3)">...</span><div><strong>Computing routes</strong><span>Searching about 550,000 cells of terrain for each leg</span></div></div>'; return }
-  const r = S.routes[S.sel], v = currentVerdict()
+  const a = agg(S.sel), v = currentVerdict(), n = S.pts.length - 1
   el.className = `decision ${v.go ? 'go' : 'nogo'}`
   el.innerHTML = html`
-    <div class="call-row"><span class="call">${v.go ? 'GO' : 'NO-GO'}</span><div><strong>${v.head}</strong><span>${r ? `Leaving at ${clock(P.depart)} local time, ${S.pts.length - 1} stop${S.pts.length > 2 ? 's' : ''}` : 'Change the points or the limit'}</span></div></div>
-    ${r ? html`<div class="figures">
-      <div><small>Whole walk</small><b>${fmtMin(r.walk)}</b></div>
+    <div class="call-row"><span class="call">${v.go ? 'GO' : 'NO-GO'}</span><div><strong>${v.head}</strong><span>${a ? `Leaving at ${clock(P.depart)} local time, ${n} stop${n > 1 ? 's' : ''}${S.pair ? ', two astronauts' : ''}` : 'Change the points or the limit'}</span></div></div>
+    ${a ? html`<div class="figures">
+      <div><small>${S.pair ? 'Longest walk' : 'Whole walk'}</small><b>${fmtMin(a.walk)}</b></div>
       <div><small>Back by</small><b>${clock(v.back)}</b></div>
-      <div><small>Radiation</small><b>${r.dose.toFixed(2)}<span style="font-size:12px"> mSv</span></b></div>
+      <div><small>Radiation${S.pair ? ' each' : ''}</small><b>${a.dose.toFixed(2)}<span style="font-size:12px"> mSv</span></b></div>
     </div>` : ''}
     <ul class="checks">${v.checks.map((c) => `<li class="${c.state}">${checkIcon(c)}<span>${c.text}</span></li>`).join('')}</ul>`
 }
 function renderOptions() {
-  const d = S.routes.direct, c = S.routes.cautious
   $('#limit-line').textContent = `${P.limit}° limit`
-  const opt = (k: Kind, r: Route | null, name: string) => html`
-    <button class="option" data-k="${k}" aria-pressed="${S.sel === k}" ${r ? '' : 'disabled'}>
-      <i class="sw ${k === 'cautious' ? 'dash' : ''}"></i><span class="nm">${name}</span><span class="tm">${r ? fmtMin(r.walk) : 'None'}</span>
-      <span class="meta">${r ? `<span>${round10(r.dist)} m</span><span>${Math.round(r.over10 * 100)}% steep</span><span>max ${Math.round(r.maxSlope)}°</span>` : '<span>No route under the limit</span>'}</span>
+  const opt = (k: Kind, name: string) => {
+    const a = agg(k)
+    return html`
+    <button class="option" data-k="${k}" aria-pressed="${S.sel === k}" ${a ? '' : 'disabled'}>
+      <i class="sw ${k === 'cautious' ? 'dash' : ''}"></i><span class="nm">${name}</span><span class="tm">${a ? fmtMin(a.walk) : 'None'}</span>
+      <span class="meta">${a ? `<span>${round10(a.dist)} m${S.pair ? ' in all' : ''}</span><span>${Math.round(a.over10 * 100)}% steep</span><span>max ${Math.round(a.maxSlope)}°</span>` : '<span>No route under the limit</span>'}</span>
     </button>`
-  $('#options').innerHTML = opt('direct', d, 'Direct') + opt('cautious', c, 'Cautious')
+  }
+  $('#options').innerHTML = opt('direct', 'Direct') + opt('cautious', 'Cautious')
   $('#options').querySelectorAll<HTMLButtonElement>('.option').forEach((b) => (b.onclick = () => { S.sel = b.dataset.k as Kind; W.styleRibbons(S.sel); renderAll() }))
+  const d = agg('direct'), c = agg('cautious')
   let txt = ''
   if (d && c) {
     const extra = round10(c.dist - d.dist), cut = Math.round((d.over10 - c.over10) * 100)
     txt = extra <= 0 || cut <= 2 ? 'Both routes cross nearly the same ground here.' : `Cautious walks about ${extra} m further to cut steep ground by ${cut} percentage points.`
   }
+  if (S.pair) txt += `${txt ? ' ' : ''}Orange is astronaut A, blue is astronaut B.`
   $('#compare').textContent = txt
-  const ok = !!S.routes[S.sel]
-  for (const id of ['#b-walk', '#b-fly', '#b-guide2']) ($(id) as HTMLButtonElement).disabled = !ok
+}
+function renderPair() {
+  $('#pair-sec').hidden = !S.pair
+  if (!S.pair) return
+  const c = S.pc[S.sel]
+  $('#pair-line').textContent = `${S.sepLimit} m, ${S.gapLimit} min`
+  if (!c) { $('#pair').innerHTML = '<p class="fine">Needs a route for both astronauts.</p>'; return }
+  const dur = c.end || 1, bar = (list: { from: number; to: number }[], cls: string) => list.map((g) => `<i class="${cls}" style="left:${(g.from / dur) * 100}%;width:${Math.max(0.6, ((g.to - g.from + 0.5) / dur) * 100)}%"></i>`).join('')
+  $('#pair').innerHTML = html`
+    <div class="figures">
+      <div><small>Furthest apart</small><b>${round10(c.maxSep)} m</b></div>
+      <div><small>In sight</small><b>${Math.round(c.inSight * 100)}%</b></div>
+      <div><small>Longest gap</small><b>${fmtMin(c.longestGap)}</b></div>
+    </div>
+    <div class="sight" aria-hidden="true">${bar(c.gaps, 'gap')}${bar(c.tooFar, 'far')}</div>
+    <p class="fine sight-key"><span><i class="gap"></i>out of sight</span><span><i class="far"></i>beyond ${S.sepLimit} m</span><span class="r">${fmtMin(c.end)}</span></p>
+    <p class="fine">Line of sight is checked over the terrain at eye height every 30 seconds of the plan. Hills between partners block it; boulders smaller than about 1 m are not in the model.</p>`
+}
+function renderActions() {
+  const ok = ready()
+  $('#actions').className = `actions ${S.pair ? 'two' : ''}`
+  $('#actions').innerHTML = S.pair
+    ? `<button class="btn primary" data-walk="0" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as A</span></button><button class="btn primary b" data-walk="1" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as B</span></button><button class="btn" id="b-guide2" ${ok ? '' : 'disabled'}>${icon.FileText}<span>Field guide</span></button>`
+    : `<button class="btn primary" data-walk="0" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk it at eye level</span></button><button class="btn" id="b-guide2" ${ok ? '' : 'disabled'}>${icon.FileText}<span>Field guide</span></button>`
 }
 function renderAssumptions() {
   $('#o-suit').textContent = `${Math.round(P.suit * 100)}%`; $('#o-limit').textContent = `${P.limit}°`; $('#o-work').textContent = `${P.work} min`
+  $('#o-sep').textContent = `${S.sepLimit} m`; $('#o-gap').textContent = `${S.gapLimit} min`
 }
 function renderSpace() {
   const sw = S.sw, s = spaceSummary()
@@ -431,22 +682,25 @@ function clockAt(r: Route, dist: number) {
   return P.depart + (r.t[lo] / 60 + stopsDone * P.work) / MARS_MIN
 }
 function renderDay() {
-  const r = S.routes[S.sel], v = currentVerdict()
+  const v = currentVerdict()
   let curve = ''
   for (let m = T0; m <= T1; m += 10) { const el = sunAt(m, D.sun).el; curve += `${m === T0 ? 'M' : 'L'}${tx(m).toFixed(1)} ${(44 - (Math.max(0, el) / 90) * 38).toFixed(1)}` }
   const reserveStart = sunset - RESERVE_MIN / MARS_MIN
-  let walk = ''
-  if (r) {
+  const rows = cur(), segs: string[] = []
+  const lane = S.pair ? [{ y: 22, h: 10 }, { y: 35, h: 10 }] : [{ y: 30, h: 12 }]
+  rows.forEach((r, w) => {
+    if (!r) return
     let t = P.depart
-    const segs: string[] = []
+    const { y, h } = lane[w], b = S.pair && w ? ' b' : ''
     r.legMin.forEach((m, i) => {
-      const a = t, b = a + m / MARS_MIN
-      segs.push(`<rect class="${i === r.legMin.length - 1 ? 'seg-back' : 'seg-out'}" x="${tx(a)}" y="30" width="${Math.max(1, tx(b) - tx(a))}" height="12" rx="1.5"/>`)
-      t = b
-      if (i < r.legMin.length - 1) { const c = t + P.work / MARS_MIN; segs.push(`<rect class="seg-work" x="${tx(t)}" y="30" width="${Math.max(0, tx(c) - tx(t))}" height="12"/>`); t = c }
+      const a = t, e = a + m / MARS_MIN
+      segs.push(`<rect class="${i === r.legMin.length - 1 ? 'seg-back' : 'seg-out'}${b}" x="${tx(a)}" y="${y}" width="${Math.max(1, tx(e) - tx(a))}" height="${h}" rx="1.5"/>`)
+      t = e
+      if (i < r.legMin.length - 1) { const c = t + P.work / MARS_MIN; segs.push(`<rect class="seg-work" x="${tx(t)}" y="${y}" width="${Math.max(0, tx(c) - tx(t))}" height="${h}"/>`); t = c }
     })
-    walk = `<g class="walk ${v.go ? '' : 'bad'}">${segs.join('')}<line class="grip" x1="${tx(P.depart)}" x2="${tx(P.depart)}" y1="24" y2="48"/></g>`
-  }
+    if (S.pair) segs.push(`<text class="lane" x="${tx(P.depart) - 4}" y="${y + h - 1.5}" text-anchor="end">${WHO[w]}</text>`)
+  })
+  const walk = rows.some(Boolean) ? `<g class="walk ${v.go ? '' : 'bad'}">${segs.join('')}<line class="grip" x1="${tx(P.depart)}" x2="${tx(P.depart)}" y1="18" y2="48"/></g>` : ''
   let ticks = ''
   for (let m = 420; m <= 1140; m += 120) ticks += `<line class="tick" x1="${tx(m)}" x2="${tx(m)}" y1="48" y2="51"/><text x="${tx(m)}" y="62" text-anchor="middle">${clock(m)}</text>`
   $('#day').innerHTML = html`
@@ -459,7 +713,7 @@ function renderDay() {
     ${ticks}${walk}`
   $('#day').setAttribute('aria-valuenow', String(P.depart)); $('#day').setAttribute('aria-valuetext', `Leave at ${clock(P.depart)}`)
   const s = sunAt(P.depart, D.sun)
-  $('#day-sun').textContent = r ? `Leave ${clock(P.depart)}, back ${clock(v.back)}. Sun ${Math.round(s.el)}° in the ${compassWord(s.az)}.` : ''
+  $('#day-sun').textContent = ready() ? `Leave ${clock(P.depart)}, back ${clock(v.back)}. Sun ${Math.round(s.el)}° in the ${compassWord(s.az)}.` : ''
 }
 function setDepart(m: number) {
   P.depart = Math.max(sunrise - 60, Math.min(T1 - 20, Math.round(m / 5) * 5))
@@ -471,7 +725,7 @@ function bindDay() {
   let grab = 0, on = false
   svg.addEventListener('pointerdown', (e) => {
     svg.setPointerCapture(e.pointerId); on = true
-    const m = toMin(e), r = S.routes[S.sel], end = r ? P.depart + r.walk / MARS_MIN : P.depart
+    const m = toMin(e), a = agg(S.sel), end = a ? P.depart + a.walk / MARS_MIN : P.depart
     grab = m >= P.depart && m <= end ? m - P.depart : 0
     setDepart(m - grab)
   })
@@ -482,7 +736,7 @@ function bindDay() {
 
 // ---------------------------------------------------------------- drawers
 function openLayers() {
-  S.drawer = 'layers'; $('#b-layers').setAttribute('aria-pressed', 'true')
+  S.drawer = 'layers'; pressed()
   const sw = (bg: string) => `style="background:${bg}"`
   const row = (key: keyof typeof S.layers | 'tint' | 'exag', name: string, meta: string, swatch: string, on: boolean, extra = '') => html`
     <div class="layer"><span class="sw" ${swatch}></span><b>${name}</b><small>${meta}</small>
@@ -511,37 +765,81 @@ function openLayers() {
   }))
   $('#d-close').onclick = closeDrawer
 }
-function openStation(id: string) {
-  const s = byId(id)!, ph = D.photos[id]
-  S.drawer = 'station'; S.station = id; $('#b-layers').setAttribute('aria-pressed', 'false')
-  const el = $('#drawer'); el.hidden = false; el.className = 'drawer surface station-card'
-  const canAdd = S.pts.length - 1 < MAX_STOPS
+function pressed() {
+  $('#b-layers').setAttribute('aria-pressed', String(S.drawer === 'layers'))
+  $('#b-sites').setAttribute('aria-pressed', String(S.drawer === 'sites'))
+}
+const inPlan = (s: Station) => S.pts.findIndex((q) => nearStation(q) === s)
+function siteMeta(s: Station) {
+  const days = s.stay === 1 ? '1 sol' : `${s.stay} sols`
+  return `${days} here${s.mahli ? `, ${s.mahli} close-ups` : ''}${s.chemcam ? `, ${s.chemcam} laser shots` : ''}`
+}
+/** Every place Curiosity stopped to work in the planning area, as a list to browse and add from. */
+function openSites() {
+  S.drawer = 'sites'; pressed()
+  const el = $('#drawer'); el.hidden = false; el.className = 'drawer surface sites'
+  const f = S.siteFilter, list = D.stations.filter((s) => f === 'all' || s.kind === f || (f === 'named' && s.kind === 'drill'))
+  const groups: [string, Station[]][] = [['Drill sites', list.filter((s) => s.kind === 'drill')], ['Named sites', list.filter((s) => s.kind === 'named')], ['Other stops', list.filter((s) => s.kind === 'stop')]]
+  const count = (k: string) => D.stations.filter((s) => k === 'all' || s.kind === k || (k === 'named' && s.kind === 'drill')).length
   el.innerHTML = html`
-    ${ph ? `<img src="${ph.src}" alt="Curiosity navigation camera view of the ground at station ${id}">` : ''}
+    <header><h2>Science sites <span class="muted mono">${D.stations.length}</span></h2><button class="icon-btn" id="d-close" aria-label="Close science sites">${icon.X}</button></header>
+    <p class="note top">Every place Curiosity parked for three sols or more in this area, from its waypoint record and raw images. Photos are its own navigation camera views.</p>
+    <div class="seg filt" role="group" aria-label="Show">
+      ${(['all', 'named', 'drill'] as const).map((k) => `<button data-f="${k}" aria-pressed="${f === k}">${{ all: 'All', named: 'Named', drill: 'Drill' }[k]} <span class="mono">${count(k)}</span></button>`).join('')}
+    </div>
+    ${groups.filter(([, g]) => g.length).map(([h, g]) => html`<h3 class="grp">${h}</h3><ul class="site-list">${g.map((s) => {
+      const k = inPlan(s)
+      return html`<li data-id="${s.id}">
+        <button class="site" data-open="${s.id}">${s.photo ? `<img src="${s.photo.src}" alt="" loading="lazy">` : '<span class="ph"></span>'}
+          <span><b>${shortName(s)}</b><small>Sol ${s.sols[0]}${s.sols[1] > s.sols[0] ? ` to ${s.sols[1]}` : ''}. ${siteMeta(s)}</small></span></button>
+        ${k >= 0 ? `<span class="in">${k ? `Stop ${k}` : 'Start'}</span>` : `<button class="btn add" data-add="${s.id}" aria-label="Add ${shortName(s)} as a stop">${icon.Plus}<span>Add</span></button>`}
+      </li>`
+    }).join('')}</ul>`).join('')}`
+  el.querySelectorAll<HTMLButtonElement>('.filt button').forEach((b) => (b.onclick = () => { S.siteFilter = b.dataset.f as typeof S.siteFilter; openSites() }))
+  el.onclick = (e) => {
+    const t = e.target as HTMLElement, add = t.closest<HTMLElement>('[data-add]'), open = t.closest<HTMLElement>('[data-open]')
+    if (add) {
+      const s = byId(add.dataset.add!)!, p = snap({ x: s.xy[0], y: s.xy[1] })
+      if (!p) return hint('That site is on ground over the slope limit.', true)
+      if (S.pts.length - 1 >= MAX_STOPS) return hint(`Up to ${MAX_STOPS} stops per walk. Remove one first.`, true)
+      dismissCoach(); addStop({ x: p.x, y: p.y })
+      hint(`Added ${shortName(s)} as stop ${S.pts.length - 1}.`)
+    } else if (open) openStation(open.dataset.open!)
+  }
+  $('#d-close').onclick = closeDrawer
+}
+function openStation(id: string) {
+  const s = byId(id)!, ph = s.photo
+  S.drawer = 'station'; S.station = id; pressed()
+  const el = $('#drawer'); el.hidden = false; el.className = 'drawer surface station-card'; el.onclick = null
+  const canAdd = S.pts.length - 1 < MAX_STOPS, k = inPlan(s)
+  const kind = { drill: 'Drill site', named: 'Named site', stop: 'Curiosity stop' }[s.kind]
+  el.innerHTML = html`
+    ${ph ? `<img src="${ph.src}" alt="Curiosity navigation camera view of the ground at ${shortName(s)}">` : ''}
     <div class="body">
-      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px"><h3><b>${s.id}</b>${shortName(s)}</h3><button class="icon-btn" id="d-close" aria-label="Close">${icon.X}</button></div>
-      <p>${s.note}. Curiosity stood here on sol ${s.sol}.</p>
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px"><h3><span class="kind ${s.kind}">${kind}</span>${siteName(s)}</h3><button class="icon-btn" id="d-close" aria-label="Close">${icon.X}</button></div>
+      <p>${s.note ? s.note + ' ' : ''}Curiosity worked here on sol${s.sols[1] > s.sols[0] ? `s ${s.sols[0]} to ${s.sols[1]}` : ` ${s.sols[0]}`}: ${siteMeta(s)}.${s.source ? ` <a href="${s.source}" target="_blank" rel="noopener">Mission blog</a>` : ''}</p>
       ${ph ? `<span class="cap">${ph.camera}, sol ${ph.sol}, ${ph.date}. NASA/JPL-Caltech.</span>` : ''}
       <div class="row">
-        <button class="btn primary" id="st-set">${icon.Flag}<span>Set as ${pointName(S.active).toLowerCase()}</span></button>
-        ${canAdd ? `<button class="btn" id="st-add">${icon.Plus}<span>Add as stop</span></button>` : `<button class="btn" id="st-start">${icon.MapPin}<span>Start here</span></button>`}
+        ${k >= 0 ? `<span class="in">Already ${k ? `stop ${k}` : 'the start'}</span>` : canAdd ? `<button class="btn primary" id="st-add">${icon.Plus}<span>Add as stop</span></button>` : `<button class="btn primary" id="st-set">${icon.Flag}<span>Set as ${pointName(S.active).toLowerCase()}</span></button>`}
+        ${k === 0 ? '' : `<button class="btn" id="st-start">${icon.MapPin}<span>Start here</span></button>`}
       </div>
     </div>`
   const put = (i: number) => {
     const p = snap({ x: s.xy[0], y: s.xy[1] })
-    if (!p) return hint('That station is on ground over the slope limit.', true)
-    if (i >= S.pts.length) S.pts.push({ x: p.x, y: p.y }); else S.pts[i] = { x: p.x, y: p.y }
-    S.active = Math.min(i, S.pts.length - 1)
-    closeDrawer(); dismissCoach(); recompute({ fit: true })
+    if (!p) return hint('That site is on ground over the slope limit.', true)
+    closeDrawer(); dismissCoach()
+    if (i >= S.pts.length) { addStop({ x: p.x, y: p.y }); return }
+    S.pts[i] = { x: p.x, y: p.y }; S.active = Math.max(1, Math.min(S.active, S.pts.length - 1))
+    recompute({ fit: true })
   }
-  $('#st-set').onclick = () => put(S.active)
-  const add = el.querySelector<HTMLButtonElement>('#st-add'), start = el.querySelector<HTMLButtonElement>('#st-start')
-  if (add) add.onclick = () => put(S.pts.length)
-  if (start) start.onclick = () => put(0)
+  el.querySelector<HTMLButtonElement>('#st-set')?.addEventListener('click', () => put(S.active))
+  el.querySelector<HTMLButtonElement>('#st-add')?.addEventListener('click', () => put(S.pts.length))
+  el.querySelector<HTMLButtonElement>('#st-start')?.addEventListener('click', () => put(0))
   $('#d-close').onclick = closeDrawer
   W.flyTo({ ...W.pose(), target: W.cellToWorld({ x: s.xy[0], y: s.xy[1] }), dist: Math.min(W.pose().dist, 700) }, 900)
 }
-function closeDrawer() { S.drawer = ''; $('#drawer').hidden = true; $('#b-layers').setAttribute('aria-pressed', 'false') }
+function closeDrawer() { S.drawer = ''; $('#drawer').hidden = true; $('#drawer').onclick = null; pressed() }
 
 // ---------------------------------------------------------------- hint, coach
 let hintTimer = 0
@@ -556,29 +854,52 @@ function dismissCoach() { $('#coach').hidden = true; store.set('mw-coach', '1') 
 // ---------------------------------------------------------------- overlay: pins, tags, minimap
 function drawOverlay() {
   const ground = (x: number, y: number, lift: number) => W.project(W.cellToWorld({ x, y }, lift))
-  for (const b of document.querySelectorAll<HTMLElement>('.pin')) {
-    const s = byId(b.dataset.id!)!, p = ground(s.xy[0], s.xy[1], 10)
-    const taken = S.pts.some((q) => Math.hypot(q.x - s.xy[0], q.y - s.xy[1]) < 4)
-    const hide = !p.on || W.mode !== 'orbit' || taken
-    b.style.visibility = hide ? 'hidden' : 'visible'
-    if (!hide) b.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`
-  }
-  // Stop tags can sit almost on top of each other (S1 and S2 are 10 m apart), so stack
-  // any that overlap on screen instead of drawing one over the other.
   const placed: { x: number; y: number; w: number; h: number }[] = []
+  const overlaps = (x: number, y: number, w: number, h: number) => placed.some((q) => Math.abs(q.x - x) < (q.w + w) / 2 + 4 && Math.abs(q.y - y) < (q.h + h) / 2 + 3)
+  // stop tags first: they win any overlap
   const tags = [...document.querySelectorAll<HTMLElement>('.tag')].map((el) => {
     const i = Number(el.dataset.i), pt = S.pts[i]
-    const p = pt ? ground(pt.x, pt.y, i === 0 ? 48 : i === S.pts.length - 1 ? 82 : 64) : { x: 0, y: 0, on: false }
-    return { el, i, p, hide: !pt || !p.on || (W.mode === 'walk' && i === 0) }
+    const p = pt ? ground(pt.x, pt.y, i === 0 ? 48 : 64) : { x: 0, y: 0, on: false }
+    return { el, i, p, hide: !pt || !p.on || W.mode !== 'orbit' }
   }).sort((a, b) => b.p.y - a.p.y)
   for (const t of tags) {
     t.el.style.visibility = t.hide ? 'hidden' : 'visible'
     if (t.hide) continue
     const w = t.el.offsetWidth || 90, h = t.el.offsetHeight || 22
-    let y = t.p.y
-    for (let guard = 0; guard < 6 && placed.some((q) => Math.abs(q.x - t.p.x) < (q.w + w) / 2 + 4 && Math.abs(q.y - y) < h + 3); guard++) y -= h + 4
+    let y = t.p.y - h / 2
+    for (let guard = 0; guard < 8 && overlaps(t.p.x, y, w, h); guard++) y -= h + 4
     placed.push({ x: t.p.x, y, w, h })
-    t.el.style.transform = `translate(${t.p.x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`
+    t.el.style.transform = `translate(${t.p.x.toFixed(1)}px, ${(y + h / 2).toFixed(1)}px) translate(-50%, -100%)`
+  }
+  // science site pins: named and drill sites get labels, the rest are dots; labels that would
+  // overlap something already placed are hidden rather than stacked, so the map stays readable
+  const zoomedIn = W.pose().dist < 2600
+  // pins never show through the panels
+  const panels = ['.rail', '#drawer', '.mini', '.day', '.tools', '#coach'].map((q) => $(q)).filter((el) => el && !el.hidden).map((el) => el.getBoundingClientRect())
+  const covered = (p: { x: number; y: number }) => p.y < 60 || panels.some((r) => p.x > r.left - 6 && p.x < r.right + 6 && p.y > r.top - 6 && p.y < r.bottom + 6)
+  const pins = [...document.querySelectorAll<HTMLElement>('.pin')].map((el) => {
+    const s = byId(el.dataset.id!)!, p = ground(s.xy[0], s.xy[1], s.kind === 'stop' ? 2 : 6)
+    return { el, s, p, hide: !p.on || W.mode !== 'orbit' || inPlan(s) >= 0 || (s.kind === 'stop' && !zoomedIn) || covered(p) }
+  }).sort((a, b) => (a.s.kind === 'stop' ? 1 : 0) - (b.s.kind === 'stop' ? 1 : 0) || (a.s.kind === 'drill' ? 0 : 1) - (b.s.kind === 'drill' ? 0 : 1))
+  for (const q of pins) {
+    let hide = q.hide
+    if (!hide) {
+      const w = q.el.offsetWidth || 10, h = q.el.offsetHeight || 10, y = q.s.kind === 'stop' ? q.p.y : q.p.y - h / 2
+      if (overlaps(q.p.x, y, w, h)) hide = true
+      else placed.push({ x: q.p.x, y, w, h })
+    }
+    q.el.style.visibility = hide ? 'hidden' : 'visible'
+    if (!hide) q.el.style.transform = `translate(${q.p.x.toFixed(1)}px, ${q.p.y.toFixed(1)}px) translate(-50%, ${q.s.kind === 'stop' ? '-50%' : '-100%'})`
+  }
+  // in a pair walk, label the partner so they can be found on the horizon
+  const pt = $('#ptag')
+  pt.hidden = !(W.mode === 'walk' && partnerAt) || $('#h-partner').textContent === 'beside you'
+  if (!pt.hidden) {
+    const p = ground(partnerAt!.x, partnerAt!.y, 2.6)
+    pt.style.visibility = p.on ? 'visible' : 'hidden'
+    pt.className = `tag dest ptag ${walkAs === 0 ? 'b' : ''}`
+    pt.textContent = `${WHO[1 - walkAs]} ${$('#h-partner').textContent}`
+    pt.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`
   }
   drawMini($('#mini') as HTMLCanvasElement, true)
 }
@@ -598,19 +919,25 @@ function drawMini(cv: HTMLCanvasElement, withCamera: boolean, box?: { x0: number
   } else x.drawImage(miniBase, 0, 0, w, h)
   x.save(); x.translate(-b0.x0 * sx, -b0.y0 * sy)
   x.lineJoin = 'round'; x.lineCap = 'round'
-  for (const k of (S.sel === 'direct' ? ['cautious', 'direct'] : ['direct', 'cautious']) as Kind[]) {
-    const r = S.routes[k]; if (!r) continue
+  const kinds = (S.pair ? [S.sel] : S.sel === 'direct' ? ['cautious', 'direct'] : ['direct', 'cautious']) as Kind[]
+  for (const k of kinds) S.routes[k].forEach((r, wk) => {
+    if (!r) return
     x.beginPath()
     for (let i = 0; i < r.xs.length; i += 3) { const X = r.xs[i] * sx, Y = r.ys[i] * sy; if (i) x.lineTo(X, Y); else x.moveTo(X, Y) }
     x.strokeStyle = '#0b0d0e'; x.lineWidth = (k === S.sel ? 7 : 5) * u; x.setLineDash([]); x.stroke()
-    x.strokeStyle = k === 'direct' ? '#f2662f' : '#f4f1ec'; x.lineWidth = (k === S.sel ? 3.5 : 2.5) * u
+    x.strokeStyle = S.pair ? COL[wk] : k === 'direct' ? COL[0] : '#f4f1ec'; x.lineWidth = (k === S.sel ? 3.5 : 2.5) * u
     x.setLineDash(k === 'cautious' ? [8 * u, 6 * u] : []); x.globalAlpha = k === S.sel ? 1 : 0.6; x.stroke(); x.globalAlpha = 1; x.setLineDash([])
+  })
+  for (const s of D.stations) {
+    const r = s.kind === 'stop' ? 2.5 : 4.5
+    x.fillStyle = s.kind === 'stop' ? 'rgba(244,241,236,0.7)' : '#f4f1ec'; x.strokeStyle = '#0b0d0e'; x.lineWidth = 1.5
+    x.beginPath(); x.rect(s.xy[0] * sx - r * u, s.xy[1] * sy - r * u, 2 * r * u, 2 * r * u); x.fill(); x.stroke()
   }
-  for (const s of D.stations) { x.fillStyle = '#f4f1ec'; x.strokeStyle = '#0b0d0e'; x.lineWidth = 2; x.beginPath(); x.rect(s.xy[0] * sx - 4, s.xy[1] * sy - 4, 8, 8); x.fill(); x.stroke() }
   S.pts.forEach((p, i) => {
-    x.beginPath(); x.arc(p.x * sx, p.y * sy, 9 * u, 0, 7); x.fillStyle = i ? '#f2662f' : '#f4f1ec'; x.fill(); x.lineWidth = 2.5; x.strokeStyle = '#0b0d0e'; x.stroke()
+    x.beginPath(); x.arc(p.x * sx, p.y * sy, 9 * u, 0, 7); x.fillStyle = i ? COL[walkerOf(i)] : '#f4f1ec'; x.fill(); x.lineWidth = 2.5; x.strokeStyle = '#0b0d0e'; x.stroke()
     if (i) { x.fillStyle = '#140b06'; x.font = `700 ${Math.round(11 * u)}px "B612 Mono", monospace`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(i), p.x * sx, p.y * sy + 0.5) }
   })
+  if (partnerAt) { x.beginPath(); x.arc(partnerAt.x * sx, partnerAt.y * sy, 7 * u, 0, 7); x.fillStyle = COL[1 - walkAs]; x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke() }
   x.textAlign = 'start'; x.textBaseline = 'alphabetic'
   x.restore()
   if (box) {
@@ -630,73 +957,110 @@ function drawMini(cv: HTMLCanvasElement, withCamera: boolean, box?: { x0: number
 }
 function bindMini() {
   $('#mini').addEventListener('click', (e) => {
+    if (W.mode !== 'orbit') return
     const b = (e.target as HTMLElement).getBoundingClientRect(), px = ((e.clientX - b.left) / b.width) * D.grid.cols, py = ((e.clientY - b.top) / b.height) * D.grid.rows
     W.flyTo({ ...W.pose(), target: W.cellToWorld({ x: px, y: py }) }, 900)
   })
 }
 
-// ---------------------------------------------------------------- walk and flyover
-let cineKind: 'walk' | 'fly' = 'walk', cineLegs: ReturnType<typeof legs> = [], cineEnd = 0, lastStop = -1
-function startCine(kind: 'walk' | 'fly') {
-  const r = S.routes[S.sel]
+// ---------------------------------------------------------------- walk at eye level
+let walkAs = 0, walkEnd = 0, walkRate = 1, walkSpeed = 1, walkLegs: ReturnType<typeof legs> = [], arrivedAt = -1
+let partner: { r: Route; times: Float32Array } | null = null, partnerAt: Pt | null = null
+function startWalk(w: number) {
+  const r = cur()[w]
   if (!r) return
-  closeDrawer(); dismissCoach(); closeGuide()
+  closeDrawer(); dismissCoach(); closeGuide(); $('#tip').hidden = true
+  walkAs = w; arrivedAt = -1
   // Walk to the last stop; the way back is the same kind of ground and would double the rehearsal.
-  cineKind = kind; cineEnd = r.d[r.stopAt[r.stopAt.length - 2]]; lastStop = -1
-  cineLegs = legs(D.grid, r, 0, r.stopAt[r.stopAt.length - 2])
-  const outSec = r.outMin * 60, dur = kind === 'walk' ? Math.max(32, Math.min(90, outSec / 20)) : Math.max(16, Math.min(30, cineEnd / 30))
-  document.body.classList.add('cine'); $('#hud').hidden = false; $('#arrive').hidden = true
-  $('#hud-mode').textContent = kind === 'walk' ? 'WALK. EYE HEIGHT 1.8 M. TRUE SCALE.' : 'FLYOVER. 75 M ABOVE THE ROUTE.'
-  $('#h-speed').textContent = `×${Math.round(outSec / dur)}`
-  $('#h-pause').innerHTML = `${icon.Pause}<span>Pause</span>`
   const iEnd = r.stopAt[r.stopAt.length - 2]
+  walkEnd = r.d[iEnd]
+  walkLegs = legs(D.grid, r, 0, iEnd)
+  const other = S.pair ? cur()[1 - w] : null
+  partner = other ? { r: other, times: sampleTimes(other, P) } : null
+  // about 45 to 100 seconds of playback at 1×, whatever the length
+  const dur = Math.max(45, Math.min(100, walkEnd / 9))
+  walkRate = walkEnd / dur; walkSpeed = 1
+  document.body.classList.add('cine'); $('#hud').hidden = false; $('#arrive').hidden = true
+  $('#hud-mode').innerHTML = `${S.pair ? `ASTRONAUT ${WHO[w]}. ` : ''}EYE HEIGHT 1.8 M. TRUE SCALE.<small>Drag or use the arrow keys to look around</small>`
+  $('#hud').querySelectorAll('.speeds button').forEach((b) => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.v === '1')))
+  $('#h-partner-c').hidden = !partner
+  setPaused(false)
   let lo = Infinity, hi = -Infinity
   for (let i = 0; i <= iEnd; i += 2) { lo = Math.min(lo, r.z[i]); hi = Math.max(hi, r.z[i]) }
   if (hi - lo < 6) { hi += 3; lo -= 3 }
   let d = ''
-  for (let i = 0; i <= iEnd; i += 2) d += `${i ? 'L' : 'M'}${((r.d[i] / cineEnd) * 1000).toFixed(1)} ${(4 + ((hi - r.z[i]) / (hi - lo)) * 38).toFixed(1)}`
-  const ticks = r.stopAt.slice(0, -2).map((k) => { const xx = ((r.d[k] / cineEnd) * 1000).toFixed(1); return `<line class="cur" style="opacity:.45" vector-effect="non-scaling-stroke" x1="${xx}" x2="${xx}" y1="0" y2="46"/>` }).join('')
-  $('#h-prof').innerHTML = `<path class="pf" vector-effect="non-scaling-stroke" d="${d}L1000 46L0 46Z"/>${ticks}<line class="cur" id="h-cur" vector-effect="non-scaling-stroke" x1="0" x2="0" y1="0" y2="46"/>`
+  for (let i = 0; i <= iEnd; i += 2) d += `${i ? 'L' : 'M'}${((r.d[i] / walkEnd) * 1000).toFixed(1)} ${(4 + ((hi - r.z[i]) / (hi - lo)) * 38).toFixed(1)}`
+  const ticks = r.stopAt.slice(0, -2).map((k) => { const xx = ((r.d[k] / walkEnd) * 1000).toFixed(1); return `<line class="cur" style="opacity:.45" vector-effect="non-scaling-stroke" x1="${xx}" x2="${xx}" y1="0" y2="46"/>` }).join('')
+  $('#h-prof').innerHTML = `<path class="pf ${S.pair && w ? 'b' : ''}" vector-effect="non-scaling-stroke" d="${d}L1000 46L0 46Z"/>${ticks}<line class="cur" id="h-cur" vector-effect="non-scaling-stroke" x1="0" x2="0" y1="0" y2="46"/>`
   if (!$('#strip').childElementCount) {
     let s = ''
     for (let i = -2; i < 27; i++) { const deg = (((i * 15) % 360) + 360) % 360, c = ({ 0: 'N', 90: 'E', 180: 'S', 270: 'W' } as Record<number, string>)[deg]; s += `<span${c ? ' class="c"' : ''}>${c ?? deg}</span>` }
     $('#strip').innerHTML = s
   }
-  W.startCine(kind, r, dur, cineEnd, (dist) => clockAt(r, dist))
+  W.startWalk(r, w, walkRate, walkEnd, r.stopAt.slice(0, -1).map((k) => r.d[k]), (dist) => clockAt(r, dist))
+  showSpeed()
+  ;($('#gl') as HTMLCanvasElement).focus({ preventScroll: true })
 }
-function onCineFrame(f: { dist: number; heading: number }) {
-  const r = S.routes[S.sel]!, a = at(r, f.dist / r.dist), sim = clockAt(r, f.dist), sun = sunAt(sim, D.sun), slope = D.grid.slope[a.cell]
+function setPaused(p: boolean) { $('#h-pause').innerHTML = p ? `${icon.Play}<span>Resume</span>` : `${icon.Pause}<span>Pause</span>` }
+function showSpeed() {
+  const r = cur()[walkAs]
+  if (!r) return
+  // how much faster than real time: real walking covers walkEnd metres in the time to the last stop
+  const real = walkEnd / (r.t[r.stopAt[r.stopAt.length - 2]] || 1)
+  $('#h-speed').textContent = `×${Math.round((walkRate * walkSpeed) / real)}`
+  $('#hud').querySelectorAll('.speeds button').forEach((b) => b.setAttribute('aria-pressed', String(Number((b as HTMLElement).dataset.v) === walkSpeed)))
+}
+function onWalkFrame(f: { dist: number; heading: number; holding: boolean }) {
+  const r = cur()[walkAs]!, a = at(r, f.dist / r.dist), sim = clockAt(r, f.dist), sun = sunAt(sim, D.sun), slope = D.grid.slope[a.cell]
   $('#strip').style.transform = `translateX(${(-((f.heading / 15 + 2) * 40 + 20)).toFixed(1)}px)`
-  $('#h-dist').textContent = `${Math.round(f.dist)} / ${round10(cineEnd)} m`
-  $('#h-elev').textContent = `${Math.round(a.elev)} m`
+  $('#h-dist').textContent = `${Math.round(Math.min(f.dist, walkEnd))} / ${Math.round(walkEnd)} m`
+  const dz = a.elev - r.z[0]
+  $('#h-elev').textContent = `${dz >= 0 ? '+' : ''}${Math.round(dz)} m`
   const sl = $('#h-slope'); sl.textContent = `${Math.round(slope)}°`; sl.className = slope > 15 ? 'alarm' : slope > 10 ? 'warn' : ''
   $('#h-clock').textContent = clock(sim)
   $('#h-sun').textContent = `${Math.round(sun.el)}°`
   $('#h-dose').textContent = `${(((sim - P.depart) * MARS_MIN) / 1440 * RATE_MSV_PER_DAY).toFixed(3)} mSv`
-  const leg = legOf(r, a.i), stopDist = r.d[r.stopAt[leg]]
-  if (leg > lastStop && leg > 0 && f.dist >= r.d[r.stopAt[leg - 1]]) lastStop = leg
+  if (partner) {
+    const m = (sim - P.depart) * MARS_MIN, here = { x: a.x, y: a.y }, there = posAtTime(partner.r, partner.times, m), next = posAtTime(partner.r, partner.times, m + 0.3)
+    const sep = Math.hypot(there.x - here.x, there.y - here.y) * D.grid.cell, seen = sep < 1 || lineOfSight(D.grid, here, there)
+    // on a shared stretch the partner walks just ahead and to the right, in view, not inside the camera
+    const beside = sep < 6, h = (f.heading * Math.PI) / 180, c = 1 / D.grid.cell
+    const shown = beside ? { x: here.x + (Math.sin(h) * 4 + Math.cos(h) * 1.8) * c, y: here.y + (-Math.cos(h) * 4 + Math.sin(h) * 1.8) * c } : there
+    W.setPartner(shown, beside ? f.heading : (Math.atan2(next.x - there.x, -(next.y - there.y)) * 180) / Math.PI, walkAs === 0 ? 0x5fb4ff : 0xf2662f)
+    partnerAt = there
+    const p = $('#h-partner'); p.textContent = beside ? 'beside you' : `${round10(sep)} m, ${seen ? 'in sight' : 'out of sight'}`
+    p.className = !seen || sep > S.sepLimit ? 'warn' : ''
+  } else partnerAt = null
+  const stops = stopsOf(walkAs), leg = legOf(r, a.i), stopDist = r.d[r.stopAt[leg]], stopNo = stops[leg]
   let next = '', warn = false
-  for (const l of cineLegs) if (l.from > f.dist + 2 && l.from < stopDist && l.k >= 2) { next = `${l.k === 3 ? 'Very steep ground' : 'Steep ground'} in ${Math.max(5, round10(l.from - f.dist))} m. Slow down and check footing.`; warn = true; break }
+  for (const l of walkLegs) if (l.from > f.dist + 2 && l.from < stopDist && l.k >= 2) { next = `${l.k === 3 ? 'Very steep ground' : 'Steep ground'} in ${Math.max(5, round10(l.from - f.dist))} m. Slow down and check footing.`; warn = true; break }
   if (!next) {
-    const left = stopDist - f.dist, st = nearStation(S.pts[leg + 1] ?? S.pts[0])
-    next = left > 15 ? `Stop ${leg + 1}${st ? `, ${shortName(st)},` : ''} in ${round10(left)} m. Follow the beacon.` : `At stop ${leg + 1}. ${P.work} min of science planned here.`
+    const left = stopDist - f.dist, st = stopNo ? nearStation(S.pts[stopNo]) : undefined
+    next = left > 15 ? `Stop ${stopNo}${st ? `, ${shortName(st)},` : ''} in ${round10(left)} m. Follow the beacon.` : `At stop ${stopNo}. ${P.work} min of science planned here.`
   }
   const n = $('#h-next'); n.textContent = next; n.className = `next ${warn ? 'warn' : ''}`
-  const cur = $('#h-cur')
-  if (cur) { const xx = ((f.dist / cineEnd) * 1000).toFixed(1); cur.setAttribute('x1', xx); cur.setAttribute('x2', xx) }
+  const cur_ = $('#h-cur')
+  if (cur_) { const xx = ((f.dist / walkEnd) * 1000).toFixed(1); cur_.setAttribute('x1', xx); cur_.setAttribute('x2', xx) }
+  // the arrival card stays while the walker waits at a stop, then gets out of the way
+  if (!f.holding && arrivedAt >= 0 && arrivedAt < stops.length - 1 && !W.walkPaused) { $('#arrive').hidden = true; arrivedAt = -1 }
 }
-function onCineEnd() {
-  if (cineKind === 'fly') { setTimeout(stopCine, reduce ? 0 : 900); return }
-  const k = S.pts.length - 1, st = nearStation(S.pts[k]), ph = st && D.photos[st.id]
-  $('#h-next').textContent = `Arrived at stop ${k}. The walk back is ${fmtMin(S.routes[S.sel]!.backMin)}. Press Exit to return to the map.`
-  if (ph && st) {
-    const el = $('#arrive'); el.hidden = false
-    el.innerHTML = `<img src="${ph.src}" alt="The ground at ${st.id} seen by Curiosity"><div><b>${st.id} ${shortName(st)}</b><br>${st.note}.<small>What Curiosity saw here. ${ph.camera}, sol ${ph.sol}. NASA/JPL-Caltech.</small></div>`
-  }
+function arrivalCard(j: number) {
+  const i = stopsOf(walkAs)[j], st = i ? nearStation(S.pts[i]) : undefined, ph = st?.photo, el = $('#arrive')
+  el.hidden = false
+  el.innerHTML = ph && st
+    ? `<img src="${ph.src}" alt="The ground at ${shortName(st)} seen by Curiosity"><div><b>Stop ${i}: ${siteName(st)}</b><br>${st.note ?? `Curiosity worked here for ${st.stay} sols.`}<small>What Curiosity saw here. ${ph.camera}, sol ${ph.sol}. NASA/JPL-Caltech.</small></div>`
+    : `<div><b>Stop ${i}</b><br>${P.work} min of science planned here. No rover photo: Curiosity did not stop at this spot.</div>`
 }
-function stopCine() {
+function onStopReached(j: number) { arrivedAt = j; arrivalCard(j) }
+function onWalkEnd() {
+  const r = cur()[walkAs]!
+  setPaused(true)
+  $('#h-next').textContent = `Arrived at the last stop. The walk back is ${fmtMin(r.backMin)}. Press Exit to return to the map, or click the profile to replay part of it.`
+}
+function stopWalk() {
   if (W.mode === 'orbit') return
-  W.stopCine(S.exag ? 2 : 1)
+  W.stopWalk(S.exag ? 2 : 1)
+  partner = null; partnerAt = null
   document.body.classList.remove('cine'); $('#hud').hidden = true
   W.flyTo(routePose(), 1400)
 }
@@ -704,50 +1068,63 @@ function stopCine() {
 // ---------------------------------------------------------------- field guide
 function closeGuide() { $('#guide-root').innerHTML = '' }
 function openGuide() {
-  const r = S.routes[S.sel]
-  if (!r) return
-  const c = D.conditions, v = currentVerdict(), sun = sunAt(P.depart, D.sun), sw = spaceSummary()
+  const rs = cur(), a = agg(S.sel)
+  if (!a) return
+  const c = D.conditions, v = currentVerdict(), sun = sunAt(P.depart, D.sun), sw = spaceSummary(), pc = S.pc[S.sel]
   const words = ['Gentle ground', 'Moderate slope', 'Steep, slow down', 'Very steep, take care']
   const li = (m: string, w: string, t: string) => `<li><span class="mk mk-${m}" role="img" aria-label="${w}"></span><span>${t}</span></li>`
   const V = (t: string | number) => `<span class="v">${t}</span>`
+  const who = (w: number) => (S.pair ? `${WHO[w]}: ` : '')
   // planned arrival at each stop, and the turn-back time: 1.5 times the planned elapsed time
-  let elapsed = 0
-  const stops = S.pts.slice(1).map((p, i) => {
-    elapsed += r.legMin[i]
-    const arrive = P.depart + elapsed / MARS_MIN, turn = P.depart + (elapsed * 1.5) / MARS_MIN
-    elapsed += P.work
-    return { p, i: i + 1, arrive, turn, st: nearStation(p) }
-  })
-  const legBlocks = r.legMin.map((m, i) => {
-    const from = i ? r.stopAt[i - 1] : 0, to = r.stopAt[i], dist = r.d[to] - r.d[from]
-    const title = i === r.legMin.length - 1 ? `Back to the start` : `To stop ${i + 1}`
-    const rows = legs(D.grid, r, from, to).map((l) => {
-      const dz = r.z[l.iTo] - r.z[l.iFrom]
-      return `<div class="leg"><i class="g${l.k}"></i><span class="mono">${Math.round(l.from - r.d[from])} to ${Math.round(l.to - r.d[from])} m</span><span>${words[l.k]}</span><span class="mono">${Math.abs(dz) < 1 ? 'level' : `${dz > 0 ? 'up' : 'down'} ${Math.abs(Math.round(dz))} m`}</span></div>`
+  const stops = walkers().flatMap((w) => {
+    const r = rs[w]!
+    let elapsed = 0
+    return stopsOf(w).map((i, j) => {
+      elapsed += r.legMin[j]
+      const arrive = P.depart + elapsed / MARS_MIN, turn = P.depart + (elapsed * 1.5) / MARS_MIN
+      elapsed += P.work
+      return { w, i, arrive, turn, st: nearStation(S.pts[i]) }
+    })
+  }).sort((x, y) => x.i - y.i)
+  const legBlocks = walkers().map((w) => {
+    const r = rs[w]!, st = stopsOf(w)
+    return (S.pair ? `<h4 class="who-h">Astronaut ${WHO[w]}</h4>` : '') + r.legMin.map((m, i) => {
+      const from = i ? r.stopAt[i - 1] : 0, to = r.stopAt[i], dist = r.d[to] - r.d[from]
+      const title = i === r.legMin.length - 1 ? `Back to the start` : `To stop ${st[i]}`
+      const rows = legs(D.grid, r, from, to).map((l) => {
+        const dz = r.z[l.iTo] - r.z[l.iFrom]
+        return `<div class="leg"><i class="g${l.k}"></i><span class="mono">${Math.round(l.from - r.d[from])} to ${Math.round(l.to - r.d[from])} m</span><span>${words[l.k]}</span><span class="mono">${Math.abs(dz) < 1 ? 'level' : `${dz > 0 ? 'up' : 'down'} ${Math.abs(Math.round(dz))} m`}</span></div>`
+      }).join('')
+      return `<h4 class="leg-h">${title} <span class="mono">${round10(dist)} m, ${fmtMin(m)}</span></h4>${rows}`
     }).join('')
-    return `<h4 class="leg-h">${title} <span class="mono">${round10(dist)} m, ${fmtMin(m)}</span></h4>${rows}`
   }).join('')
+  const startElev = D.grid.elev[idx(S.pts[0])]
   $('#guide-root').innerHTML = html`
   <div class="guide-wrap" id="gw">
     <article class="guide" role="dialog" aria-modal="true" aria-label="Field guide">
-      <header><div><b>FIELD GUIDE</b><span>${S.sel === 'direct' ? 'Direct' : 'Cautious'} route, ${S.pts.length - 1} stop${S.pts.length > 2 ? 's' : ''} from ${label(S.pts[0])}</span></div><button class="icon-btn" id="g-close" aria-label="Close field guide">${icon.X}</button></header>
+      <header><div><b>FIELD GUIDE</b><span>${S.sel === 'direct' ? 'Direct' : 'Cautious'} route, ${S.pts.length - 1} stop${S.pts.length > 2 ? 's' : ''}${S.pair ? ', two astronauts' : ''} from ${label(S.pts[0])}</span></div><button class="icon-btn" id="g-close" aria-label="Close field guide">${icon.X}</button></header>
       <div class="content">
         <div class="key"><span><i class="mk mk-m"></i> measured</span><span><i class="mk mk-d"></i> derived</span><span><i class="mk mk-a"></i> assumed</span><span><i class="mk mk-s"></i> simulated</span></div>
         <div class="verdict ${v.go ? 'go' : 'nogo'}"><b>${v.go ? 'GO' : 'NO-GO'}</b><span>${v.head}. Leave ${clock(P.depart)}, back by ${clock(v.back)} local time.</span></div>
         <h3>Objective</h3>
         <ul><li class="plain">Sample boxwork hollows and the ridges beside them, to learn why the ridges resisted erosion while the hollows did not. Curiosity drilled one such pair in late 2025; a crew on foot can sample several in one walk and choose each next sample from what the last one showed.</li></ul>
         <h3>Route map</h3>
-        <figure><img id="g-map" alt="Map of the route over the orbital image"><figcaption>North up. HiRISE image, NASA/JPL-Caltech/University of Arizona. Orange solid: Direct. White dashed: Cautious. Numbered: stops.</figcaption></figure>
+        <figure><img id="g-map" alt="Map of the route over the orbital image"><figcaption>North up. HiRISE image, NASA/JPL-Caltech/University of Arizona. ${S.pair ? 'Orange: astronaut A. Blue: astronaut B.' : 'Orange solid: Direct. White dashed: Cautious.'} Numbered: stops.</figcaption></figure>
         <h3>Timeline</h3>
         <ul>
           ${li('s', 'Simulated', `Leave ${V(label(S.pts[0]))} at ${V(clock(P.depart))}, from a notional rover park`)}
-          ${stops.map((s) => li('a', 'Assumed', `Stop ${s.i}${s.st ? `, ${s.st.id} ${shortName(s.st)}` : ''}: arrive about ${V(clock(s.arrive))}, ${V(P.work + ' min')} of science`)).join('')}
-          ${li('a', 'Assumed', `Back at the start about ${V(clock(v.back))}. Whole walk ${V(fmtMin(r.walk))}, ${V(round10(r.dist) + ' m')}, climb ${V(Math.round(r.climb) + ' m')}`)}
+          ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}Stop ${s.i}${s.st ? `, ${shortName(s.st)}` : ''}: arrive about ${V(clock(s.arrive))}, ${V(P.work + ' min')} of science`)).join('')}
+          ${li('a', 'Assumed', `${S.pair ? 'Both back' : 'Back'} at the start about ${V(clock(v.back))}. ${S.pair ? 'Longest walk' : 'Whole walk'} ${V(fmtMin(a.walk))}, ${V(round10(a.dist) + ' m')}${S.pair ? ' walked in all' : ''}, climb ${V(Math.round(a.climb) + ' m')}`)}
         </ul>
+        ${S.pair && pc ? html`<h3>Working as a pair</h3><ul>
+          ${li('d', 'Derived', `Furthest apart ${V(round10(pc.maxSep) + ' m')}, about ${V(fmtMin(pc.maxSepAt))} after leaving. The limit is ${V(S.sepLimit + ' m')}.`)}
+          ${li('d', 'Derived', `In line of sight ${V(Math.round(pc.inSight * 100) + '%')} of the time. Longest stretch out of sight ${V(fmtMin(pc.longestGap))}, limit ${V(S.gapLimit + ' min')}.`)}
+          ${li('a', 'Assumed', 'Check in by radio at every stop. If either of you misses a check-in, both stop and walk towards each other along the planned routes.')}
+        </ul>` : ''}
         <h3>Turn back if</h3>
         <ul>
-          ${stops.map((s) => li('a', 'Assumed', `You have not reached stop ${s.i} by ${V(clock(s.turn))}, one and a half times the planned time.`)).join('')}
-          ${li('d', 'Derived', `The walk back from the last stop takes ${V(fmtMin(r.backMin))}.`)}
+          ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}You have not reached stop ${s.i} by ${V(clock(s.turn))}, one and a half times the planned time.`)).join('')}
+          ${li('d', 'Derived', `The walk back from the last stop takes ${V(walkers().map((w) => who(w) + fmtMin(rs[w]!.backMin)).join(', '))}.`)}
           ${li('d', 'Derived', `You would return after ${V(clock(sunset - RESERVE_MIN / MARS_MIN))}, when the last hour of daylight begins.`)}
           ${li('a', 'Assumed', 'A solar particle alert is issued while you are out. Return to the rover, which is the nearest shelter.')}
         </ul>
@@ -757,16 +1134,17 @@ function openGuide() {
           ${li('m', 'Measured', `Sunrise ${V(c.sunrise)}, sunset ${V(c.sunset)} local mean solar time`)}</ul>
         <h3>Conditions</h3>
         <ul>${li('m', 'Measured', `Air ${V(c.min_temp + ' to ' + c.max_temp + ' °C')}, ground ${V(c.min_gts_temp + ' to ' + c.max_gts_temp + ' °C')}, pressure ${V(c.pressure + ' Pa')}`)}
-          ${li('m', 'Measured', `Sky ${c.atmo_opacity.toLowerCase()}, UV ${c.local_uv_irradiance_index.toLowerCase()}`)}</ul>
+          ${li('m', 'Measured', `Sky ${c.atmo_opacity.toLowerCase()}, UV ${c.local_uv_irradiance_index.toLowerCase()}`)}
+          ${li('m', 'Measured', `The start is ${V(Math.round(startElev) + ' m')} on the Mars reference surface (the MOLA areoid; Mars has no sea level). Gale crater is one of the lowest places on the planet. Heights in this guide are differences along the route.`)}</ul>
         <h3>Radiation and space weather</h3>
         <ul>${li('m', 'Measured', `${V(RATE_MSV_PER_DAY + ' mSv')} per day on the surface at Gale crater (Curiosity RAD, 2012 to 2013)`)}
-          ${li('d', 'Derived', `About ${V(r.dose.toFixed(2) + ' mSv')} for this walk. No route-scale radiation data exists, so the route does not change it.`)}
+          ${li('d', 'Derived', `About ${V(a.dose.toFixed(2) + ' mSv')} ${S.pair ? 'each ' : ''}for this walk. No route-scale radiation data exists, so the route does not change it.`)}
           ${li('m', 'Measured', sw.text)}</ul>
-        ${stops.filter((s) => s.st && D.photos[s.st.id]).map((s) => { const ph = D.photos[s.st!.id]; return `<h3>Stop ${s.i}: ${s.st!.id} ${shortName(s.st!)}</h3><ul><li class="plain">${s.st!.note}. Curiosity stood here on sol ${s.st!.sol}.</li></ul><figure><img src="${ph.src}" alt="The ground at stop ${s.i}, seen by Curiosity"><figcaption>${ph.camera}, sol ${ph.sol} (${ph.date}). NASA/JPL-Caltech.</figcaption></figure>` }).join('')}
+        ${stops.filter((s) => s.st?.photo).map((s) => { const st = s.st!, ph = st.photo!; return `<h3>Stop ${s.i}: ${siteName(st)}</h3><ul><li class="plain">${st.note ? st.note + ' ' : ''}Curiosity worked here on sol ${st.sols[0]}${st.sols[1] > st.sols[0] ? ` to ${st.sols[1]}` : ''}: ${siteMeta(st)}.</li></ul><figure><img src="${ph.src}" alt="The ground at stop ${s.i}, seen by Curiosity"><figcaption>${ph.camera}, sol ${ph.sol} (${ph.date}). NASA/JPL-Caltech.</figcaption></figure>` }).join('')}
         <div class="limits"><h3>Limits</h3><ul>
           <li class="plain">Rocks smaller than about 1 m are not in the terrain model. Watch your footing.</li>
           <li class="plain">Walking speed is an Earth hiking model (Tobler) scaled to ${Math.round(P.suit * 100)}%. At 50% it matches NASA's Apollo planning figure of 2.5 km/h on flat ground, but that was the Moon, at a sixth of Earth's gravity; Mars has about two fifths.</li>
-          <li class="plain">The ${P.limit}° slope limit and the ${RESERVE_MIN} minute daylight reserve are assumptions, not NASA limits.</li>
+          <li class="plain">The ${P.limit}° slope limit, the ${RESERVE_MIN} minute daylight reserve${S.pair ? ' and the pair limits' : ''} are assumptions, not NASA limits.</li>
           <li class="plain">Sand, dust, wind and how the ground bears weight are not modelled.</li>
           <li class="plain">Sun position uses NASA's Mars24 method for the date of the weather record (${c.terrestrial_date}). Weather is from sol ${c.sol}, not today.</li>
           <li class="plain">Solar storm arrivals are model forecasts, not measurements at Mars.</li>
@@ -776,7 +1154,7 @@ function openGuide() {
           <li class="plain">Orbital images: HiRISE and CTX on Mars Reconnaissance Orbiter, NASA/JPL-Caltech/University of Arizona and MSSS, via <a href="https://trek.nasa.gov/mars/" target="_blank" rel="noopener">NASA Mars Trek</a></li>
           <li class="plain">Terrain: <a href="https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m" target="_blank" rel="noopener">USGS Mars MSL Gale Merged DEM 1m</a> (Parker and Calef, 2016)</li>
           <li class="plain">Night temperature: THEMIS on Mars Odyssey, NASA/JPL-Caltech/Arizona State University</li>
-          <li class="plain">Weather, radiation, drive path and photos: Curiosity (REMS, RAD, localization, Navcam), NASA/JPL-Caltech</li>
+          <li class="plain">Weather, radiation, drive path, stops and photos: Curiosity (REMS, RAD, localization, Navcam, raw image archive), NASA/JPL-Caltech. Site names and notes: <a href="https://science.nasa.gov/mission/msl-curiosity/" target="_blank" rel="noopener">Curiosity mission blog</a></li>
           <li class="plain">Space weather: <a href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/" target="_blank" rel="noopener">NASA DONKI</a>, Community Coordinated Modeling Center</li>
           <li class="plain">Sun: Allison and McEwen (2000), the Mars24 algorithm. Walking: Tobler (1993) and Los Alamos report LA-UR-89-3858 on Apollo surface operations.</li>
         </ul>
@@ -784,7 +1162,7 @@ function openGuide() {
     </article>
   </div>`
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
-  for (const k of ['direct', 'cautious'] as const) { const q = S.routes[k]; if (q) for (let i = 0; i < q.xs.length; i += 4) { x0 = Math.min(x0, q.xs[i]); x1 = Math.max(x1, q.xs[i]); y0 = Math.min(y0, q.ys[i]); y1 = Math.max(y1, q.ys[i]) } }
+  for (const k of ['direct', 'cautious'] as const) for (const q of S.routes[k]) if (q) for (let i = 0; i < q.xs.length; i += 4) { x0 = Math.min(x0, q.xs[i]); x1 = Math.max(x1, q.xs[i]); y0 = Math.min(y0, q.ys[i]); y1 = Math.max(y1, q.ys[i]) }
   const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, half = Math.min(D.grid.cols / 2, Math.max(60, (x1 - x0) * 0.75, (y1 - y0) * 0.75 * (880 / 640)))
   const bx0 = Math.max(0, Math.min(D.grid.cols - 2 * half, mx - half)), byh = half * (640 / 880), by0 = Math.max(0, Math.min(D.grid.rows - 2 * byh, my - byh))
   const big = document.createElement('canvas'); big.width = 880; big.height = 640

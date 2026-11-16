@@ -8,10 +8,10 @@ Writes:
   context_terrain.png 16 m terrain for an 8 km area around the site
   context_ctx.jpg     CTX image of the same 8 km area, Mars Trek level 12
   context_themis.png  THEMIS night infrared of the 8 km area, Mars Trek level 9
-  photo_S0.jpg, photo_S1.jpg, photo_S2.jpg   Curiosity Navcam frames at stations
+  photos/c<sol>.jpg   Curiosity Navcam frame at each science stop (pipeline/find_stops.py)
   site.json           grid geometry, stations, rover track, weather, credits
 
-Inputs: data/dem/aoi_dem_1m.tif, data/reference/stations.geojson,
+Inputs: data/dem/aoi_dem_1m.tif, data/reference/curiosity_stops.json and named_sites.json,
 web/public/data/waypoints.geojson and conditions.json (pipeline/fetch_reference.py).
 
 Run from the repository root:  python3 pipeline/build_app_data.py [tile_cache_dir]
@@ -27,7 +27,6 @@ R = 3396190.0
 DEM_URL = "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif"
 TREK = "https://trek.nasa.gov/tiles/Mars/EQ/{p}/1.0.0/default/default028mm/{z}/{r}/{c}.png"
 CTX_RES, CTX_HALF = 16, 4000          # context grid: 16 m cells, 8 km square
-PHOTOS = {"S0": ("4560", "NAV_LEFT_B"), "S1": ("4687", "NAV_LEFT_B"), "S2": ("4716", "NAV_RIGHT_B")}
 
 
 def mars24(date_iso, lon_e, hour_utc=12.0):
@@ -190,39 +189,57 @@ def main():
     mosaic("THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018", 9, cw, ce, cs, cn, cache).save(OUT / "context_themis.png", optimize=True)
     print("context", n, "x", n, "range", round(ctx_min), round(float(ctx.max())), "nodata cells", int(bad.sum()))
 
-    # Station photos from the Curiosity raw image API
-    photos = {}
-    for sid, (sol, cam) in PHOTOS.items():
-        api = ("https://mars.nasa.gov/api/v1/raw_image_items/?order=date_taken+desc&per_page=100&page=0"
-               f"&condition_1=msl:mission&condition_2={sol}:sol:gte&condition_3={sol}:sol:lte")
-        # full-frame Navcam images ("EDR_F"), not thumbnails or subframes
-        items = [i for i in json.loads(get(api))["items"] if i["instrument"] == cam and "EDR_F" in i["url"]]
-        if not items:
-            print("no photo for", sid)
-            continue
-        pick = items[len(items) // 2]
-        Image.open(io.BytesIO(get(pick["url"]))).convert("L").resize((720, 720), Image.LANCZOS).save(OUT / f"photo_{sid}.jpg", quality=78, optimize=True)
-        photos[sid] = {"sol": int(sol), "camera": "Navcam left", "date": pick["date_taken"][:10], "url": pick["url"]}
-        print("photo", sid, pick["url"].split("/")[-1])
+    # Science stops: every place Curiosity stopped to work in the area (pipeline/find_stops.py),
+    # named from the mission blog where a post describes it (data/reference/named_sites.json).
+    stops = json.loads((ROOT / "data" / "reference" / "curiosity_stops.json").read_text())["stops"]
+    named = json.loads((ROOT / "data" / "reference" / "named_sites.json").read_text())["sites"]
+    pdir = OUT / "photos"
+    pdir.mkdir(exist_ok=True)
+    for old in pdir.glob("*.jpg"):
+        old.unlink()
+    for old in OUT.glob("photo_*.jpg"):
+        old.unlink()
+    stations = []
+    for st in stops:
+        sid = f"c{st['sols'][0]}"
+        nm = named.get(st["rmc"])
+        ph = st.get("photo")
+        if ph:
+            big = bool(nm)
+            f = cache / ("photo_" + ph["url"].split("/")[-1]) if cache else None
+            data = f.read_bytes() if f and f.exists() else get(ph["url"])
+            if f and not f.exists():
+                f.write_bytes(data)
+            size = 640 if big else 360
+            Image.open(io.BytesIO(data)).convert("L").resize((size, size), Image.LANCZOS).save(pdir / f"{sid}.jpg", quality=74 if big else 68, optimize=True)
+        sols = st["sols"]
+        stations.append({
+            "id": sid, "rmc": st["rmc"],
+            "name": nm["name"] if nm else f"Sol {sols[0]} stop",
+            "kind": nm["kind"] if nm else "stop",
+            "note": nm["note"] if nm else None,
+            "source": nm["source"] if nm else None,
+            "sols": sols, "visits": st.get("visits", [sols]), "stay": st["stay"], "mahli": st["mahli"], "chemcam": st["chemcam"],
+            "lonlat": [st["lon"], st["lat"]],
+            "photo": {k: ph[k] for k in ("sol", "date", "camera", "url")} if ph else None,
+        })
+    print(len(stations), "stations,", sum(1 for x in stations if x["kind"] != "stop"), "named,", sum(1 for x in stations if x["kind"] == "drill"), "drill sites")
 
     def cell(lon, lat):
         col, row = ~T * (math.radians(lon) * R, math.radians(lat) * R)
         return [round(col / 2, 2), round(row / 2, 2)]
 
-    st = json.loads((ROOT / "data" / "reference" / "stations.geojson").read_text())["features"]
     wp = json.loads((ROOT / "web" / "public" / "data" / "waypoints.geojson").read_text())["features"]
     cond = json.loads((ROOT / "web" / "public" / "data" / "conditions.json").read_text())["records"][0]
     site = {
         "site": {"cols": cols, "rows": rows, "cell": 2, "zmin": round(site_min, 2), "west": west, "east": east, "south": south, "north": north},
         "context": {"n": n, "cell": CTX_RES, "zmin": round(ctx_min, 2), "per_m": 10,
                     "dx": round(cx_m - (b.left + b.right) / 2, 2), "dz": 0.0},
-        "stations": [{"id": f["properties"]["id"], "name": f["properties"]["name"], "note": f["properties"]["note"],
-                      "sol": f["properties"]["waypoint_sol"], "xy": cell(*f["geometry"]["coordinates"])} for f in st],
+        "stations": [{**x, "xy": cell(*x.pop("lonlat"))} for x in stations],
         "track": [cell(*f["geometry"]["coordinates"]) for f in wp],
         "conditions": cond,
         "sun": mars24(cond["terrestrial_date"], (west + east) / 2),
         "spaceWeather": space_weather(cache),
-        "photos": photos,
     }
     (OUT / "site.json").write_text(json.dumps(site, indent=1))
     for f in sorted(OUT.iterdir()):

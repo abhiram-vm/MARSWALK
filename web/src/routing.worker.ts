@@ -1,15 +1,22 @@
 // Runs route searches off the main thread. AI-assisted (Claude Code).
-// For a walk with stops it searches each leg in turn, for both route profiles.
-import { astar } from './model'
+//   { walks: number[][] }  routes every leg of each walk (one walk per astronaut), both profiles
+//   { order: number[] }    finds the visiting order with the least walking time
+import { astar, bestOrder, orderMatrix, type Grid } from './model'
 
-let elev: Float32Array, slope: Float32Array, cols = 0, rows = 0, cell = 2
+let g: Grid
 
 self.onmessage = (e: MessageEvent) => {
   const d = e.data
-  if (d.init) { elev = d.elev; slope = d.slope; cols = d.cols; rows = d.rows; cell = d.cell; return }
-  const out: Record<string, (Int32Array | null)[]> = { direct: [], cautious: [] }
+  if (d.init) { g = { elev: d.elev, slope: d.slope, cols: d.cols, rows: d.rows, cell: d.cell }; return }
+  const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
+  if (d.order) {
+    const m = orderMatrix(g, d.order, d.limit, d.suit, !!d.cautious)
+    post({ id: d.id, order: bestOrder(m), reachable: m.every((row) => row.every(Number.isFinite)) })
+    return
+  }
+  const out: Record<'direct' | 'cautious', (Int32Array | null)[][]> = { direct: [], cautious: [] }
   for (const kind of ['direct', 'cautious'] as const)
-    for (let i = 0; i < d.points.length - 1; i++)
-      out[kind].push(astar(elev, slope, cols, rows, cell, d.points[i], d.points[i + 1], d.limit, d.suit, kind === 'cautious'))
-  ;(self as unknown as Worker).postMessage({ id: d.id, ...out })
+    for (const walk of d.walks as number[][])
+      out[kind].push(walk.slice(0, -1).map((s, i) => astar(g.elev, g.slope, g.cols, g.rows, g.cell, s, walk[i + 1], d.limit, d.suit, kind === 'cautious')))
+  post({ id: d.id, ...out })
 }

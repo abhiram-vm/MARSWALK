@@ -1,0 +1,65 @@
+{
+  "about": "Names and notes for Curiosity stops in the MARSWALK planning area, written from NASA's Curiosity mission blog. Keyed by the rover's site_drive position (RMC) from the waypoint file. Every note cites its post.",
+  "sites": {
+    "116_1944": {
+      "name": "Altadena",
+      "kind": "drill",
+      "note": "Drill site at the edge of the boxwork unit, June 2025. The powdered sample went to CheMin and SAM; the drill hole walls change tone with depth.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4568-4569-a-close-look-at-the-altadena-drill-hole-and-tailings/"
+    },
+    "119_846": {
+      "name": "Laguna Escondida and Laguna Socompa",
+      "kind": "named",
+      "note": "Parked between two hollows while looking for a drill site, Sept. 2025. Six contact-science targets on the ridge tops that week.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4668-4674-winding-our-way-along/"
+    },
+    "119_1722": {
+      "name": "Monte Grande hollow",
+      "kind": "drill",
+      "note": "Drill site \"Valle de la Luna\" inside the Monte Grande hollow, Oct. 2025: the hollow half of a ridge and hollow pair.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4689-4694-drill-in-the-boxwork-unit-is-go/"
+    },
+    "120_82": {
+      "name": "Nevado Sajama ridge",
+      "kind": "drill",
+      "note": "Drill site on top of the ridge beside Monte Grande, Nov. 2025: Curiosity's 45th drill hole and the ridge half of the pair.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4723-4730-digging-into-nevado-sajama"
+    },
+    "120_232": {
+      "name": "Polygons in the hollow",
+      "kind": "named",
+      "note": "Polygonal textures in a hollow, Dec. 2025.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4743-4749-polygons-in-the-hollow/"
+    },
+    "120_538": {
+      "name": "Conjunction ridge",
+      "kind": "named",
+      "note": "Parked on a ridge for solar conjunction, Dec. 27, 2025 to Jan. 20, 2026, after a chemistry and imaging transect of the ridge wall between the two drill holes.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4750-4762-see-you-on-the-other-side-of-the-sun/"
+    },
+    "120_1264": {
+      "name": "Tapiche hollow",
+      "kind": "named",
+      "note": "Parked in the Tapiche hollow with the Los Flamencos ridge to the south, Feb. 2026, on the way to the boxwork's eastern contact.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4812-4817-back-into-the-hollows/"
+    },
+    "121_990": {
+      "name": "Southern contact",
+      "kind": "named",
+      "note": "Just over the southernmost contact of the boxwork with the layered sulfate unit, March 2026: Curiosity's third crossing of that contact.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4845-4851-bye-bye-boxwork-bye-bye/"
+    },
+    "122_0": {
+      "name": "Antofagasta crater and Atacama",
+      "kind": "drill",
+      "note": "Rim of the 10 m Antofagasta crater, its floor filled with rippled sand, April 2026; then the Atacama drill campaign in the layered sulfate rock above the boxwork.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4873-4878-welcome-to-the-atacama-drill-target/"
+    },
+    "122_462": {
+      "name": "Campo Marte",
+      "kind": "drill",
+      "note": "Drill site on a thicker block of the same layered sulfate stratum as Atacama, May 2026. Nearby blocks carry a polygonal texture.",
+      "source": "https://science.nasa.gov/blog/curiosity-blog-sols-4893-4899-drilling-at-campo-marte-and-a-visit-from-the-psyche-spacecraft/"
+    }
+  }
+}

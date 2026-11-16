@@ -6,14 +6,15 @@ import type { SiteData } from './data'
 import type { Route } from './model'
 import { sunAt, type SunModel } from './model'
 
-export type Mode = 'orbit' | 'walk' | 'fly'
+export type Mode = 'orbit' | 'walk'
 export interface Pose { target: THREE.Vector3; dist: number; yaw: number; pitch: number }
-export interface CineFrame { dist: number; frac: number; heading: number; pos: THREE.Vector3 }
+export interface CineFrame { dist: number; frac: number; heading: number; pos: THREE.Vector3; holding: boolean }
 
 const SITE_STEP = 2
 const CTX_STEP = 2
 const ORANGE = 0xf2662f
 const WHITE = 0xf4f1ec
+export const PARTNER = 0x5fb4ff // astronaut B in pair mode
 
 export class World {
   readonly canvas: HTMLCanvasElement
@@ -27,6 +28,12 @@ export class World {
   onCineEnd: () => void = () => {}
   onUserMove: () => void = () => {}
   onContextLost: () => void = () => {}
+  onStopReached: (i: number) => void = () => {}
+  onHover: (cellX: number, cellY: number, clientX: number, clientY: number, inside: boolean) => void = () => {}
+  onHoverEnd: () => void = () => {}
+  /** Returns the index of a draggable point under the cursor, or -1. */
+  dragTest: (clientX: number, clientY: number) => number = () => -1
+  onDrag: (i: number, cellX: number, cellY: number, done: boolean) => void = () => {}
   pixelRatio = 1
   private maxRatio = 1
   private d: SiteData
@@ -42,16 +49,18 @@ export class World {
   private thermalLayers: THREE.Mesh[] = []
   private track!: THREE.Line
   private boundary!: THREE.Line
-  private ribbons: Partial<Record<Route['kind'], THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>> = {}
-  private paths: Partial<Record<Route['kind'], { x: number; z: number; h: number; s: number }[]>> = {}
+  // one ribbon per route profile and walker, keyed 'direct-0', 'cautious-1' and so on
+  private ribbons = new Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>()
+  private paths = new Map<string, { x: number; z: number; h: number; s: number }[]>()
+  private partner!: THREE.Group
   private beacons: THREE.Group[] = [] // 0 is the start, then one per stop
   private orbit: Pose = { target: new THREE.Vector3(), dist: 5200, yaw: 0.4, pitch: 1.15 }
   private vel = { yaw: 0, pitch: 0 }
   private tween: { t0: number; ms: number; a: Pose; b: Pose } | null = null
   private cine: {
-    kind: 'walk' | 'fly'; kindRoute: Route['kind']; t0: number; dur: number; pausedAt: number; endDist: number; clockAt: (dist: number) => number
+    key: string; s: number; rate: number; base: number; paused: boolean; hold: number; last: number
+    endDist: number; stops: number[]; nextStop: number; clockAt: (dist: number) => number
     pos: THREE.Vector3 | null; look: THREE.Vector3 | null; lookYaw: number; lookPitch: number; lookHold: number
-    route: Route
   } | null = null
   private reveal: { t0: number; ms: number } | null = null
   private raf = 0
@@ -84,6 +93,7 @@ export class World {
     this.buildSite()
     this.buildContext()
     this.buildOverlays()
+    this.partner = this.figure(PARTNER)
     this.bindInput()
     // If the GPU resets, three.js cannot rebuild this scene by itself; tell the page.
     canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onContextLost() })
@@ -303,57 +313,87 @@ export class World {
     return g
   }
 
-  /** Beacons for the start (white) and each stop (orange, the last one tallest). */
-  setPoints(points: { x: number; y: number }[]) {
+  /** Beacons for the start (white) and each stop; colours give the walker each stop belongs to. */
+  setPoints(points: { x: number; y: number }[], colors?: number[]) {
     while (this.beacons.length < points.length) this.beacons.push(this.beacon(this.beacons.length ? ORANGE : WHITE, this.beacons.length ? 60 : 44))
     this.beacons.forEach((b, i) => {
-      b.visible = i < points.length
+      b.visible = b.userData.on = i < points.length
       if (!b.visible) return
       const x = this.wx(points[i].x), z = this.wz(points[i].y)
       b.position.set(x, this.height(x, z), z)
       b.scale.y = i && i === points.length - 1 ? 1.3 : 1
+      const col = i === 0 ? WHITE : colors?.[i] ?? ORANGE
+      b.children.forEach((m) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(col))
     })
     this.invalidate()
   }
+  /** A simple astronaut-sized figure (2 m tall) for the partner in walk mode. */
+  private figure(color: number) {
+    const g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: 0.25 })
+    mat.userData.suit = true
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.0, 4, 10), mat); body.position.y = 0.85
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12), new THREE.MeshStandardMaterial({ color: 0xf4f1ec, roughness: 0.3 })); head.position.y = 1.72
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), mat); pack.position.set(0, 1.05, -0.3)
+    g.add(body, head, pack)
+    g.traverse((o) => { o.castShadow = true })
+    g.visible = false
+    this.world.add(g)
+    return g
+  }
+  /** Shows the partner at a grid position, facing a heading in degrees; null hides it. */
+  setPartner(p: { x: number; y: number } | null, heading = 0, color = PARTNER) {
+    this.partner.visible = !!p
+    this.partner.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined
+      if (m?.userData.suit) { m.color.set(color); m.emissive.set(color) }
+    })
+    if (p) {
+      const x = this.wx(p.x), z = this.wz(p.y)
+      this.partner.position.set(x, this.height(x, z), z)
+      this.partner.rotation.y = -(heading * Math.PI) / 180 + Math.PI
+    }
+  }
 
   // ---------- routes ----------
-  setRoutes(routes: Partial<Record<Route['kind'], Route | null>>, sel: Route['kind'], animate: boolean) {
-    for (const k of ['direct', 'cautious'] as const) {
-      const old = this.ribbons[k]
-      if (old) { this.world.remove(old); old.geometry.dispose(); old.material.dispose(); delete this.ribbons[k]; delete this.paths[k] }
-      const r = routes[k]
-      if (!r) continue
-      const sp = this.track3d(r)
-      this.paths[k] = sp
-      this.ribbons[k] = this.ribbon(sp, k === 'direct' ? ORANGE : WHITE, k === 'cautious')
-      this.world.add(this.ribbons[k]!)
-    }
+  /** routes[kind][walker]; walker 0 is the solo walker or astronaut A, walker 1 is B. */
+  setRoutes(routes: Record<Route['kind'], (Route | null)[]>, sel: Route['kind'], animate: boolean) {
+    for (const [, m] of this.ribbons) { this.world.remove(m); m.geometry.dispose(); m.material.dispose() }
+    this.ribbons.clear(); this.paths.clear()
+    for (const k of ['direct', 'cautious'] as const) routes[k].forEach((r, w) => {
+      if (!r) return
+      const key = `${k}-${w}`, sp = this.track3d(r)
+      this.paths.set(key, sp)
+      const m = this.ribbon(sp, w ? PARTNER : k === 'direct' || routes[k].length > 1 ? ORANGE : WHITE, k === 'cautious')
+      this.ribbons.set(key, m); this.world.add(m)
+    })
+    this.pair = routes.direct.length > 1
     this.styleRibbons(sel)
     if (animate && !this.reduce) { this.reveal = { t0: performance.now(), ms: 1100 }; this.setReveal(0) }
     this.invalidate()
   }
+  private pair = false
   private sel: Route['kind'] = 'direct'
   styleRibbons(sel: Route['kind']) {
     this.sel = sel
-    for (const k of ['direct', 'cautious'] as const) {
-      const m = this.ribbons[k]
-      if (!m) continue
-      const u = m.material.uniforms, on = k === sel, walk = this.mode === 'walk', fly = this.mode === 'fly'
-      u.width.value = walk ? (on ? 0.8 : 0.5) : fly ? (on ? 3.4 : 2.2) : on ? 8 : 5
-      u.lift.value = walk ? 0.1 : 1.6
+    for (const [key, m] of this.ribbons) {
+      const k = key.split('-')[0], on = k === sel, walk = this.mode === 'walk', u = m.material.uniforms
+      u.width.value = walk ? (on ? 0.55 : 0.45) : on ? 8 : 5
+      u.lift.value = walk ? 0.08 : 1.6
       u.dash.value = walk ? 2.5 : 13
       u.chevron.value = on ? 1 : 0
-      u.spacing.value = walk ? 4 : 26
-      u.opacity.value = on ? 1 : walk ? 0 : 0.55
+      u.spacing.value = walk ? 5 : 26
+      u.nearFade.value = walk ? 1 : 0
+      if (!walk) { u.clipA.value = -1; u.reveal.value = 1e9 }
+      // in pair mode only the chosen profile is drawn, or four lines would overlap
+      // while walking, your own path is clear and your partner's is faint
+      const mine = !this.cine || key === this.cine.key
+      u.opacity.value = on ? (walk ? (mine ? 0.9 : 0.4) : 1) : walk || this.pair ? 0 : 0.55
       m.renderOrder = on ? 3 : 2
     }
     this.invalidate()
   }
   private setReveal(k: number) {
-    for (const kind of ['direct', 'cautious'] as const) {
-      const m = this.ribbons[kind], sp = this.paths[kind]
-      if (m && sp) m.material.uniforms.reveal.value = k >= 1 ? 1e9 : k * sp[sp.length - 1].s
-    }
+    for (const [key, m] of this.ribbons) { const sp = this.paths.get(key)!; m.material.uniforms.reveal.value = k >= 1 ? 1e9 : k * sp[sp.length - 1].s }
   }
   // The route is already straightened and sampled every metre by the model; keep every
   // second sample, and use the model's distances so the 3D view and the numbers agree.
@@ -394,20 +434,23 @@ export class World {
       transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false,
       polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
       uniforms: {
-        color: { value: new THREE.Color(color) }, width: { value: 8 }, lift: { value: 1.6 }, reveal: { value: 1e9 },
-        dashed: { value: dashed ? 1 : 0 }, dash: { value: 13 }, opacity: { value: 1 }, chevron: { value: 0 }, spacing: { value: 26 },
+        color: { value: new THREE.Color(color) }, width: { value: 8 }, lift: { value: 1.6 }, reveal: { value: 1e9 }, clipA: { value: -1 },
+        dashed: { value: dashed ? 1 : 0 }, dash: { value: 13 }, opacity: { value: 1 }, chevron: { value: 0 }, spacing: { value: 26 }, nearFade: { value: 0 },
       },
-      vertexShader: `attribute vec3 side; attribute float along; attribute float edge; uniform float width, lift; varying float vA; varying float vE;
-        void main(){ vec3 p = position + side * edge * width * 0.5; p.y += lift; vA = along; vE = edge; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
-      fragmentShader: `uniform vec3 color; uniform float reveal, dashed, dash, opacity, chevron, spacing; varying float vA; varying float vE;
+      vertexShader: `attribute vec3 side; attribute float along; attribute float edge; uniform float width, lift; varying float vA; varying float vE; varying float vD;
+        void main(){ vec3 p = position + side * edge * width * 0.5; p.y += lift; vA = along; vE = edge;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 color; uniform float reveal, clipA, dashed, dash, opacity, chevron, spacing, nearFade; varying float vA; varying float vE; varying float vD;
         void main(){
-          if (vA > reveal) discard;
+          if (vA > reveal || vA < clipA) discard;
           if (dashed > 0.5 && mod(vA, dash * 2.0) > dash) discard;
           float e = abs(vE);
           vec3 c = e > 0.7 ? vec3(0.04, 0.035, 0.03) : color;
           // chevrons point along the direction of travel
           if (chevron > 0.5 && e <= 0.7) { float v = fract(vA / spacing + e * 0.32); if (v < 0.14) c = mix(c, vec3(1.0), 0.55); }
-          gl_FragColor = vec4(c, opacity);
+          // at eye level the path fades out just in front of the walker, so it guides without covering the ground
+          float a = opacity * mix(1.0, smoothstep(5.0, 30.0, vD), nearFade);
+          gl_FragColor = vec4(c, a);
           #include <colorspace_fragment>
         }`,
     }))
@@ -527,18 +570,36 @@ export class World {
     let moved = 0, pinch = 0, button = 0, lastMove = 0
     const c = this.canvas
     c.addEventListener('contextmenu', (e) => e.preventDefault())
+    let dragIdx = -1, hoverT = 0
     c.addEventListener('pointerdown', (e) => {
       c.setPointerCapture(e.pointerId); ptr.set(e.pointerId, { x: e.clientX, y: e.clientY })
       moved = 0; pinch = 0; button = e.button; this.tween = null; this.vel.yaw = this.vel.pitch = 0
+      dragIdx = this.mode === 'orbit' && e.button === 0 && ptr.size === 1 ? this.dragTest(e.clientX, e.clientY) : -1
+      if (dragIdx >= 0) { c.classList.add('moving'); this.onHoverEnd() }
     })
+    c.addEventListener('pointerleave', () => this.onHoverEnd())
     c.addEventListener('pointermove', (e) => {
       const p = ptr.get(e.pointerId)
-      if (!p) return
+      if (!p) {
+        // hover: what the ground under the cursor is like, about 25 times a second
+        const now = performance.now()
+        if (this.mode !== 'orbit' || e.pointerType === 'touch' || now - hoverT < 40) return
+        hoverT = now
+        const hit = this.pick(e.clientX, e.clientY)
+        if (hit) this.onHover(this.gc(hit.x), this.gr(hit.z), e.clientX, e.clientY, this.inSite(hit.x, hit.z)); else this.onHoverEnd()
+        return
+      }
+      if (dragIdx >= 0) {
+        const hit = this.pick(e.clientX, e.clientY)
+        if (hit && this.inSite(hit.x, hit.z)) this.onDrag(dragIdx, this.gc(hit.x), this.gr(hit.z), false)
+        moved += 10
+        return
+      }
       const dx = e.clientX - p.x, dy = e.clientY - p.y
       moved += Math.abs(dx) + Math.abs(dy); p.x = e.clientX; p.y = e.clientY
       if (moved < 5) return
       c.classList.add('dragging')
-      if (this.cine?.kind === 'walk') { this.cine.lookYaw -= dx * 0.004; this.cine.lookPitch = clamp(this.cine.lookPitch - dy * 0.003, -0.6, 0.5); this.cine.lookHold = performance.now(); this.invalidate(); return }
+      if (this.cine) { this.cine.lookYaw -= dx * 0.004; this.cine.lookPitch = clamp(this.cine.lookPitch - dy * 0.003, -0.6, 0.5); this.cine.lookHold = performance.now(); this.invalidate(); return }
       if (this.mode !== 'orbit') return
       this.onUserMove()
       if (ptr.size === 2) {
@@ -555,7 +616,14 @@ export class World {
     })
     const up = (e: PointerEvent) => {
       const was = ptr.get(e.pointerId)
-      ptr.delete(e.pointerId); c.classList.remove('dragging'); pinch = 0
+      ptr.delete(e.pointerId); c.classList.remove('dragging'); c.classList.remove('moving'); pinch = 0
+      if (dragIdx >= 0) {
+        const i = dragIdx; dragIdx = -1
+        const hit = e.type === 'pointerup' ? this.pick(e.clientX, e.clientY) : null
+        if (moved >= 5 && hit && this.inSite(hit.x, hit.z)) { this.onDrag(i, this.gc(hit.x), this.gr(hit.z), true); return }
+        if (moved >= 5) { this.onDrag(i, -1, -1, true); return }
+        if (e.type === 'pointerup') { this.onDrag(i, -2, -2, true); this.invalidate(); return } // a tap selects the point
+      }
       if (performance.now() - lastMove > 80) this.vel.yaw = this.vel.pitch = 0
       if (was && moved < 5 && e.type === 'pointerup' && this.mode === 'orbit' && e.button === 0) {
         const hit = this.pick(e.clientX, e.clientY)
@@ -568,6 +636,11 @@ export class World {
     c.addEventListener('pointercancel', up)
     c.addEventListener('wheel', (e) => { e.preventDefault(); if (this.mode !== 'orbit') return; this.tween = null; this.onUserMove(); this.zoom(Math.exp(e.deltaY * 0.0012)) }, { passive: false })
     c.addEventListener('keydown', (e) => {
+      if (this.cine) {
+        const look: Record<string, [number, number]> = { ArrowLeft: [0.12, 0], ArrowRight: [-0.12, 0], ArrowUp: [0, 0.08], ArrowDown: [0, -0.08] }
+        if (look[e.key]) { this.cine.lookYaw += look[e.key][0]; this.cine.lookPitch = clamp(this.cine.lookPitch + look[e.key][1], -0.6, 0.5); this.cine.lookHold = performance.now(); e.preventDefault(); this.invalidate() }
+        return
+      }
       if (this.mode !== 'orbit') return
       const k: Record<string, () => void> = {
         ArrowLeft: () => (this.orbit.yaw += 0.08), ArrowRight: () => (this.orbit.yaw -= 0.08),
@@ -584,31 +657,48 @@ export class World {
     this.orbit.target.y = this.ground(this.orbit.target.x, this.orbit.target.z)
   }
 
-  // ---------- walk and flyover ----------
-  /** Walks or flies the route from the start to endDist metres; clockAt gives the Mars clock at a distance, for the sun. */
-  startCine(kind: 'walk' | 'fly', route: Route, durSec: number, endDist: number, clockAt: (dist: number) => number) {
-    const sp = this.paths[route.kind]
-    if (!sp) return
-    this.mode = kind
-    if (kind === 'walk') this.setExag(1)
-    this.cine = { kind, kindRoute: route.kind, t0: performance.now(), dur: durSec * 1000, pausedAt: 0, endDist, clockAt, pos: null, look: null, lookYaw: 0, lookPitch: 0, lookHold: 0, route }
+  // ---------- walk at eye level ----------
+  /**
+   * Walks a route at eye height from the start to endDist metres, at speed metres of route
+   * per second of playback. It holds for a moment at each distance in stops.
+   * clockAt gives the Mars clock at a distance, for the sun.
+   */
+  startWalk(route: Route, walker: number, speed: number, endDist: number, stops: number[], clockAt: (dist: number) => number) {
+    const key = `${route.kind}-${walker}`
+    if (!this.paths.has(key)) return
+    this.mode = 'walk'
+    this.setExag(1)
+    this.cine = { key, s: 0, rate: speed, base: speed, paused: false, hold: 0, last: 0, endDist, stops, nextStop: 0, clockAt, pos: null, look: null, lookYaw: 0, lookPitch: 0, lookHold: 0 }
     this.styleRibbons(route.kind)
     this.invalidate()
   }
-  pauseCine(): boolean {
+  /** Pauses or resumes; returns true when paused. */
+  pauseWalk(): boolean {
     const c = this.cine
     if (!c) return false
-    if (c.pausedAt) { c.t0 += performance.now() - c.pausedAt; c.pausedAt = 0; this.invalidate(); return false }
-    c.pausedAt = performance.now(); return true
+    c.paused = !c.paused; c.last = 0; c.hold = 0
+    this.invalidate()
+    return c.paused
   }
-  stopCine(exag: number) {
+  setWalkSpeed(mult: number) { if (this.cine) { this.cine.rate = this.cine.base * mult; this.invalidate() } }
+  /** Jumps to a distance along the walk. */
+  seekWalk(dist: number) {
+    const c = this.cine
+    if (!c) return
+    c.s = clamp(dist, 0, c.endDist); c.hold = 0; c.pos = null; c.look = null
+    c.nextStop = c.stops.findIndex((d) => d > c.s + 0.5); if (c.nextStop < 0) c.nextStop = c.stops.length
+    this.invalidate()
+  }
+  get walkPaused() { return !!this.cine?.paused }
+  stopWalk(exag: number) {
     this.cine = null
     this.mode = 'orbit'
+    this.partner.visible = false
+    for (const b of this.beacons) b.visible = !!b.userData.on
     this.camera.fov = 48; this.camera.updateProjectionMatrix()
     this.setExag(exag)
     this.applySun(this.departMin)
     this.styleRibbons(this.sel)
-    // pick up the orbit from wherever the camera is now, so the move back is smooth
     const dir = new THREE.Vector3(); this.camera.getWorldDirection(dir)
     const t = this.camera.position.clone().addScaledVector(dir, 220)
     t.y = this.ground(t.x, t.z)
@@ -616,37 +706,39 @@ export class World {
     this.orbit = { target: t, dist: Math.max(120, off.length()), yaw: Math.atan2(off.x, off.z), pitch: clamp(Math.asin(clamp(off.y / off.length(), -1, 1)), 0.08, 1.48) }
     this.invalidate()
   }
-  private stepCine(now: number) {
-    const c = this.cine!
-    if (c.pausedAt) return
-    const sp = this.paths[c.kindRoute]!
-    const f = Math.min(1, (now - c.t0) / c.dur), s = f * c.endDist
-    const here = this.sample(sp, s)
-    let pos: THREE.Vector3, look: THREE.Vector3
-    if (c.kind === 'walk') {
-      const ahead = this.sample(sp, s + 16)
-      pos = new THREE.Vector3(here.x, this.height(here.x, here.z) + 1.8, here.z)
-      look = new THREE.Vector3(ahead.x, this.height(ahead.x, ahead.z) + 1.2, ahead.z)
-      if (now - c.lookHold > 1500) { c.lookYaw *= 0.94; c.lookPitch *= 0.94 }
-      this.camera.fov = 62
-    } else {
-      const back = this.sample(sp, s - 110), lead = this.sample(sp, s + 170)
-      pos = new THREE.Vector3(back.x, this.ground(back.x, back.z) + 75, back.z)
-      look = new THREE.Vector3(lead.x, this.ground(lead.x, lead.z), lead.z)
-      this.camera.fov = 50
+  private stepWalk(now: number) {
+    const c = this.cine!, sp = this.paths.get(c.key)!
+    const dt = c.last ? Math.min(0.1, (now - c.last) / 1000) : 0
+    c.last = now
+    if (!c.paused) {
+      if (c.hold > 0) c.hold -= dt
+      else {
+        c.s = Math.min(c.endDist, c.s + c.rate * dt)
+        const stop = c.stops[c.nextStop]
+        if (stop !== undefined && c.s >= stop) { c.s = stop; c.hold = this.reduce ? 0.8 : 2.4; this.onStopReached(c.nextStop); c.nextStop++ }
+      }
     }
-    this.camera.updateProjectionMatrix()
-    const k = this.reduce || !c.pos ? 1 : 0.1
+    const s = c.s, here = this.sample(sp, s), ahead = this.sample(sp, s + 14)
+    const u = this.ribbons.get(c.key)!.material.uniforms
+    u.clipA.value = s + 1.5; u.reveal.value = c.endDist
+    // eye height 1.8 m; the camera follows the terrain smoothly rather than every bump
+    const pos = new THREE.Vector3(here.x, this.height(here.x, here.z) + 1.8, here.z)
+    const look = new THREE.Vector3(ahead.x, this.height(ahead.x, ahead.z) + 1.3, ahead.z)
+    if (now - c.lookHold > 1800) { c.lookYaw *= 0.95; c.lookPitch *= 0.95 }
+    this.camera.fov = 64; this.camera.updateProjectionMatrix()
+    const k = this.reduce || !c.pos ? 1 : 1 - Math.pow(0.0015, dt || 0.016)
     c.pos = c.pos ? c.pos.lerp(pos, k) : pos
-    c.look = c.look ? c.look.lerp(look, k * 0.85) : look
+    c.look = c.look ? c.look.lerp(look, k * 0.7) : look
     this.camera.position.copy(c.pos)
     this.camera.lookAt(c.look)
+    // a beacon you are standing in only blocks the view: hide those within 25 m
+    for (const b of this.beacons) b.visible = !!b.userData.on && Math.hypot(b.position.x - c.pos.x, b.position.z - c.pos.z) > 25
     if (c.lookYaw || c.lookPitch) { this.camera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), c.lookYaw); this.camera.rotateX(c.lookPitch) }
     const fwd = this.sample(sp, s + 6)
     const heading = ((Math.atan2(fwd.x - here.x, -(fwd.z - here.z)) * 180) / Math.PI + 360) % 360
-    this.applySun(c.clockAt(s), c.kind === 'walk' ? new THREE.Vector3(here.x, this.height(here.x, here.z), here.z) : undefined, c.kind === 'walk' ? 240 : 950)
-    this.onCine({ dist: s, frac: f, heading, pos: c.pos })
-    if (f >= 1) { this.cine = null; this.onCineEnd() }
+    this.applySun(c.clockAt(s), new THREE.Vector3(here.x, this.height(here.x, here.z), here.z), 240)
+    this.onCine({ dist: s, frac: c.endDist ? s / c.endDist : 1, heading, pos: c.pos, holding: c.hold > 0 })
+    if (s >= c.endDist && c.hold <= 0 && !c.paused) { c.paused = true; this.onCineEnd() }
   }
 
   // ---------- render loop: only when something changed ----------
@@ -668,7 +760,7 @@ export class World {
       this.orbit.yaw += this.vel.yaw; this.orbit.pitch = clamp(this.orbit.pitch + this.vel.pitch, 0.08, 1.48)
       active = true
     }
-    if (this.cine) { this.stepCine(now); active = active || (!!this.cine && !this.cine.pausedAt) }
+    if (this.cine) { this.stepWalk(now); active = active || (!!this.cine && (!this.cine.paused || Math.abs(this.cine.lookYaw) > 1e-3 || Math.abs(this.cine.lookPitch) > 1e-3)) }
     if (this.reveal) {
       const k = Math.min(1, (now - this.reveal.t0) / this.reveal.ms)
       this.setReveal(1 - Math.pow(1 - k, 2))

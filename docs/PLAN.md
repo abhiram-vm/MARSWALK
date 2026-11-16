@@ -75,17 +75,18 @@ Checked against the official text again on 2026-11-15, after the final app was b
 | 3. Maps from other missions | Field guide in the spirit of Apollo traverse maps and cuff checklists |
 | 4. Time frame | Terrain has none; weather is the latest Curiosity record, dated on screen |
 | 5. Point-of-view images | Real Navcam photos at each station, in the station cards, at arrival in walk mode, and in the guide |
-| 6. Rovers or pairs | Not modelled; the start is described as a rover park |
+| 6. Rovers or pairs | Pairs: two astronauts split the stops; the plan checks their separation and line of sight over the terrain. The start is described as a rover park. |
 
 ## 4. What the user does (the demo path)
 
 1. **Opens MARSWALK.** The camera descends from above Gale crater to a default walk between two of Curiosity's drill sites.
-2. **Plans the stops.** The default visits the hollow and the ridge Curiosity drilled. Add a stop, click the ground or a station photo to place it; every leg is routed in a fraction of a second.
+2. **Plans the stops.** The default visits the hollow and the ridge Curiosity drilled. Add a stop by clicking the ground, dragging a beacon, or picking one of the 49 science sites (every place Curiosity parked for three sols or more here). Hovering reads out slope and height against the start. **Quickest order** finds the order with the least walking; ready-made plans load in one click. Every leg is routed in a fraction of a second.
+   - **Pair** splits the stops between astronauts A and B. Each walks their own route; MARSWALK checks the furthest they get apart and how long they are out of each other's sight, and both feed the GO or NO-GO call.
 3. **Reads the call.** GO or NO-GO, with whole walk time, back-by time and radiation dose, and the reasons, including space weather.
 4. **Picks a route.** Direct or Cautious, compared on time, distance, steep share and steepest ground.
 5. **Sets the time.** Drags the walk along the daylight timeline. Shadows on the terrain move with the sun; the call turns NO-GO if the walk eats into the last hour of light.
 6. **Checks the layers.** Slope hazard, night surface temperature, Curiosity's drive path.
-7. **Walks it.** Eye level, true scale, through every stop: compass, slope warnings, next stop, Mars clock, sun height, dose so far; Curiosity's photo of the last stop on arrival.
+7. **Walks it.** Eye level, true scale, through every stop. The walk pauses at each stop and shows Curiosity's photo of it; speed ½× to 4×; click the height profile to jump; drag or use the arrow keys to look around. Readouts: compass, slope warnings, next stop, height against the start, Mars clock, sun height, dose so far, and in a pair the partner's distance and whether they are in sight. The partner is drawn as a figure on the terrain.
 8. **Opens the field guide.** A printable sheet: route map, timeline with arrival times, a turn-back time for each stop, leg-by-leg ground, conditions, radiation and space weather, photos of each stop, limits and sources.
 
 All eight work in the current build and are covered by the browser test (`npm run e2e`).
@@ -95,19 +96,19 @@ All eight work in the current build and are covered by the browser test (`npm ru
 | Tier | Feature | State |
 | --- | --- | --- |
 | Must | 3D site with real terrain and imagery, 8 km context | Built |
-| Must | Multi-stop routing in a worker (up to four stops and a routed return), two route profiles, straightened routes | Built |
+| Must | Multi-stop routing in a worker (up to six stops and a routed return), two route profiles, straightened routes, quickest order | Built |
 | Must | Go or no-go, comparison, daylight timeline | Built |
 | Must | Data layers with mission credits: slope, thermal, track | Built |
-| Must | Science stations with real photos | Built |
-| Must | Walk at eye level, flyover | Built |
+| Must | 49 science sites from Curiosity's record, each with a Navcam photo; 10 named from the mission blog | Built |
+| Must | Walk at eye level with stops, speed and seek | Built (flyover removed: it added nothing the orbit view does not) |
 | Must | Field guide with provenance marks and limits | Built |
 | Must | Phone layout, reduced-motion support, single-file build | Built |
 | Must | Public hosting, demo, submission form | **Team** |
 | Must | Space weather at Mars from NASA DONKI, snapshot plus live refresh | Built |
 | Must | Licence and third-party notices required by the event terms | Built |
-| Must | Automated tests: 17 engine tests, 21 browser checks | Built |
+| Must | Automated tests: 22 engine tests, 32 browser checks | Built |
 | Should | Station notes on drill results (chemistry) from published sources | Not built |
-| Should | Working in pairs: two walkers, buddy-distance rule | Not built |
+| Should | Working in pairs: two walkers, separation and line-of-sight rules | Built |
 | Will not build | Accounts, a backend, a chatbot, other sites, automatic rock detection | |
 
 ## 6. Technical approach
@@ -129,8 +130,8 @@ web/ (Vite, TypeScript, three.js 0.186)
   tests/e2e.cjs          21 browser checks of the built app (npm run e2e)
   src/routing.worker.ts  routing off the main thread
   src/world.ts           3D: terrain meshes with baked shading, sky, sun and shadows,
-                         route ribbons, beacons, picking, camera, walk and flyover
-  src/main.ts            panels, daylight timeline, layers, stations, HUD, field guide
+                         route ribbons per astronaut, beacons, partner figure, picking, hover and drag, camera, walk
+  src/main.ts            panels, pairs, plans, science sites, daylight timeline, layers, HUD, field guide
         |
         v
 web/dist/index.html      one self-contained file, about 4 MB, also copied to /index.html

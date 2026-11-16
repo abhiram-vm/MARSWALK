@@ -264,26 +264,153 @@ export function legs(g: Grid, r: Route, from = 0, to = r.path.length - 1): Leg[]
 // ---------------------------------------------------------------- decision
 export interface Check { state: 'ok' | 'bad' | 'info' | 'warn'; text: string }
 export interface Verdict { go: boolean; head: string; back: number; margin: number; checks: Check[] }
-export interface SpaceWeather { checked: string; marsArrivals: { time: string; glancing: boolean }[]; sepEvents: string[] }
+export interface SpaceWeather { checked: string | null; marsArrivals: { time: string; glancing: boolean }[]; sepEvents: (string | null)[] }
 
-/** Clock times are local mean solar time in minutes; durations are Earth minutes. */
-export function verdict(r: Route | null, p: Params, sunrise: number, sunset: number, sw?: SpaceWeather | null, nowIso?: string): Verdict {
-  if (!r) return { go: false, head: 'No walkable route', back: 0, margin: 0, checks: [{ state: 'bad', text: `No route joins these points on ground under the ${p.limit}° limit` }] }
-  const back = p.depart + r.walk / MARS_MIN, margin = (sunset - back) * MARS_MIN
-  const okDawn = p.depart >= sunrise, okDay = margin >= RESERVE_MIN
+// ---------------------------------------------------------------- time along a walk
+/** Minutes after departure at each sample, counting the time spent at each stop. */
+export function sampleTimes(r: Route, p: Params): Float32Array {
+  const out = new Float32Array(r.t.length), last = r.stopAt.length - 1
+  let passed = 0
+  for (let i = 0; i < r.t.length; i++) {
+    while (passed < last && i > r.stopAt[passed]) passed++
+    out[i] = r.t[i] / 60 + passed * p.work
+  }
+  return out
+}
+/** Where a walker is, in grid cells, a number of minutes after departure. */
+export function posAtTime(r: Route, times: Float32Array, m: number): Pt {
+  const n = times.length
+  if (m <= 0) return { x: r.xs[0], y: r.ys[0] }
+  if (m >= times[n - 1]) return { x: r.xs[n - 1], y: r.ys[n - 1] }
+  let lo = 0, hi = n - 1
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (times[mid] < m) lo = mid; else hi = mid }
+  const span = times[hi] - times[lo], walkSpan = (r.t[hi] - r.t[lo]) / 60
+  if (span > walkSpan + 1e-6) {
+    // the gap includes time at a stop: wait there, then walk the last step
+    const leave = times[hi] - walkSpan
+    if (m <= leave) return { x: r.xs[lo], y: r.ys[lo] }
+    const f = walkSpan > 0 ? (m - leave) / walkSpan : 1
+    return { x: r.xs[lo] + (r.xs[hi] - r.xs[lo]) * f, y: r.ys[lo] + (r.ys[hi] - r.ys[lo]) * f }
+  }
+  const f = span > 0 ? (m - times[lo]) / span : 0
+  return { x: r.xs[lo] + (r.xs[hi] - r.xs[lo]) * f, y: r.ys[lo] + (r.ys[hi] - r.ys[lo]) * f }
+}
+
+// ---------------------------------------------------------------- working in pairs
+/** Whether two people standing at a and b (grid cells) can see each other over the terrain, eyes 1.8 m up. */
+export function lineOfSight(g: Grid, a: Pt, b: Pt, eye = 1.8) {
+  const za = elevAt(g, a.x, a.y) + eye, zb = elevAt(g, b.x, b.y) + eye
+  const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * 2)
+  for (let s = 1; s < n; s++) {
+    const t = s / n
+    if (elevAt(g, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t) > za + (zb - za) * t) return false
+  }
+  return true
+}
+export interface PairCheck {
+  maxSep: number // m
+  maxSepAt: number // minutes after departure
+  inSight: number // share of the walk with the partner in view
+  gaps: { from: number; to: number }[] // minutes out of sight
+  longestGap: number
+  tooFar: { from: number; to: number }[] // minutes beyond the separation limit
+  end: number // minutes until both are back
+}
+/** Separation and line of sight between two walkers who leave together, checked every half minute. */
+export function pairCheck(g: Grid, a: Route, b: Route, p: Params, sepLimit: number): PairCheck {
+  const ta = sampleTimes(a, p), tb = sampleTimes(b, p), end = Math.max(ta[ta.length - 1], tb[tb.length - 1])
+  let maxSep = 0, maxSepAt = 0, seen = 0, total = 0
+  const gaps: { from: number; to: number }[] = [], tooFar: { from: number; to: number }[] = []
+  const step = 0.5
+  for (let m = 0; m <= end + 1e-9; m += step) {
+    const pa = posAtTime(a, ta, m), pb = posAtTime(b, tb, m), sep = Math.hypot(pa.x - pb.x, pa.y - pb.y) * g.cell
+    if (sep > maxSep) { maxSep = sep; maxSepAt = m }
+    const vis = sep < 1 || lineOfSight(g, pa, pb)
+    total++; if (vis) seen++
+    const mark = (list: { from: number; to: number }[], on: boolean) => {
+      const last = list[list.length - 1]
+      if (on) { if (last && last.to >= m - step - 1e-9) last.to = m; else list.push({ from: m, to: m }) }
+    }
+    mark(gaps, !vis); mark(tooFar, sep > sepLimit)
+  }
+  const longestGap = gaps.reduce((x, q) => Math.max(x, q.to - q.from + step), 0)
+  return { maxSep, maxSepAt, inSight: total ? seen / total : 1, gaps, longestGap, tooFar, end }
+}
+
+// ---------------------------------------------------------------- stop order
+/**
+ * The visiting order with the least walking time, given a matrix of leg times between
+ * points (index 0 is the start; the walk returns to it). Tries every order, which is
+ * quick for the six stops the app allows (720 orders).
+ */
+/** Walking seconds along a grid path from astar, at the given suit factor. */
+export function pathTime(g: Grid, path: Int32Array | null, suit: number) {
+  if (!path) return Infinity
+  let t = 0
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i], diag = a % g.cols !== b % g.cols && ((a / g.cols) | 0) !== ((b / g.cols) | 0)
+    const d = diag ? g.cell * Math.SQRT2 : g.cell
+    t += d / speedMs((g.elev[b] - g.elev[a]) / d, suit)
+  }
+  return t
+}
+/** Time matrix between points (grid indices) for bestOrder. */
+export function orderMatrix(g: Grid, pts: number[], limit: number, suit: number, cautious: boolean) {
+  return pts.map((a, i) => pts.map((b, j) => (i === j ? 0 : pathTime(g, astar(g.elev, g.slope, g.cols, g.rows, g.cell, a, b, limit, suit, cautious), suit))))
+}
+export function bestOrder(times: number[][]): number[] {
+  const n = times.length - 1
+  const stops = Array.from({ length: n }, (_, i) => i + 1)
+  let best: number[] = stops.slice(), bestT = Infinity
+  const permute = (arr: number[], k: number) => {
+    if (k === arr.length) {
+      let t = times[0][arr[0]] + times[arr[arr.length - 1]][0]
+      for (let i = 1; i < arr.length; i++) t += times[arr[i - 1]][arr[i]]
+      if (t < bestT) { bestT = t; best = arr.slice() }
+      return
+    }
+    for (let i = k; i < arr.length; i++) { [arr[k], arr[i]] = [arr[i], arr[k]]; permute(arr, k + 1); [arr[k], arr[i]] = [arr[i], arr[k]] }
+  }
+  if (n > 0) permute(stops, 0)
+  return best
+}
+
+// ---------------------------------------------------------------- decision
+export interface PairInput { check: PairCheck; sepLimit: number; gapLimit: number }
+/**
+ * Clock times are local mean solar time in minutes; durations are Earth minutes.
+ * Takes one route (solo) or two (a pair, who leave together); the later return counts.
+ */
+export function verdict(routes: Route | null | (Route | null)[], p: Params, sunrise: number, sunset: number, sw?: SpaceWeather | null, nowIso?: string, pair?: PairInput): Verdict {
+  const list = Array.isArray(routes) ? routes : [routes]
+  if (!list.length || list.some((r) => !r)) return { go: false, head: 'No walkable route', back: 0, margin: 0, checks: [{ state: 'bad', text: `No route joins these points on ground under the ${p.limit}° limit` }] }
+  const rs = list as Route[]
+  const walk = Math.max(...rs.map((r) => r.walk)), maxSlope = Math.max(...rs.map((r) => r.maxSlope)), backMin = Math.max(...rs.map((r) => r.backMin))
+  const back = p.depart + walk / MARS_MIN, margin = (sunset - back) * MARS_MIN
+  const okDawn = p.depart >= sunrise, okDay = margin >= RESERVE_MIN, okSlope = maxSlope <= p.limit
   const checks: Check[] = [
     { state: okDawn ? 'ok' : 'bad', text: okDawn ? `Leaves after sunrise (${clock(sunrise)})` : `Leaves before sunrise (${clock(sunrise)})` },
-    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `Back ${fmtMin(margin)} before sunset; the reserve is ${RESERVE_MIN} min` : `Back ${fmtMin(-margin)} after sunset` },
-    r.maxSlope <= p.limit
-      ? { state: 'ok', text: `Steepest ground ${r.maxSlope.toFixed(1)}°, inside the ${p.limit}° limit` }
-      : { state: 'bad', text: `Steepest ground ${r.maxSlope.toFixed(1)}° is over the ${p.limit}° limit` },
-    { state: 'info', text: `The walk back from the last stop takes ${fmtMin(r.backMin)}` },
+    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `${rs.length > 1 ? 'Both back' : 'Back'} ${fmtMin(margin)} before sunset; the reserve is ${RESERVE_MIN} min` : `Back ${fmtMin(-margin)} after sunset` },
+    okSlope
+      ? { state: 'ok', text: `Steepest ground ${maxSlope.toFixed(1)}°, inside the ${p.limit}° limit` }
+      : { state: 'bad', text: `Steepest ground ${maxSlope.toFixed(1)}° is over the ${p.limit}° limit` },
   ]
+  let okPair = true
+  if (pair) {
+    const c = pair.check, okSep = c.maxSep <= pair.sepLimit, okSight = c.longestGap <= pair.gapLimit
+    okPair = okSep && okSight
+    checks.push(okSep
+      ? { state: 'ok', text: `Partners stay within ${pair.sepLimit} m of each other (at most ${round10(c.maxSep)} m)` }
+      : { state: 'bad', text: `Partners get ${round10(c.maxSep)} m apart, over the ${pair.sepLimit} m limit` })
+    checks.push(okSight
+      ? { state: 'ok', text: `In sight of each other ${Math.round(c.inSight * 100)}% of the time; longest gap ${fmtMin(c.longestGap)}` }
+      : { state: 'bad', text: `Out of sight for ${fmtMin(c.longestGap)} at a stretch, over the ${pair.gapLimit} min limit` })
+  } else checks.push({ state: 'info', text: `The walk back from the last stop takes ${fmtMin(backMin)}` })
   const storm = sw && nowIso ? stormNear(sw, nowIso) : null
   if (storm) checks.push({ state: 'warn', text: storm })
-  const okSlope = r.maxSlope <= p.limit
-  const go = okDawn && okDay && okSlope
-  return { go, head: go ? 'Clear to walk' : !okSlope ? 'Route too steep' : okDawn ? 'Not enough daylight' : 'Too early to leave', back, margin, checks }
+  const go = okDawn && okDay && okSlope && okPair
+  const head = go ? 'Clear to walk' : !okSlope ? 'Route too steep' : !okPair ? 'Partners too far apart' : okDawn ? 'Not enough daylight' : 'Too early to leave'
+  return { go, head, back, margin, checks }
 }
 /** A caution if NASA's model has a solar storm reaching Mars within a day of now. */
 export function stormNear(sw: SpaceWeather, nowIso: string) {
