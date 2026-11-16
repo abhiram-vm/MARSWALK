@@ -108,8 +108,8 @@ async function boot() {
   addEventListener('hashchange', () => { if (location.hash === '#story') openStory(); else if (location.hash === '#plan' && story.active) story.leave(true) })
   renderAll()
   refreshSpaceWeather()
-  // First visit opens the story; a returning visitor (or a #plan link) goes straight to the planner.
-  if (location.hash === '#story' || (location.hash !== '#plan' && !store.get('mw-story'))) {
+  // The site always opens on the story; only a #plan link goes straight to the planner.
+  if (location.hash !== '#plan') {
     recompute({ fit: false, quiet: true })
     openStory()
     return
