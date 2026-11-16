@@ -2,6 +2,7 @@
 // One renderer, drawn only when something changes. Site terrain at 4 m mesh
 // spacing over the 2 m grid; an 8 km context ring at 32 m around it.
 import * as THREE from 'three'
+import { buildAstronaut, type Astronaut } from './astronaut'
 import type { SiteData } from './data'
 import type { Route } from './model'
 import { sunAt, type SunModel } from './model'
@@ -53,6 +54,7 @@ export class World {
   private ribbons = new Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>()
   private paths = new Map<string, { x: number; z: number; h: number; s: number }[]>()
   private partner!: THREE.Group
+  private partnerFig!: Astronaut
   private beacons: THREE.Group[] = [] // 0 is the start, then one per stop
   private orbit: Pose = { target: new THREE.Vector3(), dist: 5200, yaw: 0.4, pitch: 1.15 }
   private vel = { yaw: 0, pitch: 0 }
@@ -93,7 +95,9 @@ export class World {
     this.buildSite()
     this.buildContext()
     this.buildOverlays()
-    this.partner = this.figure(PARTNER)
+    this.partnerFig = buildAstronaut(this.renderer, PARTNER)
+    this.partner = this.partnerFig.group
+    this.world.add(this.partner)
     this.bindInput()
     // If the GPU resets, three.js cannot rebuild this scene by itself; tell the page.
     canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onContextLost() })
@@ -327,27 +331,13 @@ export class World {
     })
     this.invalidate()
   }
-  /** A simple astronaut-sized figure (2 m tall) for the partner in walk mode. */
-  private figure(color: number) {
-    const g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: 0.25 })
-    mat.userData.suit = true
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.0, 4, 10), mat); body.position.y = 0.85
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12), new THREE.MeshStandardMaterial({ color: 0xf4f1ec, roughness: 0.3 })); head.position.y = 1.72
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), mat); pack.position.set(0, 1.05, -0.3)
-    g.add(body, head, pack)
-    g.traverse((o) => { o.castShadow = true })
-    g.visible = false
-    this.world.add(g)
-    return g
-  }
   /** Shows the partner at a grid position, facing a heading in degrees; null hides it. */
-  setPartner(p: { x: number; y: number } | null, heading = 0, color = PARTNER) {
+  setPartner(p: { x: number; y: number } | null, heading = 0, color = PARTNER, stride = 0, moving = false) {
     this.partner.visible = !!p
-    this.partner.traverse((o) => {
-      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined
-      if (m?.userData.suit) { m.color.set(color); m.emissive.set(color) }
-    })
     if (p) {
+      this.partnerFig.setColor(color)
+      // stride is metres walked; about 1.6 m per full cycle at a loping pace
+      this.partnerFig.pose((stride / 1.6) * Math.PI * 2, moving ? 1 : 0)
       const x = this.wx(p.x), z = this.wz(p.y)
       this.partner.position.set(x, this.height(x, z), z)
       this.partner.rotation.y = -(heading * Math.PI) / 180 + Math.PI

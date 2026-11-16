@@ -427,3 +427,48 @@ details.assume[open] summary svg { transform: rotate(180deg); }
 .guide .who-h { margin: 18px 0 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
 .ptag { pointer-events: none; z-index: 11; }
 .cine .pins { z-index: 10; }
+
+/* ---------- floating walk button and route choice ---------- */
+.gobar { position: fixed; left: calc(var(--gl) + var(--rail) + 16px); right: calc(var(--gr) + 236px); bottom: calc(var(--gb) + 112px); display: flex; justify-content: center; pointer-events: none; z-index: 4; }
+.gobar-in { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 10px; }
+.route-pick button { min-height: 40px; gap: 8px; }
+.route-pick .sw { width: 18px; height: 0; border-top: 3px solid var(--signal); border-radius: 2px; }
+.route-pick .sw.dash { border-top: 3px dashed #f4f1ec; }
+.route-pick .mono { font-weight: 400; color: var(--ink-3); }
+.go-walk { display: flex; gap: 6px; }
+.btn.go { min-height: 48px; padding: 0 20px; font-size: 15px; border-radius: 7px; box-shadow: 0 8px 28px -10px rgba(242, 102, 47, 0.75); }
+.btn.go.b { box-shadow: 0 8px 28px -10px rgba(95, 180, 255, 0.7); }
+.btn.go svg { font-size: 19px; }
+.btn.go kbd { font: 700 10.5px var(--mono); padding: 2px 5px; border-radius: 3px; border: 1px solid rgba(20, 11, 6, 0.35); opacity: 0.7; }
+.cine .gobar { opacity: 0; pointer-events: none; }
+.actions .btn { width: 100%; }
+
+/* ---------- walk HUD: speed, readouts ---------- */
+.hud .speed { display: flex; align-items: center; gap: 8px; padding: 3px 10px 3px 3px; border-radius: var(--r); background: rgba(10, 12, 13, 0.82); border: 1px solid var(--line); }
+.hud .speed .seg { border: 0; background: none; }
+.hud #h-rate { width: 110px; accent-color: var(--signal); }
+.hud #h-speed { font: 700 12px var(--mono); min-width: 36px; text-align: right; }
+.readouts .row small { display: block; font-size: 10.5px; color: rgba(255, 255, 255, 0.6); max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.readouts .row b#h-stop { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 17px; }
+
+/* ---------- helmet view: a visor frame drawn over the scene, no change to the camera ---------- */
+.helmet { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 400ms; }
+.visor .helmet { opacity: 1; }
+.helmet i { position: absolute; inset: 0; }
+.helmet .glass { background: radial-gradient(ellipse 78% 86% at 50% 54%, transparent 64%, rgba(8, 7, 6, 0.72) 80%, #030303 90%); }
+.helmet .rim { background: radial-gradient(ellipse 78% 86% at 50% 54%, transparent 73%, rgba(255, 236, 205, 0.16) 76.5%, transparent 79%); }
+.helmet .glare { background: linear-gradient(118deg, transparent 18%, rgba(255, 244, 225, 0.07) 24%, transparent 31%), linear-gradient(118deg, transparent 70%, rgba(255, 244, 225, 0.05) 74%, transparent 77%), linear-gradient(rgba(255, 196, 120, 0.05), rgba(255, 196, 120, 0.02)); }
+.helmet .reticle { inset: auto; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.28); box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.03); }
+.visor .frame { display: none; }
+.visor .readouts { bottom: 7vh; }
+.visor .readouts .row b { color: #fff3e2; }
+.hud { inset: 0; }
+.hud .frame::before { top: 22px; } .hud .mode { top: 30px; }
+
+@media (max-width: 900px) {
+  .gobar { left: var(--gl); right: var(--gr); bottom: calc(50% + 92px); }
+  .route-pick .mono, .btn.go kbd { display: none; }
+  .btn.go { padding: 0 14px; font-size: 14px; }
+  .hud .speed #h-rate, .hud .speed output { display: none; }
+  .readouts .row small { display: none; }
+}

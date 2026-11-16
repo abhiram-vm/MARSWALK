@@ -115,7 +115,12 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
 
   // walk mode to the end
   await page.click('[data-walk="0"]'); await page.waitForTimeout(5000); await shot('08-walk')
-  check('walk shows height relative to the start', /^[+-]\d+ m$/.test(await page.textContent('#h-elev')), await page.textContent('#h-elev'))
+  check('walk shows time left and back-by time', /\d/.test(await page.textContent('#h-left')) && /\d\d:\d\d/.test(await page.textContent('#h-back')), `${await page.textContent('#h-left')}, back ${await page.textContent('#h-back')}`)
+  await page.click('#h-helmet'); await page.waitForTimeout(600); await shot('08b-helmet')
+  check('helmet view toggles', await page.evaluate(() => document.getElementById('hud').classList.contains('visor')))
+  await page.click('#h-helmet')
+  await page.fill('#h-rate', '50'); await page.dispatchEvent('#h-rate', 'input')
+  check('speed slider sets a free speed', /×/.test(await page.textContent('#h-speed')) && (await page.textContent('#h-speed')) !== '1×', await page.textContent('#h-speed'))
   await page.click('.speeds button[data-v="4"]')
   const hud = await page.textContent('#h-next')
   check('walk HUD gives the next stop or hazard', /Stop|steep/i.test(hud), hud)

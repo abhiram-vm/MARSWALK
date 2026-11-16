@@ -246,6 +246,7 @@ function reanalyse() {
   renderAll()
 }
 function onPick(cx: number, cy: number, inside: boolean) {
+  if (pickRouteLine()) return
   if (!inside) return hint(cx < 0 ? 'That is beyond the mapped area.' : 'That point is outside the 1.4 km planning area. The land around it is shown for context only.', true)
   const p = snap({ x: cx, y: cy })
   if (!p) return hint(`That ground is steeper than the ${P.limit}° limit, with nothing walkable within 30 m. Pick another point or raise the limit under Assumptions.`, true)
@@ -385,6 +386,13 @@ function buildUI() {
     <svg id="day" viewBox="0 0 1000 64" preserveAspectRatio="none" role="slider" tabindex="0" aria-label="Departure time" aria-valuemin="346" aria-valuemax="1150"></svg>
   </section>
 
+  <div class="gobar" id="gobar">
+    <div class="gobar-in surface">
+      <div class="seg route-pick" id="route-pick" role="group" aria-label="Route"></div>
+      <div class="go-walk" id="go-walk"></div>
+    </div>
+  </div>
+
   <div class="tools surface" role="group" aria-label="View">
     <button class="icon-btn" id="z-in" aria-label="Zoom in" title="Zoom in">${icon.Plus}</button>
     <button class="icon-btn" id="z-out" aria-label="Zoom out" title="Zoom out">${icon.Minus}</button>
@@ -407,24 +415,29 @@ function buildUI() {
   </div>
 
   <div class="hud" id="hud" hidden>
+    <div class="helmet" aria-hidden="true"><i class="glass"></i><i class="glare"></i><i class="rim"></i><i class="reticle"></i></div>
     <div class="frame"></div>
     <div class="mode" id="hud-mode"></div>
     <div class="compass" aria-hidden="true"><div class="strip" id="strip"></div></div>
     <div class="ctl">
-      <div class="seg speeds" role="group" aria-label="Playback speed">
-        <button data-v="0.5">½×</button><button data-v="1" aria-pressed="true">1×</button><button data-v="2">2×</button><button data-v="4">4×</button>
+      <div class="speed">
+        <div class="seg speeds" role="group" aria-label="Playback speed">
+          <button data-v="0.5">½×</button><button data-v="1" aria-pressed="true">1×</button><button data-v="4">4×</button>
+        </div>
+        <input type="range" id="h-rate" min="0" max="100" step="1" aria-label="Playback speed, from a quarter to eight times">
+        <output id="h-speed"></output>
       </div>
+      <button class="btn" id="h-helmet" aria-pressed="false" title="Helmet view (H)">${icon.Eye}<span>Helmet</span></button>
       <button class="btn" id="h-pause">${icon.Pause}<span>Pause</span></button><button class="btn" id="h-exit">${icon.X}<span>Exit</span></button>
     </div>
     <div class="readouts">
       <div class="next" id="h-next"></div>
       <div class="row">
-        <div>Walked<b id="h-dist"></b></div>
-        <div title="Height above or below where the walk started. Heights on Mars are measured from a reference surface (the areoid); this area is about ${Math.abs(Math.round(D.zmid / 100) * 100)} m below it because Gale crater is low.">Height vs start<b id="h-elev"></b></div>
-        <div>Slope<b id="h-slope"></b></div>
-        <div>Mars time<b id="h-clock"></b></div><div>Sun<b id="h-sun"></b></div><div>Dose so far<b id="h-dose"></b></div>
-        <div id="h-partner-c" hidden>Partner<b id="h-partner"></b></div>
-        <div>Playback<b id="h-speed"></b></div>
+        <div>Next stop<b id="h-stop"></b><small id="h-stop2"></small></div>
+        <div>Time left<b id="h-left"></b><small>until back at the start</small></div>
+        <div>Back by<b id="h-back"></b><small id="h-clock"></small></div>
+        <div>Ground<b id="h-slope"></b><small id="h-slope2"></small></div>
+        <div id="h-partner-c" hidden>Partner<b id="h-partner"></b><small id="h-partner2"></small></div>
       </div>
       <svg id="h-prof" viewBox="0 0 1000 46" preserveAspectRatio="none" role="slider" aria-label="Position along the walk. Click to jump."></svg>
     </div>
@@ -457,7 +470,6 @@ function buildUI() {
   $('#actions').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button')
     if (!b) return
-    if (b.dataset.walk) startWalk(Number(b.dataset.walk))
     if (b.id === 'b-guide2') openGuide()
   })
   $('#b-guide').onclick = openGuide
@@ -472,9 +484,18 @@ function buildUI() {
   $('#h-pause').onclick = () => setPaused(W.pauseWalk())
   $('#hud').querySelector('.speeds')!.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button')
-    if (!b) return
-    walkSpeed = Number(b.dataset.v); W.setWalkSpeed(walkSpeed); showSpeed()
+    if (b) setSpeed(Number(b.dataset.v))
   })
+  // the slider is logarithmic: a quarter speed to eight times
+  $('#h-rate').addEventListener('input', (e) => setSpeed(0.25 * Math.pow(2, (Number((e.target as HTMLInputElement).value) / 100) * 5)))
+  $('#h-helmet').onclick = () => setHelmet(!helmet)
+  $('#gobar').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button')
+    if (!b) return
+    if (b.dataset.walk) startWalk(Number(b.dataset.walk))
+    if (b.dataset.k) selectKind(b.dataset.k as Kind)
+  })
+  ;($('#gl') as HTMLCanvasElement).addEventListener('pointerdown', (e) => (lastDown = { x: e.clientX, y: e.clientY }))
   $('#h-prof').addEventListener('pointerdown', (e) => {
     const b = $('#h-prof').getBoundingClientRect()
     W.seekWalk(((e.clientX - b.left) / b.width) * walkEnd)
@@ -494,6 +515,9 @@ function buildUI() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (W.mode !== 'orbit') stopWalk(); else if ($('#guide-root').firstChild) closeGuide(); else closeDrawer() }
     if (e.key === ' ' && W.mode !== 'orbit') { e.preventDefault(); $('#h-pause').click() }
+    const typing = (e.target as HTMLElement).closest('input, textarea, select')
+    if (!typing && (e.key === 'h' || e.key === 'H') && W.mode !== 'orbit') setHelmet(!helmet)
+    if (!typing && (e.key === 'w' || e.key === 'W') && W.mode === 'orbit' && ready() && !$('#guide-root').firstChild) startWalk(0)
   })
 }
 const byId = (id: string) => D.stations.find((s) => s.id === id)
@@ -623,7 +647,7 @@ function renderOptions() {
     </button>`
   }
   $('#options').innerHTML = opt('direct', 'Direct') + opt('cautious', 'Cautious')
-  $('#options').querySelectorAll<HTMLButtonElement>('.option').forEach((b) => (b.onclick = () => { S.sel = b.dataset.k as Kind; W.styleRibbons(S.sel); renderAll() }))
+  $('#options').querySelectorAll<HTMLButtonElement>('.option').forEach((b) => (b.onclick = () => selectKind(b.dataset.k as Kind)))
   const d = agg('direct'), c = agg('cautious')
   let txt = ''
   if (d && c) {
@@ -650,12 +674,38 @@ function renderPair() {
     <p class="fine sight-key"><span><i class="gap"></i>out of sight</span><span><i class="far"></i>beyond ${S.sepLimit} m</span><span class="r">${fmtMin(c.end)}</span></p>
     <p class="fine">Line of sight is checked over the terrain at eye height every 30 seconds of the plan. Hills between partners block it; boulders smaller than about 1 m are not in the model.</p>`
 }
+function selectKind(k: Kind) {
+  if (!ready(k) || S.sel === k) return
+  S.sel = k; W.styleRibbons(S.sel); renderAll()
+  hint(`${k === 'direct' ? 'Direct' : 'Cautious'} route selected.`)
+}
+let lastDown = { x: -1, y: -1 }
+/** Clicking on the other route's line selects it rather than moving a stop. */
+function pickRouteLine() {
+  if (S.pair) return false
+  const other: Kind = S.sel === 'direct' ? 'cautious' : 'direct', r = S.routes[other][0], mine = S.routes[S.sel][0]
+  if (!r || !mine) return false
+  const near = (q: Route) => {
+    let best = Infinity
+    for (let i = 0; i < q.xs.length; i += 2) {
+      const p = W.project(W.cellToWorld({ x: q.xs[i], y: q.ys[i] }, 1.6))
+      if (p.on) best = Math.min(best, Math.hypot(p.x - lastDown.x, p.y - lastDown.y))
+    }
+    return best
+  }
+  const d = near(r)
+  if (d > 10 || near(mine) < d) return false
+  selectKind(other)
+  return true
+}
 function renderActions() {
   const ok = ready()
-  $('#actions').className = `actions ${S.pair ? 'two' : ''}`
-  $('#actions').innerHTML = S.pair
-    ? `<button class="btn primary" data-walk="0" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as A</span></button><button class="btn primary b" data-walk="1" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as B</span></button><button class="btn" id="b-guide2" ${ok ? '' : 'disabled'}>${icon.FileText}<span>Field guide</span></button>`
-    : `<button class="btn primary" data-walk="0" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk it at eye level</span></button><button class="btn" id="b-guide2" ${ok ? '' : 'disabled'}>${icon.FileText}<span>Field guide</span></button>`
+  $('#actions').innerHTML = `<button class="btn" id="b-guide2" ${ok ? '' : 'disabled'}>${icon.FileText}<span>Open the field guide</span></button>`
+  $('#go-walk').innerHTML = S.pair
+    ? `<button class="btn primary go" data-walk="0" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as A</span></button><button class="btn primary go b" data-walk="1" ${ok ? '' : 'disabled'}>${icon.PersonSimpleWalk}<span>Walk as B</span></button>`
+    : `<button class="btn primary go" data-walk="0" ${ok ? '' : 'disabled'} title="Walk it at eye level (W)">${icon.PersonSimpleWalk}<span>Walk it at eye level</span><kbd>W</kbd></button>`
+  const kinds: [Kind, string][] = [['direct', 'Direct'], ['cautious', 'Cautious']]
+  $('#route-pick').innerHTML = kinds.map(([k, n]) => { const a = agg(k); return `<button data-k="${k}" aria-pressed="${S.sel === k}" ${a ? '' : 'disabled'}><i class="sw ${k === 'cautious' ? 'dash' : ''}"></i><span>${n}</span><span class="mono">${a ? fmtMin(a.walk) : 'none'}</span></button>` }).join('')
 }
 function renderAssumptions() {
   $('#o-suit').textContent = `${Math.round(P.suit * 100)}%`; $('#o-limit').textContent = `${P.limit}°`; $('#o-work').textContent = `${P.work} min`
@@ -964,13 +1014,22 @@ function bindMini() {
 }
 
 // ---------------------------------------------------------------- walk at eye level
-let walkAs = 0, walkEnd = 0, walkRate = 1, walkSpeed = 1, walkLegs: ReturnType<typeof legs> = [], arrivedAt = -1
+let walkAs = 0, walkEnd = 0, walkRate = 1, walkSpeed = 1, walkLegs: ReturnType<typeof legs> = [], arrivedAt = -1, walkTimes: Float32Array = new Float32Array(0)
+let helmet = store.get('mw-helmet') === '1', partnerStride = 0, partnerLast: Pt | null = null
+function setHelmet(on: boolean) {
+  helmet = on; store.set('mw-helmet', on ? '1' : '0')
+  $('#hud').classList.toggle('visor', on); $('#h-helmet').setAttribute('aria-pressed', String(on))
+}
+function setSpeed(m: number) {
+  walkSpeed = Math.max(0.25, Math.min(8, m)); W.setWalkSpeed(walkSpeed); showSpeed()
+}
 let partner: { r: Route; times: Float32Array } | null = null, partnerAt: Pt | null = null
 function startWalk(w: number) {
   const r = cur()[w]
   if (!r) return
   closeDrawer(); dismissCoach(); closeGuide(); $('#tip').hidden = true
-  walkAs = w; arrivedAt = -1
+  walkAs = w; arrivedAt = -1; walkTimes = sampleTimes(r, P); partnerStride = 0; partnerLast = null
+  setHelmet(helmet)
   // Walk to the last stop; the way back is the same kind of ground and would double the rehearsal.
   const iEnd = r.stopAt[r.stopAt.length - 2]
   walkEnd = r.d[iEnd]
@@ -982,7 +1041,6 @@ function startWalk(w: number) {
   walkRate = walkEnd / dur; walkSpeed = 1
   document.body.classList.add('cine'); $('#hud').hidden = false; $('#arrive').hidden = true
   $('#hud-mode').innerHTML = `${S.pair ? `ASTRONAUT ${WHO[w]}. ` : ''}EYE HEIGHT 1.8 M. TRUE SCALE.<small>Drag or use the arrow keys to look around</small>`
-  $('#hud').querySelectorAll('.speeds button').forEach((b) => b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.v === '1')))
   $('#h-partner-c').hidden = !partner
   setPaused(false)
   let lo = Infinity, hi = -Infinity
@@ -1006,38 +1064,45 @@ function showSpeed() {
   const r = cur()[walkAs]
   if (!r) return
   // how much faster than real time: real walking covers walkEnd metres in the time to the last stop
-  const real = walkEnd / (r.t[r.stopAt[r.stopAt.length - 2]] || 1)
-  $('#h-speed').textContent = `×${Math.round((walkRate * walkSpeed) / real)}`
+  const real = walkEnd / (r.t[r.stopAt[r.stopAt.length - 2]] || 1), x = (walkRate * walkSpeed) / real
+  $('#h-speed').textContent = `${walkSpeed < 1 ? walkSpeed.toFixed(2).replace(/0$/, '') : walkSpeed.toFixed(walkSpeed % 1 ? 1 : 0)}×`
+  $('#h-speed').title = `About ${Math.round(x)} times faster than walking`
+  ;($('#h-rate') as HTMLInputElement).value = String(Math.round((Math.log2(walkSpeed / 0.25) / 5) * 100))
   $('#hud').querySelectorAll('.speeds button').forEach((b) => b.setAttribute('aria-pressed', String(Number((b as HTMLElement).dataset.v) === walkSpeed)))
 }
 function onWalkFrame(f: { dist: number; heading: number; holding: boolean }) {
-  const r = cur()[walkAs]!, a = at(r, f.dist / r.dist), sim = clockAt(r, f.dist), sun = sunAt(sim, D.sun), slope = D.grid.slope[a.cell]
+  const r = cur()[walkAs]!, a = at(r, f.dist / r.dist), sim = clockAt(r, f.dist), slope = D.grid.slope[a.cell]
+  const elapsed = (sim - P.depart) * MARS_MIN
   $('#strip').style.transform = `translateX(${(-((f.heading / 15 + 2) * 40 + 20)).toFixed(1)}px)`
-  $('#h-dist').textContent = `${Math.round(Math.min(f.dist, walkEnd))} / ${Math.round(walkEnd)} m`
-  const dz = a.elev - r.z[0]
-  $('#h-elev').textContent = `${dz >= 0 ? '+' : ''}${Math.round(dz)} m`
+  // time left until back at the start, counting the stops still to come and the walk back
+  $('#h-left').textContent = fmtMin(Math.max(0, r.walk - elapsed))
+  $('#h-back').textContent = clock(P.depart + r.walk / MARS_MIN)
+  $('#h-clock').textContent = `Mars time now ${clock(sim)}`
   const sl = $('#h-slope'); sl.textContent = `${Math.round(slope)}°`; sl.className = slope > 15 ? 'alarm' : slope > 10 ? 'warn' : ''
-  $('#h-clock').textContent = clock(sim)
-  $('#h-sun').textContent = `${Math.round(sun.el)}°`
-  $('#h-dose').textContent = `${(((sim - P.depart) * MARS_MIN) / 1440 * RATE_MSV_PER_DAY).toFixed(3)} mSv`
+  $('#h-slope2').textContent = slope > 15 ? 'steep, slow down' : slope > 10 ? 'moderate' : 'easy'
   if (partner) {
-    const m = (sim - P.depart) * MARS_MIN, here = { x: a.x, y: a.y }, there = posAtTime(partner.r, partner.times, m), next = posAtTime(partner.r, partner.times, m + 0.3)
+    const m = elapsed, here = { x: a.x, y: a.y }, there = posAtTime(partner.r, partner.times, m), next = posAtTime(partner.r, partner.times, m + 0.3)
     const sep = Math.hypot(there.x - here.x, there.y - here.y) * D.grid.cell, seen = sep < 1 || lineOfSight(D.grid, here, there)
     // on a shared stretch the partner walks just ahead and to the right, in view, not inside the camera
     const beside = sep < 6, h = (f.heading * Math.PI) / 180, c = 1 / D.grid.cell
     const shown = beside ? { x: here.x + (Math.sin(h) * 4 + Math.cos(h) * 1.8) * c, y: here.y + (-Math.cos(h) * 4 + Math.sin(h) * 1.8) * c } : there
-    W.setPartner(shown, beside ? f.heading : (Math.atan2(next.x - there.x, -(next.y - there.y)) * 180) / Math.PI, walkAs === 0 ? 0x5fb4ff : 0xf2662f)
+    const step = partnerLast ? Math.hypot(shown.x - partnerLast.x, shown.y - partnerLast.y) * D.grid.cell : 0
+    partnerStride += Math.min(step, 3); partnerLast = shown
+    const moving = Math.hypot(next.x - there.x, next.y - there.y) > 0.05 || (beside && !f.holding)
+    W.setPartner(shown, beside ? f.heading : (Math.atan2(next.x - there.x, -(next.y - there.y)) * 180) / Math.PI, walkAs === 0 ? 0x5fb4ff : 0xf2662f, partnerStride, moving)
     partnerAt = there
-    const p = $('#h-partner'); p.textContent = beside ? 'beside you' : `${round10(sep)} m, ${seen ? 'in sight' : 'out of sight'}`
+    const p = $('#h-partner'); p.textContent = beside ? 'beside you' : `${round10(sep)} m`
     p.className = !seen || sep > S.sepLimit ? 'warn' : ''
+    $('#h-partner2').textContent = beside ? `astronaut ${WHO[1 - walkAs]}` : `${WHO[1 - walkAs]}, ${seen ? 'in sight' : 'out of sight'}`
   } else partnerAt = null
   const stops = stopsOf(walkAs), leg = legOf(r, a.i), stopDist = r.d[r.stopAt[leg]], stopNo = stops[leg]
+  const st = stopNo ? nearStation(S.pts[stopNo]) : undefined, left = Math.max(0, stopDist - f.dist)
+  $('#h-stop').textContent = stopNo ? `${stopNo}${st ? ` ${shortName(st)}` : ''}` : 'start'
+  const eta = walkTimes[r.stopAt[leg]] - elapsed
+  $('#h-stop2').textContent = left > 3 ? `${round10(left) || Math.round(left)} m, ${fmtMin(Math.max(1, eta))}` : `here, ${P.work} min of science`
   let next = '', warn = false
   for (const l of walkLegs) if (l.from > f.dist + 2 && l.from < stopDist && l.k >= 2) { next = `${l.k === 3 ? 'Very steep ground' : 'Steep ground'} in ${Math.max(5, round10(l.from - f.dist))} m. Slow down and check footing.`; warn = true; break }
-  if (!next) {
-    const left = stopDist - f.dist, st = stopNo ? nearStation(S.pts[stopNo]) : undefined
-    next = left > 15 ? `Stop ${stopNo}${st ? `, ${shortName(st)},` : ''} in ${round10(left)} m. Follow the beacon.` : `At stop ${stopNo}. ${P.work} min of science planned here.`
-  }
+  if (!next) next = left > 15 ? `Follow the beacon to stop ${stopNo}.` : `At stop ${stopNo}. ${P.work} min of science planned here.`
   const n = $('#h-next'); n.textContent = next; n.className = `next ${warn ? 'warn' : ''}`
   const cur_ = $('#h-cur')
   if (cur_) { const xx = ((f.dist / walkEnd) * 1000).toFixed(1); cur_.setAttribute('x1', xx); cur_.setAttribute('x2', xx) }
@@ -1083,7 +1148,8 @@ function openGuide() {
       elapsed += r.legMin[j]
       const arrive = P.depart + elapsed / MARS_MIN, turn = P.depart + (elapsed * 1.5) / MARS_MIN
       elapsed += P.work
-      return { w, i, arrive, turn, st: nearStation(S.pts[i]) }
+      const k = r.stopAt[j]
+      return { w, i, arrive, turn, st: nearStation(S.pts[i]), sun: sunAt(arrive, D.sun).el, dose: ((elapsed - P.work) / 1440) * RATE_MSV_PER_DAY, dz: r.z[k] - r.z[0] }
     })
   }).sort((x, y) => x.i - y.i)
   const legBlocks = walkers().map((w) => {
@@ -1113,7 +1179,7 @@ function openGuide() {
         <h3>Timeline</h3>
         <ul>
           ${li('s', 'Simulated', `Leave ${V(label(S.pts[0]))} at ${V(clock(P.depart))}, from a notional rover park`)}
-          ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}Stop ${s.i}${s.st ? `, ${shortName(s.st)}` : ''}: arrive about ${V(clock(s.arrive))}, ${V(P.work + ' min')} of science`)).join('')}
+          ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}Stop ${s.i}${s.st ? `, ${shortName(s.st)}` : ''}: arrive about ${V(clock(s.arrive))}, ${V(P.work + ' min')} of science. Sun ${V(Math.round(s.sun) + '°')} high, ${V(s.dose.toFixed(3) + ' mSv')} so far, ${V(`${s.dz >= 0 ? '+' : ''}${Math.round(s.dz)} m`)} against the start.`)).join('')}
           ${li('a', 'Assumed', `${S.pair ? 'Both back' : 'Back'} at the start about ${V(clock(v.back))}. ${S.pair ? 'Longest walk' : 'Whole walk'} ${V(fmtMin(a.walk))}, ${V(round10(a.dist) + ' m')}${S.pair ? ' walked in all' : ''}, climb ${V(Math.round(a.climb) + ' m')}`)}
         </ul>
         ${S.pair && pc ? html`<h3>Working as a pair</h3><ul>
