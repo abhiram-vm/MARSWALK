@@ -23,7 +23,7 @@ def ctr(d,t,fn,y,c):
 def title(d):
     x=140
     d.text((x,300),'NASA SPACE APPS CHALLENGE 2026',font=f('SemiBold',28),fill=OR)
-    d.text((x,345),'Team MarsWalk',font=sf(150),fill=WH)
+    d.text((x,345),'Team Indy Knights',font=sf(150),fill=WH)
     d.text((x,540),'Satvik Vitta   ·   Abhiram Menon   ·   Satwik Pokala   ·   Kalaanidhi Sundar',font=f('Medium',40),fill=SO)
     d.text((x,620),'Challenge: Interplanetary Survival Guide: Martian Map',font=f('Regular',32),fill=(210,200,190,255))
 def end(d):
@@ -38,7 +38,7 @@ def end(d):
         wa=d.textlength(a+':  ',font=fb); wb=d.textlength(b,font=fr); x=(W-wa-wb)/2
         d.text((x,y),a+':  ',font=fb,fill=OR); d.text((x+wa,y),b,font=fr,fill=SO); y+=66
     ctr(d,'MarsWalk  ·  Plan the first walk on Mars, meter by meter.',f('SemiBold',38),720,WH)
-    ctr(d,'Team MarsWalk  ·  Satvik Vitta, Abhiram Menon, Satwik Pokala, Kalaanidhi Sundar',f('Regular',26),800,(200,190,180,255))
+    ctr(d,'Team Indy Knights  ·  Satvik Vitta, Abhiram Menon, Satwik Pokala, Kalaanidhi Sundar',f('Regular',26),800,(200,190,180,255))
 card('title',title); card('end',end)
 cap('chal','THE CHALLENGE','Interplanetary Survival Guide: Martian Map','Inspired by NASA Curiosity drilling the boxwork ridges of Gale crater in 2025')
 cap('tag','MARSWALK','Plan the first walk on Mars, meter by meter.',"Astronauts won't need a map of the planet, but of the next 500 meters")
