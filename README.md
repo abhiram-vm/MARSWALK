@@ -20,6 +20,9 @@ The boxwork site in 3D from NASA terrain and orbital images, with Mount Sharp ar
 | [docs/DESIGN.md](docs/DESIGN.md) | How it looks and behaves: layout, motion, performance, tokens, checks |
 | [docs/AUDIT.md](docs/AUDIT.md) | How it is built, rule compliance, defects found and fixed, tests |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
+| [HANDOFF.md](HANDOFF.md) | Start here if you are taking over: commands, release and beta, renaming, open work |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, newest first |
+| [docs/history/CHAT.md](docs/history/CHAT.md) | The conversation the project was built in |
 | [docs/LANDING_PLAN.md](docs/LANDING_PLAN.md) | Plan for the cinematic story site that leads into the planner (not built yet) |
 
 ## Try it

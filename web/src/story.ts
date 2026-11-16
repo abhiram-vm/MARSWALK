@@ -3,6 +3,7 @@
 // over the same terrain the planner uses, so the hand-off at the end has no cut.
 // Plan and rationale: docs/LANDING_PLAN.md.
 import * as THREE from 'three'
+import { NAME } from './brand'
 import globeUrl from './data/globe.jpg'
 import type { SiteData, Station } from './data'
 import type { Pose, World } from './world'
@@ -32,15 +33,15 @@ export function createStory(host: StoryHost) {
   const photo = (s: Station | undefined) => (s?.photo ? `<figure><img src="${s.photo.src}" alt="${s.name}, seen by Curiosity" loading="lazy"><figcaption>${s.name}<span>sol ${s.photo.sol}</span></figcaption></figure>` : '')
   const nStops = D.stations.length
   const chapters: Chapter[] = [
-    { id: 'mars', rail: 'Mars', title: 'MARSWALK', body: 'The first people on Mars will not need a map of the planet. They will need a map of the next five hundred metres.' },
+    { id: 'mars', rail: 'Mars', title: `${NAME}`, body: 'The first people on Mars will not need a map of the planet. They will need a map of the next five hundred metres.' },
     { id: 'gale', rail: 'Gale', eyebrow: '01', title: 'Gale crater', body: 'A crater 154 km across, just south of the Martian equator. NASA\'s Curiosity rover landed here in August 2012 and has been climbing the mountain in its middle ever since.', credit: 'Viking colour mosaic, NASA and USGS, via NASA Mars Trek' },
     { id: 'sharp', rail: 'Mount Sharp', eyebrow: '02', title: 'Mount Sharp', body: 'A mountain of layered rock about 5 km high. Its layers record how Mars changed from wet to dry, and Curiosity reads them as it climbs.', credit: 'Terrain: USGS 1 m model from MRO HiRISE and CTX and Mars Express HRSC. Image: CTX, Mars Reconnaissance Orbiter' },
     { id: 'boxwork', rail: 'Boxwork', eyebrow: '03', title: 'The boxwork', body: 'On the mountain\'s flank, low ridges cross like a honeycomb with hollows between them. Groundwater once ran through cracks here and left minerals behind. The ridges resisted erosion and the hollows did not. Finding out why is the science goal.', credit: 'Image: HiRISE, Mars Reconnaissance Orbiter, about 0.7 m per pixel' },
     { id: 'data', rail: 'Data', eyebrow: '04', title: 'Three missions, five kinds of data', body: 'Sub-metre images and a one-metre terrain model from Mars Reconnaissance Orbiter. Night-time temperature from Mars Odyssey. Weather, radiation and photographs from Curiosity. Sweeping across now: slope, then night surface temperature.', credit: 'Slope: derived from the terrain. Night temperature: THEMIS, Mars Odyssey' },
     { id: 'curiosity', rail: 'Curiosity', eyebrow: '05', title: 'Where Curiosity stopped', body: `${nStops} places in this 3 km area where Curiosity parked for three sols or more, from its own records. Each one is a place a person could walk to.`, credit: 'Navigation camera photos, NASA/JPL-Caltech',
       extra: `<div class="st-photos">${['c4560', 'c4687', 'c4711', 'c4893'].map((id) => photo(named(id))).join('')}</div>` },
-    { id: 'route', rail: 'Route', eyebrow: '06', title: 'A route, and a call', body: 'MARSWALK finds a path across the ridges that stays under the slope limit, and times it for a walker in a suit. Then it weighs the walk against the daylight and the space weather and makes the call.', extra: '<p class="st-call" id="st-call"></p>' },
-    { id: 'pair', rail: 'Pairs', eyebrow: '07', title: 'Two astronauts', body: 'Split the stops between two people. MARSWALK checks how far apart they get and whether they can still see each other over the ridges.' },
+    { id: 'route', rail: 'Route', eyebrow: '06', title: 'A route, and a call', body: `${NAME} finds a path across the ridges that stays under the slope limit, and times it for a walker in a suit. Then it weighs the walk against the daylight and the space weather and makes the call.`, extra: '<p class="st-call" id="st-call"></p>' },
+    { id: 'pair', rail: 'Pairs', eyebrow: '07', title: 'Two astronauts', body: `Split the stops between two people. ${NAME} checks how far apart they get and whether they can still see each other over the ridges.` },
     { id: 'plan', rail: 'Plan', eyebrow: '08', title: 'Your turn', body: 'Pick the stops, read the call, then walk it at eye level.', extra: '<button class="btn primary go st-go" id="st-go">Plan a walk</button>' },
   ]
   const N = chapters.length
@@ -51,7 +52,7 @@ export function createStory(host: StoryHost) {
   root.innerHTML = `
     <div class="st-fade" id="st-fade"></div>
     <div class="st-grain"></div>
-    <header class="st-top"><span class="wordmark">MARSWALK</span><button class="btn st-skip" id="st-skip">Skip to the planner</button></header>
+    <header class="st-top"><span class="wordmark">${NAME}</span><button class="btn st-skip" id="st-skip">Skip to the planner</button></header>
     <nav class="st-rail" aria-label="Chapters">${chapters.map((c, i) => `<button data-i="${i}" aria-label="${c.rail}"><i></i><span>${c.rail}</span></button>`).join('')}</nav>
     <div class="st-scroll" id="st-scroll" tabindex="0">
       ${chapters.map((c, i) => `<section class="st-ch ${i === 0 ? 'first' : ''} ${i === N - 1 ? 'last' : ''}" id="st-${c.id}">

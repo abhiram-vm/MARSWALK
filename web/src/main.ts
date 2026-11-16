@@ -1,8 +1,9 @@
 // MARSWALK app: state, panels, timeline, HUD and field guide.
 // AI-assisted (Claude Code). Behaviour is described in docs/DESIGN.md.
 import './style.css'
+import { NAME } from './brand'
 declare const __BETA__: boolean
-if (__BETA__) document.title = 'MARSWALK beta'
+document.title = __BETA__ ? `${NAME} beta` : NAME
 import * as THREE from 'three'
 import RoutingWorker from './routing.worker?worker&inline'
 import { loadSite, type SiteData, type Station } from './data'
@@ -47,15 +48,15 @@ document.querySelector('#app')!.innerHTML = html`
   <div class="vignette"></div>
   <div class="pins" id="pins"></div>
   <div class="tip" id="tip" hidden></div>
-  <div class="loading" id="loading"><b>MARSWALK</b><div class="bar"><i id="load-bar"></i></div><span id="load-msg">Loading terrain and imagery</span></div>
-  <div class="title" id="title"><b>MARSWALK</b><span>Boxwork unit, Mount Sharp, Gale crater, Mars</span></div>
+  <div class="loading" id="loading"><b>${NAME}</b><div class="bar"><i id="load-bar"></i></div><span id="load-msg">Loading terrain and imagery</span></div>
+  <div class="title" id="title"><b>${NAME}</b><span>Boxwork unit, Mount Sharp, Gale crater, Mars</span></div>
 `
 
 async function boot() {
   try {
     D = await loadSite((f) => { $('#load-bar').style.width = `${Math.round(f * 80)}%` })
   } catch {
-    $('#loading').innerHTML = '<b>MARSWALK</b><span>The site data could not be loaded. Reload the page to try again.</span>'
+    $('#loading').innerHTML = `<b>${NAME}</b><span>The site data could not be loaded. Reload the page to try again.</span>`
     return
   }
   $('#load-msg').textContent = 'Shading terrain'
@@ -64,7 +65,7 @@ async function boot() {
   try {
     W = new World($('#gl') as HTMLCanvasElement, D)
   } catch {
-    $('#loading').innerHTML = '<b>MARSWALK</b><span>This browser could not start 3D graphics (WebGL). Try a current version of Chrome, Edge, Firefox or Safari.</span>'
+    $('#loading').innerHTML = `<b>${NAME}</b><span>This browser could not start 3D graphics (WebGL). Try a current version of Chrome, Edge, Firefox or Safari.</span>`
     return
   }
   sunrise = parseClock(D.conditions.sunrise); sunset = parseClock(D.conditions.sunset)
@@ -94,7 +95,7 @@ async function boot() {
   W.onDrag = onDrag
   W.onUserMove = () => { if (S.drawer === 'station') closeDrawer() }
   W.onContextLost = () => {
-    document.body.insertAdjacentHTML('beforeend', '<div class="fatal surface" style="z-index:30;background:var(--bg)"><b>The graphics were reset by the browser.</b><span class="muted">This can happen when a laptop sleeps or the GPU is busy.</span><button class="btn primary" onclick="location.reload()">Reload MARSWALK</button></div>')
+    document.body.insertAdjacentHTML('beforeend', `<div class="fatal surface" style="z-index:30;background:var(--bg)"><b>The graphics were reset by the browser.</b><span class="muted">This can happen when a laptop sleeps or the GPU is busy.</span><button class="btn primary" onclick="location.reload()">Reload ${NAME}</button></div>`)
   }
   W.setPose({ target: new THREE.Vector3(0, 0, 0), dist: 9200, yaw: 0.25, pitch: 1.18 })
   $('#loading').classList.add('done')
@@ -338,7 +339,7 @@ function buildUI() {
   const c = D.conditions
   document.body.insertAdjacentHTML('beforeend', html`
   <header class="topbar">
-    <span class="wordmark">MARSWALK</span>${__BETA__ ? '<span class="beta-tag" title="Beta copy for testing new features. The released version is the main page.">BETA</span>' : ''}
+    <span class="wordmark">${NAME}</span>${__BETA__ ? '<span class="beta-tag" title="Beta copy for testing new features. The released version is the main page.">BETA</span>' : ''}
     <div class="place"><b>Boxwork unit, Mount Sharp</b><span>Gale crater, 4.80° S 137.38° E</span></div>
     <div class="right">
       <span class="stamp">Weather: sol ${c.sol}, ${c.terrestrial_date}</span>
