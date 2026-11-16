@@ -9,7 +9,7 @@ NASA Space Apps Challenge 2026, ["Interplanetary Survival Guide: Martian Map"](h
 
 ## Open it
 
-Open [`index.html`](index.html) in a current browser, or visit the live site at **https://abhiram-vm.github.io/MARSWALK/**. It is one self-contained file: data, fonts and code are all inside it, and it works on laptops and phones.
+Open [`index.html`](index.html) in a current browser, or visit the live site at **[https://abhiram-vm.github.io/MARSWALK/](https://github.com/abhiram-vm/MARSWALK?tab=readme-ov-file)**. It is one self-contained file: data, fonts and code are all inside it, and it works on laptops and phones.
 
 - **Demo video (under 30 seconds):** [docs/demo/MarsWalk_demo_30s.mp4](docs/demo/MarsWalk_demo_30s.mp4)
 - **Project description:** [docs/PROJECT_DESCRIPTION.md](docs/PROJECT_DESCRIPTION.md)
