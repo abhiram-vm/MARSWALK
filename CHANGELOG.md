@@ -4,6 +4,9 @@ Newest first. Commit hashes are on `main`.
 
 ## Released 2026-11-15: the beta becomes the app
 
+### 2026-11-15: demo video, live walkthrough
+- `docs/demo/MarsWalk_demo_30s.mp4` remade as a live walkthrough filmed frame by frame from the app (story, adding a stop, layers, pairs, GO to NO-GO, science site, eye-level walk, field guide), following the Space Apps timing, US spelling in captions, future-impact end card. Scripts: `docs/demo/tools/capture.py`, `ov.py`, `build.py`.
+
 ### 2026-11-15: release and cleanup
 - The beta is now the released `index.html`, without the BETA badge or title. The separate beta copy, `npm run build:beta`, `E2E_BETA` and the `__BETA__` flag were removed; there is one build.
 - Removed the early prototypes in `preview/` (2D planner and first 3D version, about 8 MB) and `docs/LANDING_PLAN.md` (the story it planned is built). Both remain in git history and on the `backup/original-2026-11-15` branch.
