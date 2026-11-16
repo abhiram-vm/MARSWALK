@@ -18,7 +18,8 @@ from PIL import Image
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WAYPOINTS = "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json"
 RAW = "https://mars.nasa.gov/api/v1/raw_image_items/?order=date_taken+asc&per_page={n}&page={p}&condition_1=msl:mission&condition_2={a}:sol:gte&condition_3={b}:sol:lte{extra}"
-AOI = (137.372, -4.816, 137.396, -4.790)
+from aoi import AOI as _A  # noqa: E402  shared planning area
+AOI = (_A["west"], _A["south"], _A["east"], _A["north"])
 R = 3396190.0
 
 

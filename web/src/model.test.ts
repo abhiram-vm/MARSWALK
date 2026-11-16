@@ -260,3 +260,16 @@ describe('stop order', () => {
     expect(len(o)).toBe(6)
   })
 })
+
+describe('one-way walks', () => {
+  it('routes a point to itself as a single cell, so a one-way walk has a zero-length last leg', () => {
+    const g = flatGrid(20, 20)
+    const s0 = 3 * 20 + 3, s1 = 15 * 20 + 12
+    const legs = [astar(g.elev, g.slope, g.cols, g.rows, g.cell, s0, s1, 20, 0.5, false), astar(g.elev, g.slope, g.cols, g.rows, g.cell, s1, s1, 20, 0.5, false)]
+    expect(Array.from(legs[1]!)).toEqual([s1])
+    const r = analyse(g, legs, 'direct', { suit: 0.5, limit: 20, work: 30, depart: 540, oneWay: true })!
+    expect(r.backMin).toBe(0)
+    expect(r.walk).toBeCloseTo(r.outMin + 30, 6)
+    expect(r.stopAt[r.stopAt.length - 1]).toBe(r.stopAt[r.stopAt.length - 2])
+  })
+})

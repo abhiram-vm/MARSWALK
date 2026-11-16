@@ -1,23 +1,1663 @@
 {
  "site": {
-  "cols": 712,
-  "rows": 771,
+  "cols": 1500,
+  "rows": 1500,
   "cell": 2,
-  "zmin": -3771.32,
-  "west": 137.37199569149047,
-  "east": 137.3960025622036,
-  "south": -4.815985354918017,
-  "north": -4.789987752831662
+  "per_m": 50,
+  "zmin": -4033.93,
+  "west": 137.3587016548623,
+  "east": 137.4092965988318,
+  "south": -4.828284025859583,
+  "north": -4.777689081890095
+ },
+ "outer": {
+  "n": 468,
+  "cell": 64,
+  "zmin": -4623.23,
+  "per_m": 10
  },
  "context": {
   "n": 500,
   "cell": 16,
-  "zmin": -4325.79,
+  "zmin": -4323.37,
   "per_m": 10,
   "dx": 0.0,
   "dz": 0.0
  },
  "stations": [
+  {
+   "id": "c4080",
+   "rmc": "105_2780",
+   "name": "Sol 4080 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4080,
+    4082
+   ],
+   "visits": [
+    [
+     4080,
+     4082
+    ]
+   ],
+   "stay": 3,
+   "mahli": 180,
+   "chemcam": 64,
+   "lonlat": [
+    137.4058362,
+    -4.77925297
+   ],
+   "photo": {
+    "sol": 4080,
+    "date": "2024-01-28",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04080/opgs/edr/ncam/NLB_759703495EDR_F1052780NCAM00354M_.JPG"
+   },
+   "xy": [
+    1396.94,
+    46.35
+   ]
+  },
+  {
+   "id": "c4084",
+   "rmc": "105_3002",
+   "name": "Sol 4084 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4084,
+    4087
+   ],
+   "visits": [
+    [
+     4084,
+     4087
+    ]
+   ],
+   "stay": 4,
+   "mahli": 76,
+   "chemcam": 91,
+   "lonlat": [
+    137.4060687,
+    -4.77953584
+   ],
+   "photo": {
+    "sol": 4086,
+    "date": "2024-02-03",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04086/opgs/edr/ncam/NLB_760225187EDR_F1053002NCAM00289M_.JPG"
+   },
+   "xy": [
+    1403.83,
+    54.73
+   ]
+  },
+  {
+   "id": "c4089",
+   "rmc": "106_0",
+   "name": "Sol 4089 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4089,
+    4093
+   ],
+   "visits": [
+    [
+     4089,
+     4093
+    ]
+   ],
+   "stay": 5,
+   "mahli": 220,
+   "chemcam": 69,
+   "lonlat": [
+    137.4061688,
+    -4.77973736
+   ],
+   "photo": {
+    "sol": 4089,
+    "date": "2024-02-06",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04089/opgs/edr/ncam/NLB_760504816EDR_F1060000NCAM00354M_.JPG"
+   },
+   "xy": [
+    1406.8,
+    60.71
+   ]
+  },
+  {
+   "id": "c4098",
+   "rmc": "106_438",
+   "name": "Sol 4098 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4098,
+    4101
+   ],
+   "visits": [
+    [
+     4098,
+     4101
+    ]
+   ],
+   "stay": 4,
+   "mahli": 192,
+   "chemcam": 78,
+   "lonlat": [
+    137.406977,
+    -4.77999028
+   ],
+   "photo": {
+    "sol": 4098,
+    "date": "2024-02-15",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04098/opgs/edr/ncam/NRB_761297665EDR_F1060438NCAM00253M_.JPG"
+   },
+   "xy": [
+    1430.75,
+    68.2
+   ]
+  },
+  {
+   "id": "c4102",
+   "rmc": "106_660",
+   "name": "Sol 4102 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4102,
+    4127
+   ],
+   "visits": [
+    [
+     4102,
+     4127
+    ]
+   ],
+   "stay": 26,
+   "mahli": 598,
+   "chemcam": 502,
+   "lonlat": [
+    137.4073539,
+    -4.78011774
+   ],
+   "photo": {
+    "sol": 4116,
+    "date": "2024-03-05",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04116/opgs/edr/ncam/NLB_762876211EDR_F1060660NCAM00323M_.JPG"
+   },
+   "xy": [
+    1441.92,
+    71.98
+   ]
+  },
+  {
+   "id": "c4132",
+   "rmc": "106_954",
+   "name": "Sol 4132 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4132,
+    4134
+   ],
+   "visits": [
+    [
+     4132,
+     4134
+    ]
+   ],
+   "stay": 3,
+   "mahli": 328,
+   "chemcam": 70,
+   "lonlat": [
+    137.4074251,
+    -4.78067413
+   ],
+   "photo": {
+    "sol": 4132,
+    "date": "2024-03-21",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04132/opgs/edr/ncam/NLB_764317876EDR_F1060954NCAM00268M_.JPG"
+   },
+   "xy": [
+    1444.03,
+    88.47
+   ]
+  },
+  {
+   "id": "c4139",
+   "rmc": "106_1524",
+   "name": "Sol 4139 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4139,
+    4141
+   ],
+   "visits": [
+    [
+     4139,
+     4141
+    ]
+   ],
+   "stay": 3,
+   "mahli": 271,
+   "chemcam": 56,
+   "lonlat": [
+    137.4074254,
+    -4.78167715
+   ],
+   "photo": {
+    "sol": 4139,
+    "date": "2024-03-29",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04139/opgs/edr/ncam/NLB_764939403EDR_F1061524NCAM00354M_.JPG"
+   },
+   "xy": [
+    1444.04,
+    118.2
+   ]
+  },
+  {
+   "id": "c4148",
+   "rmc": "106_1990",
+   "name": "Sol 4148 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4148,
+    4150
+   ],
+   "visits": [
+    [
+     4148,
+     4150
+    ]
+   ],
+   "stay": 3,
+   "mahli": 48,
+   "chemcam": 70,
+   "lonlat": [
+    137.407545,
+    -4.78246336
+   ],
+   "photo": {
+    "sol": 4148,
+    "date": "2024-04-07",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04148/opgs/edr/ncam/NRB_765736841EDR_F1061990NCAM00289M_.JPG"
+   },
+   "xy": [
+    1447.59,
+    141.5
+   ]
+  },
+  {
+   "id": "c4152",
+   "rmc": "106_2194",
+   "name": "Sol 4152 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4152,
+    4154
+   ],
+   "visits": [
+    [
+     4152,
+     4154
+    ]
+   ],
+   "stay": 3,
+   "mahli": 111,
+   "chemcam": 159,
+   "lonlat": [
+    137.4074596,
+    -4.78285152
+   ],
+   "photo": {
+    "sol": 4152,
+    "date": "2024-04-11",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04152/opgs/edr/ncam/NLB_766098885EDR_F1062194NCAM00354M_.JPG"
+   },
+   "xy": [
+    1445.06,
+    153.0
+   ]
+  },
+  {
+   "id": "c4155",
+   "rmc": "106_2386",
+   "name": "Sol 4155 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4155,
+    4157
+   ],
+   "visits": [
+    [
+     4155,
+     4157
+    ]
+   ],
+   "stay": 3,
+   "mahli": 95,
+   "chemcam": 86,
+   "lonlat": [
+    137.4073381,
+    -4.78310087
+   ],
+   "photo": {
+    "sol": 4155,
+    "date": "2024-04-14",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04155/opgs/edr/ncam/NLB_766353859EDR_F1062386NCAM00354M_.JPG"
+   },
+   "xy": [
+    1441.46,
+    160.39
+   ]
+  },
+  {
+   "id": "c4159",
+   "rmc": "106_2692",
+   "name": "Sol 4159 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4159,
+    4161
+   ],
+   "visits": [
+    [
+     4159,
+     4161
+    ]
+   ],
+   "stay": 3,
+   "mahli": 181,
+   "chemcam": 105,
+   "lonlat": [
+    137.4076859,
+    -4.78344201
+   ],
+   "photo": {
+    "sol": 4159,
+    "date": "2024-04-18",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04159/opgs/edr/ncam/NRB_766716389EDR_F1062692NCAM00354M_.JPG"
+   },
+   "xy": [
+    1451.76,
+    170.5
+   ]
+  },
+  {
+   "id": "c4171",
+   "rmc": "107_6",
+   "name": "Sol 4171 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4171,
+    4175
+   ],
+   "visits": [
+    [
+     4166,
+     4168
+    ],
+    [
+     4171,
+     4175
+    ]
+   ],
+   "stay": 8,
+   "mahli": 579,
+   "chemcam": 252,
+   "lonlat": [
+    137.408421,
+    -4.78395057
+   ],
+   "photo": {
+    "sol": 4171,
+    "date": "2024-04-30",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04171/opgs/edr/ncam/NLB_767776188EDR_F1070006NCAM00272M_.JPG"
+   },
+   "xy": [
+    1473.55,
+    185.57
+   ]
+  },
+  {
+   "id": "c4180",
+   "rmc": "107_924",
+   "name": "Sol 4180 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4180,
+    4182
+   ],
+   "visits": [
+    [
+     4180,
+     4182
+    ]
+   ],
+   "stay": 3,
+   "mahli": 292,
+   "chemcam": 5,
+   "lonlat": [
+    137.4087641,
+    -4.78465077
+   ],
+   "photo": {
+    "sol": 4180,
+    "date": "2024-05-10",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04180/opgs/edr/ncam/NLB_768583433EDR_F1070924NCAM00354M_.JPG"
+   },
+   "xy": [
+    1483.72,
+    206.33
+   ]
+  },
+  {
+   "id": "c4187",
+   "rmc": "107_1408",
+   "name": "Sol 4187 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4187,
+    4189
+   ],
+   "visits": [
+    [
+     4187,
+     4189
+    ]
+   ],
+   "stay": 3,
+   "mahli": 20,
+   "chemcam": 56,
+   "lonlat": [
+    137.4087751,
+    -4.78513042
+   ],
+   "photo": {
+    "sol": 4187,
+    "date": "2024-05-17",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04187/opgs/edr/ncam/NRB_769190831EDR_F1071408NCAM00354M_.JPG"
+   },
+   "xy": [
+    1484.04,
+    220.54
+   ]
+  },
+  {
+   "id": "c4210",
+   "rmc": "107_2496",
+   "name": "Sol 4210 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4210,
+    4236
+   ],
+   "visits": [
+    [
+     4197,
+     4199
+    ],
+    [
+     4200,
+     4209
+    ],
+    [
+     4210,
+     4236
+    ],
+    [
+     4237,
+     4240
+    ]
+   ],
+   "stay": 44,
+   "mahli": 1540,
+   "chemcam": 770,
+   "lonlat": [
+    137.4088596,
+    -4.78571901
+   ],
+   "photo": {
+    "sol": 4217,
+    "date": "2024-06-17",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04217/opgs/edr/ncam/NLB_771867832EDR_F1072496NCAM00322M_.JPG"
+   },
+   "xy": [
+    1486.55,
+    237.99
+   ]
+  },
+  {
+   "id": "c4241",
+   "rmc": "107_2694",
+   "name": "Sol 4241 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4241,
+    4243
+   ],
+   "visits": [
+    [
+     4241,
+     4243
+    ]
+   ],
+   "stay": 3,
+   "mahli": 236,
+   "chemcam": 81,
+   "lonlat": [
+    137.4087474,
+    -4.78590532
+   ],
+   "photo": {
+    "sol": 4241,
+    "date": "2024-07-11",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04241/opgs/edr/ncam/NLB_774000137EDR_F1072694NCAM00354M_.JPG"
+   },
+   "xy": [
+    1483.22,
+    243.51
+   ]
+  },
+  {
+   "id": "c4246",
+   "rmc": "108_222",
+   "name": "Sol 4246 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4246,
+    4250
+   ],
+   "visits": [
+    [
+     4246,
+     4250
+    ],
+    [
+     4289,
+     4292
+    ]
+   ],
+   "stay": 9,
+   "mahli": 640,
+   "chemcam": 171,
+   "lonlat": [
+    137.4087558,
+    -4.78661903
+   ],
+   "photo": {
+    "sol": 4246,
+    "date": "2024-07-16",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04246/opgs/edr/ncam/NLB_774442661EDR_F1080222NCAM00354M_.JPG"
+   },
+   "xy": [
+    1483.47,
+    264.66
+   ]
+  },
+  {
+   "id": "c4255",
+   "rmc": "108_792",
+   "name": "Sol 4255 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4255,
+    4281
+   ],
+   "visits": [
+    [
+     4255,
+     4281
+    ],
+    [
+     4282,
+     4286
+    ]
+   ],
+   "stay": 32,
+   "mahli": 404,
+   "chemcam": 448,
+   "lonlat": [
+    137.4091283,
+    -4.78731872
+   ],
+   "photo": {
+    "sol": 4255,
+    "date": "2024-07-26",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04255/opgs/edr/ncam/NLB_775239073EDR_F1080792NCAM00354M_.JPG"
+   },
+   "xy": [
+    1494.51,
+    285.4
+   ]
+  },
+  {
+   "id": "c4298",
+   "rmc": "108_2162",
+   "name": "Sol 4298 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4298,
+    4300
+   ],
+   "visits": [
+    [
+     4298,
+     4300
+    ]
+   ],
+   "stay": 3,
+   "mahli": 188,
+   "chemcam": 45,
+   "lonlat": [
+    137.4085425,
+    -4.78762637
+   ],
+   "photo": {
+    "sol": 4298,
+    "date": "2024-09-08",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04298/opgs/edr/ncam/NRB_779046427EDR_F1082162NCAM00354M_.JPG"
+   },
+   "xy": [
+    1477.15,
+    294.51
+   ]
+  },
+  {
+   "id": "c4302",
+   "rmc": "108_2528",
+   "name": "Sol 4302 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4302,
+    4305
+   ],
+   "visits": [
+    [
+     4302,
+     4305
+    ]
+   ],
+   "stay": 4,
+   "mahli": 294,
+   "chemcam": 84,
+   "lonlat": [
+    137.4082555,
+    -4.78742139
+   ],
+   "photo": {
+    "sol": 4302,
+    "date": "2024-09-12",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04302/opgs/edr/ncam/NLB_779413923EDR_F1082528NCAM00354M_.JPG"
+   },
+   "xy": [
+    1468.64,
+    288.44
+   ]
+  },
+  {
+   "id": "c4309",
+   "rmc": "109_0",
+   "name": "Sol 4309 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4309,
+    4311
+   ],
+   "visits": [
+    [
+     4309,
+     4311
+    ]
+   ],
+   "stay": 3,
+   "mahli": 230,
+   "chemcam": 45,
+   "lonlat": [
+    137.4076395,
+    -4.78679146
+   ],
+   "photo": {
+    "sol": 4309,
+    "date": "2024-09-19",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04309/opgs/edr/ncam/NLB_780033168EDR_F1090000NCAM00354M_.JPG"
+   },
+   "xy": [
+    1450.39,
+    269.77
+   ]
+  },
+  {
+   "id": "c4316",
+   "rmc": "109_540",
+   "name": "Sol 4316 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4316,
+    4318
+   ],
+   "visits": [
+    [
+     4316,
+     4318
+    ]
+   ],
+   "stay": 3,
+   "mahli": 366,
+   "chemcam": 68,
+   "lonlat": [
+    137.4081829,
+    -4.78685387
+   ],
+   "photo": {
+    "sol": 4316,
+    "date": "2024-09-26",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04316/opgs/edr/ncam/NLB_780654323EDR_F1090540NCAM00354M_.JPG"
+   },
+   "xy": [
+    1466.49,
+    271.62
+   ]
+  },
+  {
+   "id": "c4323",
+   "rmc": "109_1290",
+   "name": "Sol 4323 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4323,
+    4325
+   ],
+   "visits": [
+    [
+     4323,
+     4325
+    ]
+   ],
+   "stay": 3,
+   "mahli": 172,
+   "chemcam": 31,
+   "lonlat": [
+    137.4070222,
+    -4.78660143
+   ],
+   "photo": {
+    "sol": 4323,
+    "date": "2024-10-04",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04323/opgs/edr/ncam/NLB_781271545EDR_F1091290NCAM00354M_.JPG"
+   },
+   "xy": [
+    1432.09,
+    264.14
+   ]
+  },
+  {
+   "id": "c4329",
+   "rmc": "109_1998",
+   "name": "Sol 4329 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4329,
+    4331
+   ],
+   "visits": [
+    [
+     4329,
+     4331
+    ]
+   ],
+   "stay": 3,
+   "mahli": 96,
+   "chemcam": 65,
+   "lonlat": [
+    137.4067725,
+    -4.78519289
+   ],
+   "photo": null,
+   "xy": [
+    1424.69,
+    222.39
+   ]
+  },
+  {
+   "id": "c4336",
+   "rmc": "110_0",
+   "name": "Sol 4336 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4336,
+    4338
+   ],
+   "visits": [
+    [
+     4336,
+     4338
+    ]
+   ],
+   "stay": 3,
+   "mahli": 220,
+   "chemcam": 51,
+   "lonlat": [
+    137.4054693,
+    -4.78393729
+   ],
+   "photo": {
+    "sol": 4336,
+    "date": "2024-10-17",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04336/opgs/edr/ncam/NRB_782435054EDR_F1100000NCAM00255M_.JPG"
+   },
+   "xy": [
+    1386.07,
+    185.18
+   ]
+  },
+  {
+   "id": "c4339",
+   "rmc": "110_168",
+   "name": "Sol 4339 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4339,
+    4341
+   ],
+   "visits": [
+    [
+     4339,
+     4341
+    ]
+   ],
+   "stay": 3,
+   "mahli": 116,
+   "chemcam": 22,
+   "lonlat": [
+    137.405185,
+    -4.78365859
+   ],
+   "photo": {
+    "sol": 4339,
+    "date": "2024-10-20",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04339/opgs/edr/ncam/NRB_782692753EDR_F1100168NCAM00258M_.JPG"
+   },
+   "xy": [
+    1377.64,
+    176.92
+   ]
+  },
+  {
+   "id": "c4343",
+   "rmc": "110_624",
+   "name": "Sol 4343 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4343,
+    4345
+   ],
+   "visits": [
+    [
+     4343,
+     4345
+    ]
+   ],
+   "stay": 3,
+   "mahli": 144,
+   "chemcam": 58,
+   "lonlat": [
+    137.4047805,
+    -4.78294652
+   ],
+   "photo": {
+    "sol": 4343,
+    "date": "2024-10-24",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04343/opgs/edr/ncam/NLB_783046100EDR_F1100624NCAM00265M_.JPG"
+   },
+   "xy": [
+    1365.65,
+    155.82
+   ]
+  },
+  {
+   "id": "c4346",
+   "rmc": "110_840",
+   "name": "Sol 4346 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4346,
+    4349
+   ],
+   "visits": [
+    [
+     4346,
+     4349
+    ],
+    [
+     4350,
+     4352
+    ]
+   ],
+   "stay": 7,
+   "mahli": 376,
+   "chemcam": 139,
+   "lonlat": [
+    137.4046622,
+    -4.78262204
+   ],
+   "photo": {
+    "sol": 4346,
+    "date": "2024-10-27",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04346/opgs/edr/ncam/NLB_783314703EDR_F1100840NCAM00354M_.JPG"
+   },
+   "xy": [
+    1362.15,
+    146.2
+   ]
+  },
+  {
+   "id": "c4357",
+   "rmc": "111_348",
+   "name": "Sol 4357 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4357,
+    4359
+   ],
+   "visits": [
+    [
+     4357,
+     4359
+    ]
+   ],
+   "stay": 3,
+   "mahli": 148,
+   "chemcam": 31,
+   "lonlat": [
+    137.40419,
+    -4.78223648
+   ],
+   "photo": {
+    "sol": 4357,
+    "date": "2024-11-08",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04357/opgs/edr/ncam/NRB_784292744EDR_F1110348NCAM00279M_.JPG"
+   },
+   "xy": [
+    1348.15,
+    134.77
+   ]
+  },
+  {
+   "id": "c4362",
+   "rmc": "111_708",
+   "name": "Sol 4362 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4362,
+    4366
+   ],
+   "visits": [
+    [
+     4362,
+     4366
+    ]
+   ],
+   "stay": 5,
+   "mahli": 0,
+   "chemcam": 51,
+   "lonlat": [
+    137.40357,
+    -4.78248296
+   ],
+   "photo": {
+    "sol": 4362,
+    "date": "2024-11-13",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04362/opgs/edr/ncam/NRB_784733869EDR_F1110708NCAM00285M_.JPG"
+   },
+   "xy": [
+    1329.78,
+    142.08
+   ]
+  },
+  {
+   "id": "c4371",
+   "rmc": "111_1290",
+   "name": "Sol 4371 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4371,
+    4373
+   ],
+   "visits": [
+    [
+     4371,
+     4373
+    ]
+   ],
+   "stay": 3,
+   "mahli": 168,
+   "chemcam": 43,
+   "lonlat": [
+    137.4024565,
+    -4.78297302
+   ],
+   "photo": {
+    "sol": 4372,
+    "date": "2024-11-23",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04372/opgs/edr/ncam/NRB_785633260EDR_F1111290NCAM00200M_.JPG"
+   },
+   "xy": [
+    1296.78,
+    156.6
+   ]
+  },
+  {
+   "id": "c4374",
+   "rmc": "111_1548",
+   "name": "Sol 4374 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4374,
+    4379
+   ],
+   "visits": [
+    [
+     4374,
+     4379
+    ]
+   ],
+   "stay": 6,
+   "mahli": 24,
+   "chemcam": 60,
+   "lonlat": [
+    137.4019363,
+    -4.78331173
+   ],
+   "photo": {
+    "sol": 4374,
+    "date": "2024-11-25",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04374/opgs/edr/ncam/NRB_785797082EDR_F1111548NCAM00297M_.JPG"
+   },
+   "xy": [
+    1281.36,
+    166.64
+   ]
+  },
+  {
+   "id": "c4384",
+   "rmc": "111_2386",
+   "name": "Sol 4384 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4384,
+    4386
+   ],
+   "visits": [
+    [
+     4384,
+     4386
+    ]
+   ],
+   "stay": 3,
+   "mahli": 342,
+   "chemcam": 91,
+   "lonlat": [
+    137.3995931,
+    -4.78327674
+   ],
+   "photo": {
+    "sol": 4384,
+    "date": "2024-12-05",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04384/opgs/edr/ncam/NLB_786694319EDR_F1112386NCAM00354M_.JPG"
+   },
+   "xy": [
+    1211.91,
+    165.6
+   ]
+  },
+  {
+   "id": "c4391",
+   "rmc": "112_0",
+   "name": "Sol 4391 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4391,
+    4393
+   ],
+   "visits": [
+    [
+     4391,
+     4393
+    ]
+   ],
+   "stay": 3,
+   "mahli": 132,
+   "chemcam": 64,
+   "lonlat": [
+    137.3986731,
+    -4.78319214
+   ],
+   "photo": {
+    "sol": 4391,
+    "date": "2024-12-12",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04391/opgs/edr/ncam/NLB_787314302EDR_F1120000NCAM00354M_.JPG"
+   },
+   "xy": [
+    1184.65,
+    163.1
+   ]
+  },
+  {
+   "id": "c4398",
+   "rmc": "112_534",
+   "name": "Sol 4398 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4398,
+    4413
+   ],
+   "visits": [
+    [
+     4398,
+     4413
+    ]
+   ],
+   "stay": 16,
+   "mahli": 0,
+   "chemcam": 118,
+   "lonlat": [
+    137.3975851,
+    -4.78340779
+   ],
+   "photo": {
+    "sol": 4398,
+    "date": "2024-12-20",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04398/opgs/edr/ncam/NLB_787925582EDR_F1120534NCAM00275M_.JPG"
+   },
+   "xy": [
+    1152.4,
+    169.49
+   ]
+  },
+  {
+   "id": "c4414",
+   "rmc": "112_798",
+   "name": "Sol 4414 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4414,
+    4416
+   ],
+   "visits": [
+    [
+     4414,
+     4416
+    ]
+   ],
+   "stay": 3,
+   "mahli": 108,
+   "chemcam": 26,
+   "lonlat": [
+    137.3969765,
+    -4.78355387
+   ],
+   "photo": {
+    "sol": 4414,
+    "date": "2025-01-05",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04414/opgs/edr/ncam/NLB_789347802EDR_F1120798NCAM00354M_.JPG"
+   },
+   "xy": [
+    1134.36,
+    173.82
+   ]
+  },
+  {
+   "id": "c4417",
+   "rmc": "112_1014",
+   "name": "Sol 4417 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4417,
+    4424
+   ],
+   "visits": [
+    [
+     4417,
+     4424
+    ]
+   ],
+   "stay": 8,
+   "mahli": 20,
+   "chemcam": 66,
+   "lonlat": [
+    137.3968786,
+    -4.78393616
+   ],
+   "photo": {
+    "sol": 4417,
+    "date": "2025-01-08",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04417/opgs/edr/ncam/NRB_789616583EDR_F1121014NCAM00354M_.JPG"
+   },
+   "xy": [
+    1131.46,
+    185.15
+   ]
+  },
+  {
+   "id": "c4425",
+   "rmc": "112_1326",
+   "name": "Sol 4425 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4425,
+    4428
+   ],
+   "visits": [
+    [
+     4425,
+     4428
+    ]
+   ],
+   "stay": 4,
+   "mahli": 276,
+   "chemcam": 88,
+   "lonlat": [
+    137.3966703,
+    -4.78454008
+   ],
+   "photo": {
+    "sol": 4425,
+    "date": "2025-01-16",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04425/opgs/edr/ncam/NRB_790330209EDR_F1121326NCAM00287M_.JPG"
+   },
+   "xy": [
+    1125.29,
+    203.05
+   ]
+  },
+  {
+   "id": "c4429",
+   "rmc": "112_1608",
+   "name": "Sol 4429 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4429,
+    4431
+   ],
+   "visits": [
+    [
+     4429,
+     4431
+    ]
+   ],
+   "stay": 3,
+   "mahli": 144,
+   "chemcam": 12,
+   "lonlat": [
+    137.3961286,
+    -4.78484766
+   ],
+   "photo": {
+    "sol": 4429,
+    "date": "2025-01-20",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04429/opgs/edr/ncam/NLB_790682582EDR_F1121608NCAM00354M_.JPG"
+   },
+   "xy": [
+    1109.24,
+    212.16
+   ]
+  },
+  {
+   "id": "c4432",
+   "rmc": "112_1860",
+   "name": "Sol 4432 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4432,
+    4434
+   ],
+   "visits": [
+    [
+     4432,
+     4434
+    ]
+   ],
+   "stay": 3,
+   "mahli": 212,
+   "chemcam": 74,
+   "lonlat": [
+    137.395826,
+    -4.78448756
+   ],
+   "photo": {
+    "sol": 4432,
+    "date": "2025-01-24",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04432/opgs/edr/ncam/NRB_790953375EDR_F1121860NCAM00294M_.JPG"
+   },
+   "xy": [
+    1100.27,
+    201.49
+   ]
+  },
+  {
+   "id": "c4439",
+   "rmc": "112_2616",
+   "name": "Sol 4439 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4439,
+    4441
+   ],
+   "visits": [
+    [
+     4439,
+     4441
+    ]
+   ],
+   "stay": 3,
+   "mahli": 132,
+   "chemcam": 56,
+   "lonlat": [
+    137.3948049,
+    -4.78563296
+   ],
+   "photo": {
+    "sol": 4439,
+    "date": "2025-01-31",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04439/opgs/edr/ncam/NLB_791571900EDR_F1122616NCAM00354M_.JPG"
+   },
+   "xy": [
+    1070.0,
+    235.44
+   ]
+  },
+  {
+   "id": "c4446",
+   "rmc": "113_306",
+   "name": "Sol 4446 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4446,
+    4448
+   ],
+   "visits": [
+    [
+     4446,
+     4448
+    ]
+   ],
+   "stay": 3,
+   "mahli": 132,
+   "chemcam": 44,
+   "lonlat": [
+    137.3939502,
+    -4.78609531
+   ],
+   "photo": {
+    "sol": 4446,
+    "date": "2025-02-07",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04446/opgs/edr/ncam/NRB_792185333EDR_F1130306NCAM00263M_.JPG"
+   },
+   "xy": [
+    1044.67,
+    249.14
+   ]
+  },
+  {
+   "id": "c4452",
+   "rmc": "113_1128",
+   "name": "Sol 4452 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4452,
+    4455
+   ],
+   "visits": [
+    [
+     4452,
+     4455
+    ]
+   ],
+   "stay": 4,
+   "mahli": 344,
+   "chemcam": 55,
+   "lonlat": [
+    137.3926205,
+    -4.7872261
+   ],
+   "photo": {
+    "sol": 4452,
+    "date": "2025-02-13",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04452/opgs/edr/ncam/NLB_792727102EDR_F1131128NCAM00354M_.JPG"
+   },
+   "xy": [
+    1005.26,
+    282.65
+   ]
+  },
+  {
+   "id": "c4456",
+   "rmc": "113_1440",
+   "name": "Sol 4456 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4456,
+    4458
+   ],
+   "visits": [
+    [
+     4456,
+     4458
+    ]
+   ],
+   "stay": 3,
+   "mahli": 176,
+   "chemcam": 26,
+   "lonlat": [
+    137.392239,
+    -4.78770566
+   ],
+   "photo": {
+    "sol": 4456,
+    "date": "2025-02-17",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04456/opgs/edr/ncam/NLB_793082080EDR_F1131440NCAM00275M_.JPG"
+   },
+   "xy": [
+    993.96,
+    296.86
+   ]
+  },
+  {
+   "id": "c4459",
+   "rmc": "113_1722",
+   "name": "Sol 4459 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4459,
+    4461
+   ],
+   "visits": [
+    [
+     4459,
+     4461
+    ]
+   ],
+   "stay": 3,
+   "mahli": 142,
+   "chemcam": 36,
+   "lonlat": [
+    137.3918033,
+    -4.78817839
+   ],
+   "photo": {
+    "sol": 4459,
+    "date": "2025-02-20",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04459/opgs/edr/ncam/NLB_793349652EDR_F1131722NCAM00354M_.JPG"
+   },
+   "xy": [
+    981.05,
+    310.88
+   ]
+  },
+  {
+   "id": "c4466",
+   "rmc": "113_2394",
+   "name": "Sol 4466 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4466,
+    4468
+   ],
+   "visits": [
+    [
+     4466,
+     4468
+    ]
+   ],
+   "stay": 3,
+   "mahli": 76,
+   "chemcam": 66,
+   "lonlat": [
+    137.3914152,
+    -4.78961629
+   ],
+   "photo": {
+    "sol": 4466,
+    "date": "2025-02-28",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04466/opgs/edr/ncam/NLB_793969583EDR_F1132394NCAM00287M_.JPG"
+   },
+   "xy": [
+    969.54,
+    353.49
+   ]
+  },
   {
    "id": "c4473",
    "rmc": "114_288",
@@ -49,8 +1689,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04473/opgs/edr/ncam/NLB_794593900EDR_F1140288NCAM00354M_.JPG"
    },
    "xy": [
-    570.72,
-    25.01
+    964.72,
+    389.51
    ]
   },
   {
@@ -84,8 +1724,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04480/opgs/edr/ncam/NLB_795210587EDR_F1140534NCAM00353M_.JPG"
    },
    "xy": [
-    560.4,
-    28.69
+    954.4,
+    393.19
    ]
   },
   {
@@ -119,8 +1759,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04484/opgs/edr/ncam/NRB_795567245EDR_F1140918NCAM00263M_.JPG"
    },
    "xy": [
-    553.96,
-    47.37
+    947.96,
+    411.87
    ]
   },
   {
@@ -154,8 +1794,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04493/opgs/edr/ncam/NLB_796370276EDR_F1141812NCAM00276M_.JPG"
    },
    "xy": [
-    549.84,
-    92.76
+    943.84,
+    457.26
    ]
   },
   {
@@ -189,8 +1829,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04500/opgs/edr/ncam/NRB_796988037EDR_F1142472NCAM00284M_.JPG"
    },
    "xy": [
-    521.13,
-    106.11
+    915.13,
+    470.61
    ]
   },
   {
@@ -224,8 +1864,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04507/opgs/edr/ncam/NLB_797612007EDR_F1150390NCAM00354M_.JPG"
    },
    "xy": [
-    482.5,
-    114.32
+    876.5,
+    478.82
    ]
   },
   {
@@ -259,8 +1899,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04518/opgs/edr/ncam/NLB_798589805EDR_F1151608NCAM00354M_.JPG"
    },
    "xy": [
-    470.51,
-    181.14
+    864.51,
+    545.64
    ]
   },
   {
@@ -294,8 +1934,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04523/opgs/edr/ncam/NRB_799026827EDR_F1151770NCAM00353M_.JPG"
    },
    "xy": [
-    466.84,
-    190.35
+    860.84,
+    554.85
    ]
   },
   {
@@ -329,8 +1969,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04527/opgs/edr/ncam/NLB_799387594EDR_F1152232NCAM00354M_.JPG"
    },
    "xy": [
-    459.7,
-    214.16
+    853.7,
+    578.66
    ]
   },
   {
@@ -364,8 +2004,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04534/opgs/edr/ncam/NLB_800008242EDR_F1160000NCAM00354M_.JPG"
    },
    "xy": [
-    427.98,
-    226.13
+    821.98,
+    590.63
    ]
   },
   {
@@ -399,8 +2039,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04541/opgs/edr/ncam/NLB_800623343EDR_F1160414NCAM00353M_.JPG"
    },
    "xy": [
-    412.85,
-    232.0
+    806.85,
+    596.5
    ]
   },
   {
@@ -434,8 +2074,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04548/opgs/edr/ncam/NLB_801252111EDR_F1161260NCAM00298M_.JPG"
    },
    "xy": [
-    357.11,
-    260.96
+    751.11,
+    625.46
    ]
   },
   {
@@ -473,8 +2113,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04560/opgs/edr/ncam/NRB_802308770EDR_F1161944NCAM00354M_.JPG"
    },
    "xy": [
-    342.18,
-    292.21
+    736.18,
+    656.71
    ]
   },
   {
@@ -508,8 +2148,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04575/opgs/edr/ncam/NLB_803647637EDR_F1170000NCAM00354M_.JPG"
    },
    "xy": [
-    299.86,
-    353.3
+    693.86,
+    717.8
    ]
   },
   {
@@ -543,8 +2183,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04582/opgs/edr/ncam/NLB_804267280EDR_F1170492NCAM00354M_.JPG"
    },
    "xy": [
-    274.35,
-    366.27
+    668.35,
+    730.77
    ]
   },
   {
@@ -582,8 +2222,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04588/opgs/edr/ncam/NLB_804804014EDR_F1171008NCAM00354M_.JPG"
    },
    "xy": [
-    254.86,
-    368.74
+    648.86,
+    733.24
    ]
   },
   {
@@ -621,8 +2261,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04605/opgs/edr/ncam/NLB_806306533EDR_F1172538NCAM00354M_.JPG"
    },
    "xy": [
-    224.1,
-    428.13
+    618.1,
+    792.63
    ]
   },
   {
@@ -656,8 +2296,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04609/opgs/edr/ncam/NLB_806661878EDR_F1172730NCAM00354M_.JPG"
    },
    "xy": [
-    217.08,
-    437.22
+    611.08,
+    801.72
    ]
   },
   {
@@ -691,8 +2331,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04618/opgs/edr/ncam/NLB_807464550EDR_F1180198NCAM00354M_.JPG"
    },
    "xy": [
-    223.47,
-    459.6
+    617.47,
+    824.1
    ]
   },
   {
@@ -726,8 +2366,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04625/opgs/edr/ncam/NLB_808085182EDR_F1180762NCAM00354M_.JPG"
    },
    "xy": [
-    230.06,
-    470.39
+    624.06,
+    834.89
    ]
   },
   {
@@ -761,8 +2401,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04629/opgs/edr/ncam/NRB_808440166EDR_F1181194NCAM00353M_.JPG"
    },
    "xy": [
-    229.02,
-    479.5
+    623.02,
+    844.0
    ]
   },
   {
@@ -796,8 +2436,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04636/opgs/edr/ncam/NLB_809061831EDR_F1181752NCAM00354M_.JPG"
    },
    "xy": [
-    217.61,
-    490.51
+    611.61,
+    855.01
    ]
   },
   {
@@ -831,8 +2471,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04643/opgs/edr/ncam/NRB_809681596EDR_F1182028NCAM00265M_.JPG"
    },
    "xy": [
-    219.8,
-    498.17
+    613.8,
+    862.67
    ]
   },
   {
@@ -870,8 +2510,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04647/opgs/edr/ncam/NLB_810035905EDR_F1182268NCAM00268M_.JPG"
    },
    "xy": [
-    231.66,
-    500.96
+    625.66,
+    865.46
    ]
   },
   {
@@ -905,8 +2545,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04655/opgs/edr/ncam/NLB_810748932EDR_F1182538NCAM00354M_.JPG"
    },
    "xy": [
-    234.13,
-    509.19
+    628.13,
+    873.69
    ]
   },
   {
@@ -940,8 +2580,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04664/opgs/edr/ncam/NLB_811540426EDR_F1183156NCAM00354M_.JPG"
    },
    "xy": [
-    244.6,
-    531.62
+    638.6,
+    896.12
    ]
   },
   {
@@ -979,8 +2619,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04676/opgs/edr/ncam/NRB_812613261EDR_F1190846NCAM00200M_.JPG"
    },
    "xy": [
-    283.75,
-    555.06
+    677.75,
+    919.56
    ]
   },
   {
@@ -1014,8 +2654,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04680/opgs/edr/ncam/NLB_812961761EDR_F1191344NCAM00354M_.JPG"
    },
    "xy": [
-    274.17,
-    541.88
+    668.17,
+    906.38
    ]
   },
   {
@@ -1053,8 +2693,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04687/opgs/edr/ncam/NLB_813578818EDR_F1191722NCAM00258M_.JPG"
    },
    "xy": [
-    267.91,
-    529.07
+    661.91,
+    893.57
    ]
   },
   {
@@ -1096,8 +2736,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04711/opgs/edr/ncam/NLB_815715738EDR_F1200082NCAM00354M_.JPG"
    },
    "xy": [
-    266.99,
-    534.06
+    660.99,
+    898.56
    ]
   },
   {
@@ -1131,8 +2771,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04741/opgs/edr/ncam/NLB_818377235EDR_F1200232NCAM00269M_.JPG"
    },
    "xy": [
-    267.27,
-    526.8
+    661.27,
+    891.3
    ]
   },
   {
@@ -1166,8 +2806,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04752/opgs/edr/ncam/NLB_819362161EDR_F1200538NCAM00353M_.JPG"
    },
    "xy": [
-    266.65,
-    534.77
+    660.65,
+    899.27
    ]
   },
   {
@@ -1201,8 +2841,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04805/opgs/edr/ncam/NLB_824058259EDR_F1200808NCAM00354M_.JPG"
    },
    "xy": [
-    279.31,
-    529.0
+    673.31,
+    893.5
    ]
   },
   {
@@ -1236,8 +2876,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04810/opgs/edr/ncam/NLB_824495194EDR_F1201042NCAM00354M_.JPG"
    },
    "xy": [
-    281.82,
-    520.14
+    675.82,
+    884.64
    ]
   },
   {
@@ -1271,8 +2911,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04813/opgs/edr/ncam/NLB_824771683EDR_F1201264NCAM00289M_.JPG"
    },
    "xy": [
-    286.66,
-    514.57
+    680.66,
+    879.07
    ]
   },
   {
@@ -1310,8 +2950,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04823/opgs/edr/ncam/NLB_825652134EDR_F1202192NCAM00354M_.JPG"
    },
    "xy": [
-    315.12,
-    530.36
+    709.12,
+    894.86
    ]
   },
   {
@@ -1345,8 +2985,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04827/opgs/edr/ncam/NLB_826010572EDR_F1202366NCAM00354M_.JPG"
    },
    "xy": [
-    321.81,
-    537.78
+    715.81,
+    902.28
    ]
   },
   {
@@ -1380,8 +3020,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04830/opgs/edr/ncam/NLB_826276608EDR_F1202726NCAM00354M_.JPG"
    },
    "xy": [
-    315.81,
-    558.2
+    709.81,
+    922.7
    ]
   },
   {
@@ -1415,8 +3055,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04834/opgs/edr/ncam/NLB_826633573EDR_F1210000NCAM00262M_.JPG"
    },
    "xy": [
-    317.17,
-    579.57
+    711.17,
+    944.07
    ]
   },
   {
@@ -1450,8 +3090,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04841/opgs/edr/ncam/NLB_827254115EDR_F1210762NCAM00354M_.JPG"
    },
    "xy": [
-    289.28,
-    605.59
+    683.28,
+    970.09
    ]
   },
   {
@@ -1485,8 +3125,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04845/opgs/edr/ncam/NRB_827608931EDR_F1210990NCAM00276M_.JPG"
    },
    "xy": [
-    285.99,
-    610.9
+    679.99,
+    975.4
    ]
   },
   {
@@ -1520,8 +3160,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04848/opgs/edr/ncam/NRB_827875733EDR_F1211446NCAM00279M_.JPG"
    },
    "xy": [
-    290.92,
-    639.12
+    684.92,
+    1003.62
    ]
   },
   {
@@ -1555,8 +3195,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04851/opgs/edr/ncam/NRB_828139322EDR_F1211656NCAM00281M_.JPG"
    },
    "xy": [
-    297.6,
-    652.84
+    691.6,
+    1017.34
    ]
   },
   {
@@ -1590,8 +3230,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04857/opgs/edr/ncam/NLB_828672410EDR_F1212202NCAM00354M_.JPG"
    },
    "xy": [
-    291.93,
-    687.03
+    685.93,
+    1051.53
    ]
   },
   {
@@ -1625,8 +3265,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04861/opgs/edr/ncam/NRB_829027851EDR_F1212490NCAM00353M_.JPG"
    },
    "xy": [
-    277.84,
-    688.75
+    671.84,
+    1053.25
    ]
   },
   {
@@ -1660,8 +3300,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04865/opgs/edr/ncam/NLB_829383751EDR_F1212826NCAM00353M_.JPG"
    },
    "xy": [
-    266.88,
-    705.42
+    660.88,
+    1069.92
    ]
   },
   {
@@ -1695,8 +3335,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04868/opgs/edr/ncam/NLB_829653202EDR_F1220000NCAM00297M_.JPG"
    },
    "xy": [
-    287.8,
-    719.58
+    681.8,
+    1084.08
    ]
   },
   {
@@ -1730,8 +3370,8 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04893/opgs/edr/ncam/NLB_831875371EDR_F1220462NCAM00354M_.JPG"
    },
    "xy": [
-    284.09,
-    723.43
+    678.09,
+    1087.93
    ]
   },
   {
@@ -1765,487 +3405,1779 @@
     "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04916/opgs/edr/ncam/NRB_833904349EDR_F1221260NCAM00266M_.JPG"
    },
    "xy": [
-    308.7,
-    760.05
+    702.7,
+    1124.55
+   ]
+  },
+  {
+   "id": "c4923",
+   "rmc": "122_1974",
+   "name": "Sol 4923 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4923,
+    4927
+   ],
+   "visits": [
+    [
+     4923,
+     4927
+    ]
+   ],
+   "stay": 5,
+   "mahli": 78,
+   "chemcam": 44,
+   "lonlat": [
+    137.3829616,
+    -4.81685834
+   ],
+   "photo": {
+    "sol": 4923,
+    "date": "2026-06-12",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04923/opgs/edr/ncam/NRB_834532053EDR_F1221974NCAM00275M_.JPG"
+   },
+   "xy": [
+    719.0,
+    1160.87
+   ]
+  },
+  {
+   "id": "c4928",
+   "rmc": "122_2232",
+   "name": "Sol 4928 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4928,
+    4931
+   ],
+   "visits": [
+    [
+     4928,
+     4931
+    ]
+   ],
+   "stay": 4,
+   "mahli": 114,
+   "chemcam": 20,
+   "lonlat": [
+    137.3830614,
+    -4.81742792
+   ],
+   "photo": {
+    "sol": 4928,
+    "date": "2026-06-17",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04928/opgs/edr/ncam/NLB_834987595EDR_F1222232NCAM00354M_.JPG"
+   },
+   "xy": [
+    721.96,
+    1177.75
+   ]
+  },
+  {
+   "id": "c4932",
+   "rmc": "122_2352",
+   "name": "Sol 4932 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4932,
+    4935
+   ],
+   "visits": [
+    [
+     4932,
+     4935
+    ]
+   ],
+   "stay": 4,
+   "mahli": 108,
+   "chemcam": 30,
+   "lonlat": [
+    137.3830992,
+    -4.81791731
+   ],
+   "photo": {
+    "sol": 4932,
+    "date": "2026-06-21",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04932/opgs/edr/ncam/NLB_835335350EDR_F1222352NCAM00354M_.JPG"
+   },
+   "xy": [
+    723.08,
+    1192.26
+   ]
+  },
+  {
+   "id": "c4936",
+   "rmc": "122_2508",
+   "name": "Sol 4936 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4936,
+    4938
+   ],
+   "visits": [
+    [
+     4936,
+     4938
+    ]
+   ],
+   "stay": 3,
+   "mahli": 104,
+   "chemcam": 18,
+   "lonlat": [
+    137.3829211,
+    -4.81854903
+   ],
+   "photo": {
+    "sol": 4936,
+    "date": "2026-06-25",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04936/opgs/edr/ncam/NLB_835694322EDR_F1222508NCAM00354M_.JPG"
+   },
+   "xy": [
+    717.8,
+    1210.98
+   ]
+  },
+  {
+   "id": "c4942",
+   "rmc": "123_102",
+   "name": "Sol 4942 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4942,
+    4945
+   ],
+   "visits": [
+    [
+     4939,
+     4941
+    ],
+    [
+     4942,
+     4945
+    ]
+   ],
+   "stay": 7,
+   "mahli": 448,
+   "chemcam": 70,
+   "lonlat": [
+    137.3831921,
+    -4.81934719
+   ],
+   "photo": {
+    "sol": 4942,
+    "date": "2026-07-01",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04942/opgs/edr/ncam/NLB_836217604EDR_F1230102NCAM00290M_.JPG"
+   },
+   "xy": [
+    725.83,
+    1234.64
+   ]
+  },
+  {
+   "id": "c4950",
+   "rmc": "123_1116",
+   "name": "Sol 4950 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4950,
+    4952
+   ],
+   "visits": [
+    [
+     4950,
+     4952
+    ]
+   ],
+   "stay": 3,
+   "mahli": 148,
+   "chemcam": 52,
+   "lonlat": [
+    137.3839674,
+    -4.82118531
+   ],
+   "photo": null,
+   "xy": [
+    748.81,
+    1289.11
+   ]
+  },
+  {
+   "id": "c4959",
+   "rmc": "123_2328",
+   "name": "Sol 4959 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4959,
+    4962
+   ],
+   "visits": [
+    [
+     4959,
+     4962
+    ]
+   ],
+   "stay": 4,
+   "mahli": 92,
+   "chemcam": 27,
+   "lonlat": [
+    137.3850737,
+    -4.81991106
+   ],
+   "photo": {
+    "sol": 4959,
+    "date": "2026-07-19",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04959/opgs/edr/ncam/NLB_837732599EDR_F1232328NCAM00354M_.JPG"
+   },
+   "xy": [
+    781.6,
+    1251.35
+   ]
+  },
+  {
+   "id": "c4963",
+   "rmc": "123_2544",
+   "name": "Sol 4963 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4963,
+    4965
+   ],
+   "visits": [
+    [
+     4963,
+     4965
+    ]
+   ],
+   "stay": 3,
+   "mahli": 52,
+   "chemcam": 2,
+   "lonlat": [
+    137.3854043,
+    -4.82018328
+   ],
+   "photo": {
+    "sol": 4963,
+    "date": "2026-07-23",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04963/opgs/edr/ncam/NLB_838089926EDR_F1232544NCAM00354M_.JPG"
+   },
+   "xy": [
+    791.4,
+    1259.42
+   ]
+  },
+  {
+   "id": "c4966",
+   "rmc": "124_0",
+   "name": "Sol 4966 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4966,
+    4969
+   ],
+   "visits": [
+    [
+     4966,
+     4969
+    ]
+   ],
+   "stay": 4,
+   "mahli": 178,
+   "chemcam": 55,
+   "lonlat": [
+    137.3855089,
+    -4.82073326
+   ],
+   "photo": {
+    "sol": 4966,
+    "date": "2026-07-26",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04966/opgs/edr/ncam/NLB_838357431EDR_F1240000NCAM00354M_.JPG"
+   },
+   "xy": [
+    794.5,
+    1275.72
+   ]
+  },
+  {
+   "id": "c4970",
+   "rmc": "124_198",
+   "name": "Sol 4970 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4970,
+    4972
+   ],
+   "visits": [
+    [
+     4970,
+     4972
+    ]
+   ],
+   "stay": 3,
+   "mahli": 392,
+   "chemcam": 13,
+   "lonlat": [
+    137.3856038,
+    -4.82096424
+   ],
+   "photo": {
+    "sol": 4970,
+    "date": "2026-07-30",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04970/opgs/edr/ncam/NLB_838711007EDR_F1240198NCAM00354M_.JPG"
+   },
+   "xy": [
+    797.31,
+    1282.56
+   ]
+  },
+  {
+   "id": "c4973",
+   "rmc": "124_348",
+   "name": "Sol 4973 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4973,
+    4976
+   ],
+   "visits": [
+    [
+     4973,
+     4976
+    ]
+   ],
+   "stay": 4,
+   "mahli": 212,
+   "chemcam": 34,
+   "lonlat": [
+    137.3857036,
+    -4.82122965
+   ],
+   "photo": {
+    "sol": 4973,
+    "date": "2026-08-02",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04973/opgs/edr/ncam/NRB_838969238EDR_F1240348NCAM00275M_.JPG"
+   },
+   "xy": [
+    800.27,
+    1290.43
+   ]
+  },
+  {
+   "id": "c4977",
+   "rmc": "124_480",
+   "name": "Sol 4977 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4977,
+    4982
+   ],
+   "visits": [
+    [
+     4977,
+     4982
+    ]
+   ],
+   "stay": 6,
+   "mahli": 916,
+   "chemcam": 66,
+   "lonlat": [
+    137.3858154,
+    -4.82142997
+   ],
+   "photo": {
+    "sol": 4977,
+    "date": "2026-08-07",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04977/opgs/edr/ncam/NLB_839329589EDR_F1240480NCAM00277M_.JPG"
+   },
+   "xy": [
+    803.58,
+    1296.36
+   ]
+  },
+  {
+   "id": "c4983",
+   "rmc": "124_744",
+   "name": "Sol 4983 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4983,
+    4986
+   ],
+   "visits": [
+    [
+     4983,
+     4986
+    ]
+   ],
+   "stay": 4,
+   "mahli": 142,
+   "chemcam": 28,
+   "lonlat": [
+    137.3860993,
+    -4.82149644
+   ],
+   "photo": {
+    "sol": 4983,
+    "date": "2026-08-13",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04983/opgs/edr/ncam/NRB_839864746EDR_F1240744NCAM00280M_.JPG"
+   },
+   "xy": [
+    811.99,
+    1298.33
+   ]
+  },
+  {
+   "id": "c4989",
+   "rmc": "124_1248",
+   "name": "Sol 4989 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4989,
+    4993
+   ],
+   "visits": [
+    [
+     4989,
+     4993
+    ]
+   ],
+   "stay": 5,
+   "mahli": 236,
+   "chemcam": 28,
+   "lonlat": [
+    137.3866647,
+    -4.82248841
+   ],
+   "photo": {
+    "sol": 4989,
+    "date": "2026-08-19",
+    "camera": "Navcam right",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04989/opgs/edr/ncam/NRB_840394239EDR_F1241248NCAM00286M_.JPG"
+   },
+   "xy": [
+    828.75,
+    1327.73
+   ]
+  },
+  {
+   "id": "c4998",
+   "rmc": "124_1978",
+   "name": "Sol 4998 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    4998,
+    5003
+   ],
+   "visits": [
+    [
+     4998,
+     5003
+    ],
+    [
+     5004,
+     5007
+    ]
+   ],
+   "stay": 10,
+   "mahli": 732,
+   "chemcam": 57,
+   "lonlat": [
+    137.3866745,
+    -4.82367388
+   ],
+   "photo": {
+    "sol": 4998,
+    "date": "2026-08-28",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/04998/opgs/edr/ncam/NLB_841193998EDR_F1241978NCAM00354M_.JPG"
+   },
+   "xy": [
+    829.04,
+    1362.87
+   ]
+  },
+  {
+   "id": "c5008",
+   "rmc": "124_2368",
+   "name": "Sol 5008 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    5008,
+    5010
+   ],
+   "visits": [
+    [
+     5008,
+     5010
+    ]
+   ],
+   "stay": 3,
+   "mahli": 162,
+   "chemcam": 40,
+   "lonlat": [
+    137.3871122,
+    -4.82414128
+   ],
+   "photo": {
+    "sol": 5008,
+    "date": "2026-09-07",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05008/opgs/edr/ncam/NLB_842085230EDR_F1242368NCAM00353M_.JPG"
+   },
+   "xy": [
+    842.01,
+    1376.72
+   ]
+  },
+  {
+   "id": "c5021",
+   "rmc": "125_558",
+   "name": "Sol 5021 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    5021,
+    5040
+   ],
+   "visits": [
+    [
+     5018,
+     5020
+    ],
+    [
+     5021,
+     5040
+    ]
+   ],
+   "stay": 23,
+   "mahli": 274,
+   "chemcam": 164,
+   "lonlat": [
+    137.3888471,
+    -4.82513971
+   ],
+   "photo": {
+    "sol": 5023,
+    "date": "2026-09-23",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05023/opgs/edr/ncam/NLB_843402793EDR_F1250558NCAM00225M_.JPG"
+   },
+   "xy": [
+    893.43,
+    1406.31
+   ]
+  },
+  {
+   "id": "c5045",
+   "rmc": "125_1326",
+   "name": "Sol 5045 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    5045,
+    5068
+   ],
+   "visits": [
+    [
+     5011,
+     5013
+    ],
+    [
+     5041,
+     5044
+    ],
+    [
+     5045,
+     5068
+    ]
+   ],
+   "stay": 31,
+   "mahli": 842,
+   "chemcam": 257,
+   "lonlat": [
+    137.3876138,
+    -4.82466475
+   ],
+   "photo": {
+    "sol": 5045,
+    "date": "2026-10-15",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05045/opgs/edr/ncam/NLB_845366363EDR_F1251326NCAM00354M_.JPG"
+   },
+   "xy": [
+    856.88,
+    1392.23
+   ]
+  },
+  {
+   "id": "c5070",
+   "rmc": "125_2274",
+   "name": "Sol 5070 stop",
+   "kind": "stop",
+   "note": null,
+   "source": null,
+   "sols": [
+    5070,
+    5072
+   ],
+   "visits": [
+    [
+     5070,
+     5072
+    ]
+   ],
+   "stay": 3,
+   "mahli": 107,
+   "chemcam": 27,
+   "lonlat": [
+    137.3891532,
+    -4.82567778
+   ],
+   "photo": {
+    "sol": 5070,
+    "date": "2026-11-10",
+    "camera": "Navcam left",
+    "url": "https://mars.nasa.gov/msl-raw-images/proj/msl/redops/ods/surface/sol/05070/opgs/edr/ncam/NLB_847595338EDR_F1252274NCAM00354M_.JPG"
+   },
+   "xy": [
+    902.5,
+    1422.26
    ]
   }
  ],
  "track": [
   [
-   578.55,
-   5.9
+   1402.82,
+   3.95
   ],
   [
-   573.25,
-   13.9
+   1402.16,
+   12.92
   ],
   [
-   570.72,
-   25.01
+   1399.22,
+   29.16
   ],
   [
-   571.02,
-   25.05
+   1396.94,
+   46.35
   ],
   [
-   560.4,
-   28.69
+   1400.83,
+   50.94
   ],
   [
-   553.1,
-   38.63
+   1403.83,
+   54.73
   ],
   [
-   553.96,
-   47.37
+   1406.79,
+   60.68
   ],
   [
-   557.39,
-   62.61
+   1406.8,
+   60.71
   ],
   [
-   555.23,
-   71.78
+   1412.16,
+   61.56
   ],
   [
-   559.45,
-   83.21
+   1420.8,
+   63.83
   ],
   [
-   549.84,
-   92.76
+   1430.75,
+   68.2
   ],
   [
-   534.51,
-   106.91
+   1441.92,
+   71.98
   ],
   [
-   530.79,
-   107.29
+   1443.56,
+   74.4
   ],
   [
-   521.13,
-   106.11
+   1442.9,
+   80.41
   ],
   [
-   506.24,
-   100.08
+   1444.03,
+   88.47
   ],
   [
-   500.07,
-   95.5
+   1446.59,
+   98.36
   ],
   [
-   482.5,
-   114.32
+   1444.05,
+   111.0
   ],
   [
-   479.92,
-   140.62
+   1444.04,
+   118.2
   ],
   [
-   481.1,
-   149.84
+   1443.37,
+   119.68
   ],
   [
-   471.76,
-   170.34
+   1445.0,
+   129.74
   ],
   [
-   471.84,
-   178.72
+   1444.81,
+   134.45
   ],
   [
-   470.51,
-   181.14
+   1447.59,
+   141.5
   ],
   [
-   466.84,
-   190.35
+   1446.7,
+   149.62
   ],
   [
-   465.93,
-   204.42
+   1445.06,
+   153.0
   ],
   [
-   459.7,
-   214.16
+   1441.46,
+   160.39
   ],
   [
-   446.69,
-   219.94
+   1448.72,
+   165.25
   ],
   [
-   434.3,
-   222.55
+   1451.76,
+   170.5
   ],
   [
-   427.98,
-   226.13
+   1457.09,
+   173.34
   ],
   [
-   420.98,
+   1462.88,
+   176.85
+  ],
+  [
+   1472.53,
+   184.3
+  ],
+  [
+   1473.52,
+   185.66
+  ],
+  [
+   1473.55,
+   185.57
+  ],
+  [
+   1487.4,
+   192.56
+  ],
+  [
+   1494.04,
+   206.59
+  ],
+  [
+   1483.72,
+   206.33
+  ],
+  [
+   1474.07,
+   212.55
+  ],
+  [
+   1479.68,
+   218.82
+  ],
+  [
+   1484.04,
+   220.54
+  ],
+  [
+   1492.0,
    231.14
   ],
   [
-   412.7,
-   232.01
+   1488.66,
+   241.33
   ],
   [
-   412.85,
-   232.0
+   1486.68,
+   237.62
   ],
   [
-   405.08,
-   236.28
+   1486.55,
+   237.99
   ],
   [
-   385.7,
-   245.32
+   1483.99,
+   242.33
   ],
   [
-   357.11,
-   260.96
+   1483.22,
+   243.51
   ],
   [
-   343.11,
-   275.1
+   1484.1,
+   253.31
   ],
   [
-   339.09,
-   288.26
+   1483.47,
+   264.66
   ],
   [
-   340.93,
-   291.15
+   1487.08,
+   278.24
   ],
   [
-   342.18,
-   292.21
+   1489.57,
+   285.78
   ],
   [
-   325.75,
-   308.8
+   1494.51,
+   285.4
   ],
   [
-   311.82,
-   331.23
+   1493.87,
+   284.92
   ],
   [
-   299.86,
-   353.3
+   1486.95,
+   278.22
   ],
   [
-   287.77,
-   353.95
+   1483.31,
+   265.35
   ],
   [
-   274.31,
-   365.68
+   1481.03,
+   263.26
   ],
   [
-   274.35,
-   366.27
+   1481.44,
+   263.09
   ],
   [
-   268.43,
-   372.84
+   1480.63,
+   288.21
   ],
   [
-   260.64,
-   377.83
+   1477.15,
+   294.51
   ],
   [
-   254.86,
-   368.74
+   1473.43,
+   292.65
   ],
   [
-   250.56,
-   371.12
+   1468.64,
+   288.44
   ],
   [
-   250.03,
-   384.55
+   1464.64,
+   276.15
   ],
   [
-   239.43,
-   403.6
+   1450.09,
+   270.05
   ],
   [
-   229.98,
-   415.76
+   1450.39,
+   269.77
   ],
   [
-   227.91,
-   420.89
+   1447.27,
+   270.38
   ],
   [
-   226.07,
-   426.16
+   1466.63,
+   271.62
   ],
   [
-   224.1,
-   428.13
+   1466.49,
+   271.62
   ],
   [
-   217.08,
-   437.22
+   1441.64,
+   271.65
   ],
   [
-   216.36,
-   443.3
+   1437.32,
+   270.28
   ],
   [
-   220.86,
-   451.03
+   1432.09,
+   264.14
   ],
   [
-   223.14,
-   458.34
+   1431.94,
+   251.88
   ],
   [
-   223.47,
-   459.6
+   1429.78,
+   239.63
   ],
   [
-   222.78,
-   457.19
+   1424.69,
+   222.39
   ],
   [
-   234.78,
-   459.27
+   1404.73,
+   208.85
   ],
   [
-   230.06,
-   470.39
+   1398.34,
+   189.32
   ],
   [
-   221.23,
-   474.27
+   1386.07,
+   185.18
   ],
   [
-   229.02,
-   479.5
+   1377.64,
+   176.92
   ],
   [
-   227.56,
-   488.13
+   1369.31,
+   164.2
   ],
   [
-   211.05,
-   485.12
+   1365.65,
+   155.82
   ],
   [
-   217.61,
-   490.51
+   1362.15,
+   146.2
   ],
   [
-   216.99,
-   490.96
+   1361.74,
+   145.58
   ],
   [
-   218.07,
-   495.03
+   1358.02,
+   136.77
   ],
   [
-   219.8,
-   498.17
+   1357.76,
+   132.25
   ],
   [
-   231.66,
-   500.96
+   1348.15,
+   134.77
   ],
   [
-   232.54,
-   501.02
+   1336.78,
+   136.36
   ],
   [
-   234.15,
-   506.58
+   1329.78,
+   142.08
   ],
   [
-   234.13,
-   509.19
+   1321.81,
+   148.43
   ],
   [
-   239.02,
-   517.6
+   1307.32,
+   150.44
   ],
   [
-   242.84,
-   522.8
+   1296.78,
+   156.6
   ],
   [
-   244.6,
-   531.62
+   1281.36,
+   166.64
   ],
   [
-   252.26,
-   534.52
+   1257.57,
+   170.49
   ],
   [
-   263.4,
-   535.38
+   1233.09,
+   166.62
   ],
   [
-   274.85,
-   541.87
+   1211.91,
+   165.6
   ],
   [
-   283.75,
-   555.06
+   1203.44,
+   167.09
   ],
   [
-   287.32,
-   554.95
+   1193.61,
+   168.88
   ],
   [
-   274.17,
-   541.88
+   1184.65,
+   163.1
   ],
   [
-   267.39,
-   534.16
+   1169.92,
+   163.65
   ],
   [
-   267.91,
-   529.07
+   1162.99,
+   164.85
   ],
   [
-   268.33,
-   533.81
+   1152.4,
+   169.49
   ],
   [
-   266.99,
-   534.06
+   1134.36,
+   173.82
   ],
   [
-   267.27,
-   526.8
+   1131.46,
+   185.15
   ],
   [
-   270.4,
-   531.11
+   1125.29,
+   203.05
   ],
   [
-   266.65,
-   534.77
+   1109.24,
+   212.16
   ],
   [
-   266.64,
-   533.99
+   1100.27,
+   201.49
   ],
   [
-   279.31,
-   529.0
+   1089.88,
+   215.31
   ],
   [
-   281.82,
-   520.14
+   1081.6,
+   225.25
   ],
   [
-   286.66,
-   514.57
+   1070.0,
+   235.44
   ],
   [
-   294.72,
-   519.78
+   1063.71,
+   243.96
   ],
   [
-   313.17,
-   530.98
+   1061.74,
+   244.25
   ],
   [
-   316.39,
-   527.46
+   1044.67,
+   249.14
   ],
   [
-   315.12,
-   530.36
+   1036.86,
+   264.23
   ],
   [
-   321.81,
-   537.78
+   1020.19,
+   273.7
   ],
   [
-   315.81,
-   558.2
+   1005.26,
+   282.65
   ],
   [
-   317.17,
-   579.57
+   993.96,
+   296.86
   ],
   [
-   307.13,
-   584.7
+   981.05,
+   310.88
   ],
   [
-   292.41,
-   590.52
+   971.62,
+   332.29
   ],
   [
-   289.28,
-   605.59
+   966.08,
+   344.07
   ],
   [
-   286.92,
-   608.99
+   969.54,
+   353.49
   ],
   [
-   285.99,
-   610.9
+   972.55,
+   370.4
   ],
   [
-   290.92,
-   639.12
+   967.25,
+   378.4
   ],
   [
-   297.6,
-   652.84
+   964.72,
+   389.51
   ],
   [
-   300.88,
-   677.54
+   965.02,
+   389.55
   ],
   [
-   291.93,
-   687.03
+   954.4,
+   393.19
   ],
   [
-   277.84,
-   688.75
+   947.1,
+   403.13
   ],
   [
-   266.88,
-   705.42
+   947.96,
+   411.87
   ],
   [
-   287.8,
-   719.58
+   951.39,
+   427.11
   ],
   [
-   291.56,
-   724.87
+   949.23,
+   436.28
   ],
   [
-   284.71,
-   719.95
+   953.45,
+   447.71
   ],
   [
-   284.09,
-   723.43
+   943.84,
+   457.26
   ],
   [
-   291.21,
-   737.07
+   928.51,
+   471.41
   ],
   [
-   301.08,
-   748.34
+   924.79,
+   471.79
   ],
   [
-   308.7,
-   760.05
+   915.13,
+   470.61
+  ],
+  [
+   900.24,
+   464.58
+  ],
+  [
+   894.07,
+   460.0
+  ],
+  [
+   876.5,
+   478.82
+  ],
+  [
+   873.92,
+   505.12
+  ],
+  [
+   875.1,
+   514.34
+  ],
+  [
+   865.76,
+   534.84
+  ],
+  [
+   865.84,
+   543.22
+  ],
+  [
+   864.51,
+   545.64
+  ],
+  [
+   860.84,
+   554.85
+  ],
+  [
+   859.93,
+   568.92
+  ],
+  [
+   853.7,
+   578.66
+  ],
+  [
+   840.69,
+   584.44
+  ],
+  [
+   828.3,
+   587.05
+  ],
+  [
+   821.98,
+   590.63
+  ],
+  [
+   814.98,
+   595.64
+  ],
+  [
+   806.7,
+   596.51
+  ],
+  [
+   806.85,
+   596.5
+  ],
+  [
+   799.08,
+   600.78
+  ],
+  [
+   779.7,
+   609.82
+  ],
+  [
+   751.11,
+   625.46
+  ],
+  [
+   737.11,
+   639.6
+  ],
+  [
+   733.09,
+   652.76
+  ],
+  [
+   734.93,
+   655.65
+  ],
+  [
+   736.18,
+   656.71
+  ],
+  [
+   719.75,
+   673.3
+  ],
+  [
+   705.82,
+   695.73
+  ],
+  [
+   693.86,
+   717.8
+  ],
+  [
+   681.77,
+   718.45
+  ],
+  [
+   668.31,
+   730.18
+  ],
+  [
+   668.35,
+   730.77
+  ],
+  [
+   662.43,
+   737.34
+  ],
+  [
+   654.64,
+   742.33
+  ],
+  [
+   648.86,
+   733.24
+  ],
+  [
+   644.56,
+   735.62
+  ],
+  [
+   644.03,
+   749.05
+  ],
+  [
+   633.43,
+   768.1
+  ],
+  [
+   623.98,
+   780.26
+  ],
+  [
+   621.91,
+   785.39
+  ],
+  [
+   620.07,
+   790.66
+  ],
+  [
+   618.1,
+   792.63
+  ],
+  [
+   611.08,
+   801.72
+  ],
+  [
+   610.36,
+   807.8
+  ],
+  [
+   614.86,
+   815.53
+  ],
+  [
+   617.14,
+   822.84
+  ],
+  [
+   617.47,
+   824.1
+  ],
+  [
+   616.78,
+   821.69
+  ],
+  [
+   628.78,
+   823.77
+  ],
+  [
+   624.06,
+   834.89
+  ],
+  [
+   615.23,
+   838.77
+  ],
+  [
+   623.02,
+   844.0
+  ],
+  [
+   621.56,
+   852.63
+  ],
+  [
+   605.05,
+   849.62
+  ],
+  [
+   611.61,
+   855.01
+  ],
+  [
+   610.99,
+   855.46
+  ],
+  [
+   612.07,
+   859.53
+  ],
+  [
+   613.8,
+   862.67
+  ],
+  [
+   625.66,
+   865.46
+  ],
+  [
+   626.54,
+   865.52
+  ],
+  [
+   628.15,
+   871.08
+  ],
+  [
+   628.13,
+   873.69
+  ],
+  [
+   633.02,
+   882.1
+  ],
+  [
+   636.84,
+   887.3
+  ],
+  [
+   638.6,
+   896.12
+  ],
+  [
+   646.26,
+   899.02
+  ],
+  [
+   657.4,
+   899.88
+  ],
+  [
+   668.85,
+   906.37
+  ],
+  [
+   677.75,
+   919.56
+  ],
+  [
+   681.32,
+   919.45
+  ],
+  [
+   668.17,
+   906.38
+  ],
+  [
+   661.39,
+   898.66
+  ],
+  [
+   661.91,
+   893.57
+  ],
+  [
+   662.33,
+   898.31
+  ],
+  [
+   660.99,
+   898.56
+  ],
+  [
+   661.27,
+   891.3
+  ],
+  [
+   664.4,
+   895.61
+  ],
+  [
+   660.65,
+   899.27
+  ],
+  [
+   660.64,
+   898.49
+  ],
+  [
+   673.31,
+   893.5
+  ],
+  [
+   675.82,
+   884.64
+  ],
+  [
+   680.66,
+   879.07
+  ],
+  [
+   688.72,
+   884.28
+  ],
+  [
+   707.17,
+   895.48
+  ],
+  [
+   710.39,
+   891.96
+  ],
+  [
+   709.12,
+   894.86
+  ],
+  [
+   715.81,
+   902.28
+  ],
+  [
+   709.81,
+   922.7
+  ],
+  [
+   711.17,
+   944.07
+  ],
+  [
+   701.13,
+   949.2
+  ],
+  [
+   686.41,
+   955.02
+  ],
+  [
+   683.28,
+   970.09
+  ],
+  [
+   680.92,
+   973.49
+  ],
+  [
+   679.99,
+   975.4
+  ],
+  [
+   684.92,
+   1003.62
+  ],
+  [
+   691.6,
+   1017.34
+  ],
+  [
+   694.88,
+   1042.04
+  ],
+  [
+   685.93,
+   1051.53
+  ],
+  [
+   671.84,
+   1053.25
+  ],
+  [
+   660.88,
+   1069.92
+  ],
+  [
+   681.8,
+   1084.08
+  ],
+  [
+   685.56,
+   1089.37
+  ],
+  [
+   678.71,
+   1084.45
+  ],
+  [
+   678.09,
+   1087.93
+  ],
+  [
+   685.21,
+   1101.57
+  ],
+  [
+   695.08,
+   1112.84
+  ],
+  [
+   702.7,
+   1124.55
+  ],
+  [
+   701.97,
+   1138.66
+  ],
+  [
+   707.36,
+   1146.83
+  ],
+  [
+   719.0,
+   1160.87
+  ],
+  [
+   721.96,
+   1177.75
+  ],
+  [
+   723.08,
+   1192.26
+  ],
+  [
+   717.8,
+   1210.98
+  ],
+  [
+   725.92,
+   1229.59
+  ],
+  [
+   725.83,
+   1234.64
+  ],
+  [
+   728.45,
+   1242.72
+  ],
+  [
+   729.16,
+   1260.02
+  ],
+  [
+   748.81,
+   1289.11
+  ],
+  [
+   755.78,
+   1298.88
+  ],
+  [
+   769.0,
+   1301.39
+  ],
+  [
+   772.76,
+   1278.02
+  ],
+  [
+   781.6,
+   1251.35
+  ],
+  [
+   791.4,
+   1259.42
+  ],
+  [
+   794.5,
+   1275.72
+  ],
+  [
+   797.31,
+   1282.56
+  ],
+  [
+   800.27,
+   1290.43
+  ],
+  [
+   803.58,
+   1296.36
+  ],
+  [
+   811.99,
+   1298.33
+  ],
+  [
+   827.41,
+   1315.5
+  ],
+  [
+   828.75,
+   1327.73
+  ],
+  [
+   830.4,
+   1343.24
+  ],
+  [
+   829.69,
+   1360.6
+  ],
+  [
+   829.04,
+   1362.87
+  ],
+  [
+   827.45,
+   1366.98
+  ],
+  [
+   842.01,
+   1376.72
+  ],
+  [
+   856.25,
+   1390.39
+  ],
+  [
+   871.91,
+   1391.17
+  ],
+  [
+   882.45,
+   1390.43
+  ],
+  [
+   893.14,
+   1405.9
+  ],
+  [
+   893.43,
+   1406.31
+  ],
+  [
+   861.74,
+   1389.89
+  ],
+  [
+   856.88,
+   1392.23
+  ],
+  [
+   896.03,
+   1409.82
+  ],
+  [
+   902.5,
+   1422.26
+  ],
+  [
+   894.58,
+   1432.5
   ]
  ],
  "conditions": {
@@ -2269,7 +5201,7 @@
   "date": "2026-08-25"
  },
  "spaceWeather": {
-  "checked": "2026-11-16T00:10Z",
+  "checked": "2026-11-16T02:09Z",
   "source": "NASA DONKI (CCMC): WSA-ENLIL simulations and SEP events",
   "marsArrivals": [
    {

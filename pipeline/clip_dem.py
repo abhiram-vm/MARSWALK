@@ -28,7 +28,7 @@ from rasterio.windows import from_bounds
 # planetarymaps.usgs.gov redirects to this bucket.
 URL = ("https://asc-pds-services.s3.us-west-2.amazonaws.com/"
        "mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif")
-AOI = {"west": 137.372, "south": -4.816, "east": 137.396, "north": -4.790}
+from aoi import AOI  # noqa: E402  shared planning area
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Geographic coordinates on the Mars sphere the file's projection is built on.

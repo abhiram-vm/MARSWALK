@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 WAYPOINTS = "https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json"
 WEATHER = "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json"
-AOI = {"west": 137.372, "south": -4.816, "east": 137.396, "north": -4.790}
+from aoi import AOI  # noqa: E402  shared planning area
 OUT = pathlib.Path(__file__).resolve().parent.parent / "web" / "public" / "data"
 
 

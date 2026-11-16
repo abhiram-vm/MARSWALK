@@ -11,11 +11,27 @@ export type Mode = 'orbit' | 'walk'
 export interface Pose { target: THREE.Vector3; dist: number; yaw: number; pitch: number }
 export interface CineFrame { dist: number; frac: number; heading: number; pos: THREE.Vector3; holding: boolean }
 
-const SITE_STEP = 2
-const CTX_STEP = 2
+const CHUNK = 250 // site tile, in 2 m cells: 500 m
+const LODS = [2, 4, 8, 16] // tile detail levels, in cells: 4, 8, 16 and 32 m
 const ORANGE = 0xf2662f
 const WHITE = 0xf4f1ec
 export const PARTNER = 0x5fb4ff // astronaut B in pair mode
+
+/**
+ * Weaker graphics: software renderers, older integrated and phone GPUs, or devices with little
+ * memory or few cores. Can be forced with ?quality=low or high, or the setting in Data layers.
+ */
+export function weakGraphics(r: THREE.WebGLRenderer) {
+  let pref: string | null = new URLSearchParams(location.search).get('quality')
+  try { pref = pref ?? localStorage.getItem('mw-quality') } catch { /* private mode */ }
+  if (pref === 'low') return true
+  if (pref === 'high') return false
+  const gl = r.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info')
+  const gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : ''
+  const nav = navigator as Navigator & { deviceMemory?: number }
+  const weakName = /SwiftShader|llvmpipe|Mali-[GT]?\d{1,2}\b|Adreno \(TM\) [1-5]\d\d|PowerVR|Intel\(R\) (HD|UHD) Graphics/i.test(gpu)
+  return weakName || (nav.deviceMemory ?? 8) <= 4 || (navigator.hardwareConcurrency || 8) <= 4
+}
 
 export class World {
   readonly canvas: HTMLCanvasElement
@@ -43,11 +59,14 @@ export class World {
   private sun = new THREE.DirectionalLight(0xfff0dc, 2.6)
   private hemi = new THREE.HemisphereLight(0xd9b391, 0x3a271c, 0.95)
   private sky!: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>
-  private site!: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
   private ctx!: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
-  private slopeLayer!: THREE.Mesh
+  private outer!: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
   private slopeTex!: THREE.CanvasTexture
-  private thermalLayers: THREE.Mesh[] = []
+  /** weaker graphics: lower resolution, smaller shadows, coarser distant terrain */
+  low = false
+  private shadowDirty = true
+  private shadowAt = { x: 0, z: 0, r: 0 }
+  private frameNo = 0
   private track!: THREE.Line
   private boundary!: THREE.Line
   // one ribbon per route profile and walker, keyed 'direct-0', 'cautious-1' and so on
@@ -78,17 +97,22 @@ export class World {
     this.zmid = d.zmid
     this.sunModel = d.sun
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
-    this.maxRatio = Math.min(2, devicePixelRatio || 1)
-    this.pixelRatio = Math.min(1.5, this.maxRatio)
+    this.low = weakGraphics(this.renderer)
+    this.lodScale = this.low ? 0.6 : 1
+    this.maxRatio = Math.min(this.low ? 1.25 : 2, devicePixelRatio || 1)
+    this.pixelRatio = Math.min(this.low ? 1 : 1.5, this.maxRatio)
     this.renderer.setPixelRatio(this.pixelRatio)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.05
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFShadowMap
-    this.scene.fog = new THREE.FogExp2(0xc69c7c, 0.00016)
+    // the terrain does not move, so shadows are redrawn only when the sun or the view changes
+    this.renderer.shadowMap.autoUpdate = false
+    // dust haze: the 30 km surroundings fade out well before their edge
+    this.scene.fog = new THREE.FogExp2(0xc69c7c, 0.000115)
     this.scene.add(this.world, this.hemi, this.sun, this.sun.target)
     this.sun.castShadow = true
-    this.sun.shadow.mapSize.set(2048, 2048)
+    this.sun.shadow.mapSize.set(this.low ? 1024 : 2048, this.low ? 1024 : 2048)
     this.sun.shadow.bias = -0.0003
     this.sun.shadow.normalBias = 1.4
     this.buildSky()
@@ -123,8 +147,18 @@ export class World {
     const c0 = Math.floor(c), r0 = Math.floor(r), fc = c - c0, fr = r - r0, i = r0 * n + c0
     return (h[i] * (1 - fc) + h[i + 1] * fc) * (1 - fr) + (h[i + n] * (1 - fc) + h[i + n + 1] * fc) * fr - this.zmid
   }
+  private outerH(x: number, z: number) {
+    const { n, cell, h } = this.d.outer
+    const c = Math.max(0, Math.min(n - 1.001, x / cell + n / 2 - 0.5)), r = Math.max(0, Math.min(n - 1.001, z / cell + n / 2 - 0.5))
+    const c0 = Math.floor(c), r0 = Math.floor(r), fc = c - c0, fr = r - r0, i = r0 * n + c0
+    return (h[i] * (1 - fc) + h[i + 1] * fc) * (1 - fr) + (h[i + n] * (1 - fc) + h[i + n + 1] * fc) * fr - this.zmid
+  }
   /** Height in metres relative to the site's mid elevation, true scale. */
-  height(x: number, z: number) { return this.inSite(x, z) ? this.siteH(this.gc(x), this.gr(z)) : this.ctxH(x, z) }
+  height(x: number, z: number) {
+    if (this.inSite(x, z)) return this.siteH(this.gc(x), this.gr(z))
+    const ch = (this.d.ctx.n * this.d.ctx.cell) / 2 - this.d.ctx.cell
+    return Math.abs(x) < ch && Math.abs(z) < ch ? this.ctxH(x, z) : this.outerH(x, z)
+  }
   ground(x: number, z: number) { return this.height(x, z) * this.exag }
   cellToWorld(p: { x: number; y: number }, lift = 0) { const x = this.wx(p.x), z = this.wz(p.y); return new THREE.Vector3(x, (this.height(x, z) + lift) * this.exag, z) }
 
@@ -157,77 +191,141 @@ export class World {
     this.scene.add(this.sky)
   }
 
-  private gridMesh(nx: number, nz: number, pos: (i: number, j: number) => [number, number, number], uv: (i: number, j: number) => [number, number]) {
-    const p = new Float32Array(nx * nz * 3), u = new Float32Array(nx * nz * 2), ind = new Uint32Array((nx - 1) * (nz - 1) * 6)
+  private gridMesh(nx: number, nz: number, pos: (i: number, j: number) => [number, number, number], uv: (i: number, j: number) => [number, number], ao: (i: number, j: number) => number, skip?: (i: number, j: number) => boolean) {
+    const p = new Float32Array(nx * nz * 3), u = new Float32Array(nx * nz * 2), col = new Float32Array(nx * nz * 3), idx: number[] = []
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-      const v = j * nx + i, q = pos(i, j), w = uv(i, j)
+      const v = j * nx + i, q = pos(i, j), w = uv(i, j), a = ao(i, j)
       p[v * 3] = q[0]; p[v * 3 + 1] = q[1]; p[v * 3 + 2] = q[2]; u[v * 2] = w[0]; u[v * 2 + 1] = w[1]
+      col[v * 3] = col[v * 3 + 1] = col[v * 3 + 2] = a
     }
-    let k = 0
     for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      if (skip?.(i, j)) continue
       const a = j * nx + i, b = a + 1, c = a + nx, e = c + 1
-      ind[k++] = a; ind[k++] = c; ind[k++] = b; ind[k++] = b; ind[k++] = c; ind[k++] = e
+      idx.push(a, c, b, b, c, e)
     }
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(p, 3))
     g.setAttribute('uv', new THREE.BufferAttribute(u, 2))
-    g.setIndex(new THREE.BufferAttribute(ind, 1))
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    g.setIndex(idx)
     g.computeVertexNormals()
     return g
   }
 
-  // Ambient occlusion from the terrain itself: how much of the sky each point sees.
-  private bakeAO(g: THREE.BufferGeometry, radii: number[]) {
-    const p = g.attributes.position.array as Float32Array, n = p.length / 3, col = new Float32Array(n * 3)
-    const dirs = Array.from({ length: 8 }, (_, k) => [Math.cos((k * Math.PI) / 4), Math.sin((k * Math.PI) / 4)])
-    for (let v = 0; v < n; v++) {
-      const x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2]
-      let occ = 0
-      for (const [dx, dz] of dirs) {
-        let m = 0
-        for (const r of radii) { const s = (this.height(x + dx * r, z + dz * r) - y) / r; if (s > m) m = s }
-        occ += m / Math.sqrt(1 + m * m)
-      }
-      const ao = Math.max(0.35, 1 - (occ / 8) * 1.25)
-      col[v * 3] = col[v * 3 + 1] = col[v * 3 + 2] = ao
-    }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-  }
-
-  private texture(im: HTMLImageElement) {
+  private texture(im: HTMLImageElement | HTMLCanvasElement) {
     const t = new THREE.Texture(im)
     t.colorSpace = THREE.SRGBColorSpace
-    t.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy())
+    t.anisotropy = Math.min(this.low ? 2 : 8, this.renderer.capabilities.getMaxAnisotropy())
     t.needsUpdate = true
     return t
+  }
+  /** On weaker graphics, halve the big site image before it goes to the GPU (64 MB down to 16 MB). */
+  private siteImage() {
+    const im = this.d.images.site
+    if (!this.low || im.naturalWidth <= 2048) return im
+    const c = document.createElement('canvas')
+    c.width = 2048; c.height = Math.round((2048 * im.naturalHeight) / im.naturalWidth)
+    c.getContext('2d')!.drawImage(im, 0, 0, c.width, c.height)
+    return c
+  }
+
+  // Slope and night-temperature layers are drawn inside the terrain shader, so turning them on
+  // costs a texture lookup rather than a second copy of every triangle.
+  private ov = {
+    slopeOn: { value: 0 }, slopeMap: { value: null as THREE.Texture | null },
+    thermOn: { value: 0 }, thermMap: { value: null as THREE.Texture | null }, thermHalf: { value: 4000 },
+  }
+  private withOverlays(mat: THREE.MeshStandardMaterial, slope: boolean) {
+    if (slope) mat.defines = { ...(mat.defines ?? {}), SLOPE_LAYER: '' }
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.ov)
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;')
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vWorldXZ;\nuniform float slopeOn, thermOn, thermHalf;\nuniform sampler2D slopeMap, thermMap;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          #ifdef SLOPE_LAYER
+          if (slopeOn > 0.5) { vec4 sl = texture2D(slopeMap, vMapUv); diffuseColor.rgb = mix(diffuseColor.rgb, sl.rgb, sl.a); }
+          #endif
+          if (thermOn > 0.5) {
+            vec2 tu = vec2(vWorldXZ.x + thermHalf, thermHalf - vWorldXZ.y) / (2.0 * thermHalf);
+            if (tu.x > 0.0 && tu.x < 1.0 && tu.y > 0.0 && tu.y < 1.0) { vec4 th = texture2D(thermMap, tu); diffuseColor.rgb = mix(diffuseColor.rgb, th.rgb, th.a); }
+          }`)
+    }
+    return mat
+  }
+
+  // ---------- the site: tiles that get coarser with distance ----------
+  private chunks: { c0: number; r0: number; c1: number; r1: number; box: THREE.Box3; mesh: THREE.Mesh; geos: (THREE.BufferGeometry | undefined)[]; lod: number }[] = []
+  private siteMat!: THREE.MeshStandardMaterial
+  private lodScale = 1
+  /** One tile of the site at a cell step of 2, 4, 8 or 16 (4 to 32 m), with a skirt that hides cracks between levels. */
+  private chunkGeo(ch: { c0: number; r0: number; c1: number; r1: number }, step: number) {
+    const { cols, rows, elev, cell } = this.d.grid, ao = this.d.siteAo
+    const line = (a: number, b: number) => { const o: number[] = []; for (let v = a; v < b; v += step) o.push(v); o.push(b); return o }
+    const cs = line(ch.c0, ch.c1), rs = line(ch.r0, ch.r1), nx = cs.length, nz = rs.length
+    const h = (c: number, r: number) => elev[Math.min(rows - 1, Math.max(0, r)) * cols + Math.min(cols - 1, Math.max(0, c))] - this.zmid
+    const nv = nx * nz, edge = 2 * (nx + nz) - 4
+    const p = new Float32Array((nv + edge) * 3), nrm = new Float32Array((nv + edge) * 3), u = new Float32Array((nv + edge) * 2), col = new Float32Array((nv + edge) * 3)
+    const put = (v: number, c: number, r: number, drop: number) => {
+      const y = h(c, r)
+      p[v * 3] = this.wx(c); p[v * 3 + 1] = y - drop; p[v * 3 + 2] = this.wz(r)
+      // normals from the height grid itself, so neighbouring tiles at different levels shade alike
+      const dx = (h(c + step, r) - h(c - step, r)) / (2 * step * cell), dz = (h(c, r + step) - h(c, r - step)) / (2 * step * cell)
+      const l = Math.hypot(dx, 1, dz)
+      nrm[v * 3] = -dx / l; nrm[v * 3 + 1] = 1 / l; nrm[v * 3 + 2] = -dz / l
+      u[v * 2] = (c + 0.5) / cols; u[v * 2 + 1] = 1 - (r + 0.5) / rows
+      const a = ao.v[Math.min(ao.rows - 1, r >> 1) * ao.cols + Math.min(ao.cols - 1, c >> 1)]
+      col[v * 3] = col[v * 3 + 1] = col[v * 3 + 2] = drop ? a * 0.7 : a
+    }
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) put(j * nx + i, cs[i], rs[j], 0)
+    const idx: number[] = []
+    for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, c = a + nx, e = c + 1; idx.push(a, c, b, b, c, e) }
+    // skirt: walk the edge, drop a copy 12 m, and stitch both faces
+    const ring: number[] = []
+    for (let i = 0; i < nx; i++) ring.push(i)
+    for (let j = 1; j < nz; j++) ring.push(j * nx + nx - 1)
+    for (let i = nx - 2; i >= 0; i--) ring.push((nz - 1) * nx + i)
+    for (let j = nz - 2; j > 0; j--) ring.push(j * nx)
+    ring.forEach((v, k) => put(nv + k, Math.round(this.gc(p[v * 3])), Math.round(this.gr(p[v * 3 + 2])), 12))
+    for (let k = 0; k < ring.length; k++) {
+      const a = ring[k], b = ring[(k + 1) % ring.length], a2 = nv + k, b2 = nv + ((k + 1) % ring.length)
+      idx.push(a, a2, b, b, a2, b2, a, b, a2, b, b2, a2)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3))
+    g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3))
+    g.setAttribute('uv', new THREE.BufferAttribute(u, 2))
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    g.setIndex(idx)
+    g.computeBoundingSphere()
+    return g
   }
 
   private buildSite() {
     const { cols, rows, elev } = this.d.grid
-    const nx = Math.floor((cols - 1) / SITE_STEP) + 1, nz = Math.floor((rows - 1) / SITE_STEP) + 1
-    const g = this.gridMesh(nx, nz,
-      (i, j) => { const c = i * SITE_STEP, r = j * SITE_STEP; return [this.wx(c), elev[r * cols + c] - this.zmid, this.wz(r)] },
-      (i, j) => [(i * SITE_STEP + 0.5) / cols, 1 - (j * SITE_STEP + 0.5) / rows])
-    this.bakeAO(g, [6, 12, 24, 48, 96, 160])
-    this.site = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: this.texture(this.d.images.site), vertexColors: true, color: 0xd6a07a, roughness: 0.97, metalness: 0 }))
-    this.site.castShadow = this.site.receiveShadow = true
-    this.world.add(this.site)
-    // skirt so the site's edge never shows a gap against the coarser surroundings
-    const edge: THREE.Vector3[] = []
-    const ring = (c: number, r: number) => edge.push(new THREE.Vector3(this.wx(c), elev[r * cols + c] - this.zmid, this.wz(r)))
-    for (let c = 0; c < cols; c += SITE_STEP) ring(c, 0)
-    for (let r = 0; r < rows; r += SITE_STEP) ring(cols - 1, r)
-    for (let c = cols - 1; c >= 0; c -= SITE_STEP) ring(c, rows - 1)
-    for (let r = rows - 1; r >= 0; r -= SITE_STEP) ring(0, r)
-    const sp: number[] = []
-    for (let k = 0; k < edge.length; k++) {
-      const a = edge[k], b = edge[(k + 1) % edge.length]
-      sp.push(a.x, a.y, a.z, b.x, b.y, b.z, a.x, a.y - 14, a.z, b.x, b.y, b.z, b.x, b.y - 14, b.z, a.x, a.y - 14, a.z)
+    this.siteMat = this.withOverlays(new THREE.MeshStandardMaterial({ map: this.texture(this.siteImage()), vertexColors: true, color: 0xd6a07a, roughness: 0.97, metalness: 0 }), true)
+    for (let r0 = 0; r0 < rows - 1; r0 += CHUNK) for (let c0 = 0; c0 < cols - 1; c0 += CHUNK) {
+      const ch = { c0, r0, c1: Math.min(cols - 1, c0 + CHUNK), r1: Math.min(rows - 1, r0 + CHUNK) }
+      let lo = Infinity, hi = -Infinity
+      for (let r = ch.r0; r <= ch.r1; r += 4) for (let c = ch.c0; c <= ch.c1; c += 4) { const z = elev[r * cols + c] - this.zmid; if (z < lo) lo = z; if (z > hi) hi = z }
+      const box = new THREE.Box3(new THREE.Vector3(this.wx(ch.c0), lo, this.wz(ch.r0)), new THREE.Vector3(this.wx(ch.c1), hi, this.wz(ch.r1)))
+      const geos: (THREE.BufferGeometry | undefined)[] = [undefined, undefined, undefined, this.chunkGeo(ch, LODS[3])]
+      const mesh = new THREE.Mesh(geos[3]!, this.siteMat)
+      mesh.castShadow = mesh.receiveShadow = true
+      this.world.add(mesh)
+      this.chunks.push({ ...ch, box, mesh, geos, lod: 3 })
     }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); sg.computeVertexNormals()
-    this.world.add(new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ color: 0x6b4a36, roughness: 1, side: THREE.DoubleSide })))
-    const bl = edge.map((v) => new THREE.Vector3(v.x, v.y + 1.5, v.z)); bl.push(bl[0].clone())
-    this.boundary = new THREE.Line(new THREE.BufferGeometry().setFromPoints(bl), new THREE.LineDashedMaterial({ color: 0xf4f1ec, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.55, fog: false }))
+    // the planning-area edge, as a dashed line
+    const edge: THREE.Vector3[] = []
+    const ring = (c: number, r: number) => edge.push(new THREE.Vector3(this.wx(c), elev[r * cols + c] - this.zmid + 1.5, this.wz(r)))
+    for (let c = 0; c < cols; c += 4) ring(c, 0)
+    for (let r = 0; r < rows; r += 4) ring(cols - 1, r)
+    for (let c = cols - 1; c >= 0; c -= 4) ring(c, rows - 1)
+    for (let r = rows - 1; r >= 0; r -= 4) ring(0, r)
+    edge.push(edge[0].clone())
+    this.boundary = new THREE.Line(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineDashedMaterial({ color: 0xf4f1ec, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.55, fog: false }))
     this.boundary.computeLineDistances()
     this.world.add(this.boundary)
     const tp = this.d.track.map(([c, r]) => new THREE.Vector3(this.wx(c), this.siteH(c, r) + 1.2, this.wz(r)))
@@ -235,21 +333,46 @@ export class World {
     this.track.visible = false
     this.world.add(this.track)
   }
+  /** Picks each tile's level from its distance to the camera. Returns true if anything changed. */
+  private updateLod() {
+    const cam = this.camera.position, near = [700, 1600, 3600].map((d) => d * this.lodScale)
+    let built = 0, changed = false
+    for (const ch of this.chunks) {
+      const d = ch.box.distanceToPoint(new THREE.Vector3(cam.x, cam.y / this.exag, cam.z))
+      // a little hysteresis so tiles do not flicker between levels at a boundary
+      const want = (k: number) => (d < near[k] * (ch.lod <= k ? 1.1 : 0.95))
+      const lod = want(0) ? 0 : want(1) ? 1 : want(2) ? 2 : 3
+      if (lod === ch.lod) continue
+      if (!ch.geos[lod]) { if (built >= 2) { this.invalidate(); continue } ch.geos[lod] = this.chunkGeo(ch, LODS[lod]); built++ }
+      ch.mesh.geometry = ch.geos[lod]!
+      ch.lod = lod; changed = true
+      // free the finest level of tiles far from the camera
+      if (lod >= 2 && ch.geos[0]) { ch.geos[0].dispose(); ch.geos[0] = undefined }
+    }
+    return changed
+  }
 
   private buildContext() {
-    const { n, cell } = this.d.ctx, m = Math.floor((n - 1) / CTX_STEP) + 1
-    const hx = (this.d.grid.cols * this.d.grid.cell) / 2 - 12, hz = (this.d.grid.rows * this.d.grid.cell) / 2 - 12
-    const g = this.gridMesh(m, m,
-      (i, j) => {
-        const x = (i * CTX_STEP + 0.5 - n / 2) * cell, z = (j * CTX_STEP + 0.5 - n / 2) * cell
-        const y = this.ctxH(x, z) - (Math.abs(x) < hx && Math.abs(z) < hz ? 8 : 0)
-        return [x, y, z]
-      },
-      (i, j) => [(i * CTX_STEP + 0.5) / n, 1 - (j * CTX_STEP + 0.5) / n])
-    this.bakeAO(g, [48, 96, 192, 384, 700])
-    this.ctx = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: this.texture(this.d.images.ctx), vertexColors: true, color: 0xd6a07a, roughness: 1, metalness: 0 }))
-    this.ctx.receiveShadow = true
-    this.world.add(this.ctx)
+    // inner ring: 8 km at 16 m; outer ring: 30 km at 64 m. Each leaves out what the finer one covers.
+    const sx = (this.d.grid.cols * this.d.grid.cell) / 2, sz = (this.d.grid.rows * this.d.grid.cell) / 2
+    const ring = (src: { n: number; cell: number; ao: Float32Array }, step: number, hfn: (x: number, z: number) => number, holeX: number, holeZ: number, sink: number, image: HTMLImageElement) => {
+      const { n, cell } = src, m = Math.floor((n - 1) / step) + 1
+      const at = (i: number) => (i * step + 0.5 - n / 2) * cell
+      const g = this.gridMesh(m, m,
+        (i, j) => { const x = at(i), z = at(j); return [x, hfn(x, z) - (Math.abs(x) < holeX + cell && Math.abs(z) < holeZ + cell ? sink : 0), z] },
+        (i, j) => [(i * step + 0.5) / n, 1 - (j * step + 0.5) / n],
+        (i, j) => src.ao[Math.min(n - 1, j * step) * n + Math.min(n - 1, i * step)],
+        // leave out cells entirely under the finer terrain
+        (i, j) => Math.max(Math.abs(at(i)), Math.abs(at(i + 1))) < holeX - 2 * cell && Math.max(Math.abs(at(j)), Math.abs(at(j + 1))) < holeZ - 2 * cell)
+      const mesh = new THREE.Mesh(g, this.withOverlays(new THREE.MeshStandardMaterial({ map: this.texture(image), vertexColors: true, color: 0xd6a07a, roughness: 1, metalness: 0 }), false))
+      mesh.receiveShadow = true
+      this.world.add(mesh)
+      return mesh
+    }
+    const ch = (this.d.ctx.n * this.d.ctx.cell) / 2
+    // 32 m and 128 m between vertices (48 m for the inner ring on weaker graphics): this far out, more is not visible
+    this.ctx = ring(this.d.ctx, this.low ? 3 : 2, (x, z) => this.ctxH(x, z), sx, sz, 8, this.d.images.ctx)
+    this.outer = ring(this.d.outer, 2, (x, z) => this.outerH(x, z), ch, ch, 25, this.d.images.outer)
   }
 
   private buildOverlays() {
@@ -258,12 +381,9 @@ export class World {
     c.width = this.d.grid.cols; c.height = this.d.grid.rows
     this.slopeTex = new THREE.CanvasTexture(c)
     this.slopeTex.colorSpace = THREE.SRGBColorSpace
-    this.slopeLayer = new THREE.Mesh(this.site.geometry, new THREE.MeshBasicMaterial({ map: this.slopeTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, toneMapped: false }))
-    this.slopeLayer.visible = false
-    this.slopeLayer.renderOrder = 1
-    this.world.add(this.slopeLayer)
+    this.ov.slopeMap.value = this.slopeTex
     this.paintSlope(20)
-    // THEMIS night infrared over the whole 8 km area, as a colour ramp
+    // THEMIS night infrared over the 8 km area, as a colour ramp
     const t = this.d.images.themis, tc = document.createElement('canvas')
     tc.width = t.naturalWidth; tc.height = t.naturalHeight
     const tx = tc.getContext('2d', { willReadFrequently: true })!
@@ -276,20 +396,13 @@ export class World {
     const lo = vals[Math.floor(vals.length * 0.02)], hi = vals[Math.floor(vals.length * 0.98)]
     for (let i = 0; i < px.length; i += 4) {
       const v = Math.max(0, Math.min(1, (px[i] - lo) / Math.max(1, hi - lo))), [r, g, b] = ramp(v)
-      px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 140
+      px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = 150
     }
     tx.putImageData(im, 0, 0)
     const tt = new THREE.CanvasTexture(tc)
     tt.colorSpace = THREE.SRGBColorSpace
-    const half = (this.d.ctx.n * this.d.ctx.cell) / 2
-    for (const mesh of [this.site, this.ctx]) {
-      const geo = mesh.geometry.clone(), pos = geo.attributes.position.array as Float32Array, uv = geo.attributes.uv.array as Float32Array
-      for (let v = 0; v < pos.length / 3; v++) { uv[v * 2] = (pos[v * 3] + half) / (2 * half); uv[v * 2 + 1] = 1 - (pos[v * 3 + 2] + half) / (2 * half) }
-      geo.deleteAttribute('color')
-      const layer = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tt, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, toneMapped: false }))
-      layer.visible = false; layer.renderOrder = 1
-      this.world.add(layer); this.thermalLayers.push(layer)
-    }
+    this.ov.thermMap.value = tt
+    this.ov.thermHalf.value = (this.d.ctx.n * this.d.ctx.cell) / 2
   }
 
   paintSlope(limit: number) {
@@ -450,20 +563,42 @@ export class World {
 
   // ---------- layers and settings ----------
   setLayer(name: 'slope' | 'thermal' | 'track' | 'boundary', on: boolean) {
-    if (name === 'slope') this.slopeLayer.visible = on
-    if (name === 'thermal') this.thermalLayers.forEach((l) => (l.visible = on))
+    if (name === 'slope') this.ov.slopeOn.value = on ? 1 : 0
+    if (name === 'thermal') this.ov.thermOn.value = on ? 1 : 0
     if (name === 'track') this.track.visible = on
     if (name === 'boundary') this.boundary.visible = on
     this.invalidate()
   }
-  setTint(on: boolean) { for (const m of [this.site, this.ctx]) m.material.color.set(on ? 0xd6a07a : 0xffffff); this.invalidate() }
+  setTint(on: boolean) { for (const m of [this.siteMat, this.ctx.material, this.outer.material]) m.color.set(on ? 0xd6a07a : 0xffffff); this.invalidate() }
   setExag(k: number) {
     this.exag = k
     this.world.scale.y = k
+    this.shadowDirty = true
     this.orbit.target.y = this.ground(this.orbit.target.x, this.orbit.target.z)
     this.invalidate()
   }
-  setDepart(min: number) { this.departMin = min; if (!this.cine) this.applySun(min); this.invalidate() }
+  setDepart(min: number) { this.departMin = min; if (!this.cine) this.applySun(min, new THREE.Vector3(this.shadowAt.x, 0, this.shadowAt.z), this.shadowAt.r || 950); this.invalidate() }
+  /** Switch between full and reduced graphics while running. */
+  setQuality(low: boolean) {
+    this.low = low
+    this.lodScale = low ? 0.6 : 1
+    this.maxRatio = Math.min(low ? 1.25 : 2, devicePixelRatio || 1)
+    this.pixelRatio = Math.min(low ? 1 : 1.5, this.maxRatio)
+    const size = low ? 1024 : 2048
+    this.sun.shadow.mapSize.set(size, size)
+    this.sun.shadow.map?.dispose(); this.sun.shadow.map = null
+    this.applyRatio()
+    this.shadowDirty = true
+    this.invalidate()
+  }
+  /** Keep the shadow map over what the camera is looking at, sized to the view. */
+  private followShadow() {
+    const t = this.orbit.target, r = clamp(this.orbit.dist * 0.75, 350, 2400), a = this.shadowAt
+    if (Math.hypot(t.x - a.x, t.z - a.z) > a.r * 0.3 || r > a.r * 1.3 || r < a.r / 1.3) {
+      this.shadowAt = { x: t.x, z: t.z, r }
+      this.applySun(this.departMin, new THREE.Vector3(t.x, 0, t.z), r)
+    }
+  }
   private applySun(minutes: number, focus?: THREE.Vector3, radius = 950) {
     const s = sunAt(minutes, this.sunModel)
     const el = Math.max(1.2, s.el) * (Math.PI / 180)
@@ -471,6 +606,7 @@ export class World {
     const f = focus ?? new THREE.Vector3()
     this.sun.position.copy(f).addScaledVector(dir, 4000)
     this.sun.target.position.copy(f)
+    this.shadowDirty = true
     const cam = this.sun.shadow.camera
     cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius; cam.near = 1000; cam.far = 7600
     cam.updateProjectionMatrix()
@@ -515,7 +651,8 @@ export class World {
     this.invalidate()
   }
   private applyOrbit() {
-    const o = this.orbit, cp = Math.cos(o.pitch)
+    const o = this.orbit, cp = Math.cos(o.pitch), lim = 4500
+    o.target.x = clamp(o.target.x, -lim, lim); o.target.z = clamp(o.target.z, -lim, lim)
     this.camera.position.set(o.target.x + o.dist * cp * Math.sin(o.yaw), o.target.y + o.dist * Math.sin(o.pitch), o.target.z + o.dist * cp * Math.cos(o.yaw))
     const g = this.ground(this.camera.position.x, this.camera.position.z) + 15
     if (this.camera.position.y < g) this.camera.position.y = g
@@ -528,12 +665,12 @@ export class World {
   pick(clientX: number, clientY: number): THREE.Vector3 | null {
     const b = this.canvas.getBoundingClientRect(), ray = new THREE.Raycaster()
     ray.setFromCamera(new THREE.Vector2(((clientX - b.left) / b.width) * 2 - 1, -((clientY - b.top) / b.height) * 2 + 1), this.camera)
-    const o = ray.ray.origin, d = ray.ray.direction, half = (this.d.ctx.n * this.d.ctx.cell) / 2
+    const o = ray.ray.origin, d = ray.ray.direction, half = (this.d.outer.n * this.d.outer.cell) / 2
     let t = 0, step = 2
     for (let i = 0; i < 6000; i++) {
       t += step
       const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t
-      if (Math.abs(x) > half || Math.abs(z) > half) { if (t > 30000) break; continue }
+      if (Math.abs(x) > half || Math.abs(z) > half) { if (t > 40000) break; continue }
       if (y <= this.ground(x, z)) {
         let lo = t - step, hi = t
         for (let j = 0; j < 14; j++) { const m = (lo + hi) / 2; if (o.y + d.y * m <= this.ground(o.x + d.x * m, o.z + d.z * m)) hi = m; else lo = m }
@@ -680,6 +817,7 @@ export class World {
     this.invalidate()
   }
   get walkPaused() { return !!this.cine?.paused }
+  get walkLength() { return this.cine?.endDist ?? 0 }
   stopWalk(exag: number) {
     this.cine = null
     this.mode = 'orbit'
@@ -698,7 +836,7 @@ export class World {
   }
   private stepWalk(now: number) {
     const c = this.cine!, sp = this.paths.get(c.key)!
-    const dt = c.last ? Math.min(0.1, (now - c.last) / 1000) : 0
+    const dt = c.last ? Math.min(0.25, (now - c.last) / 1000) : 0 // up to a quarter second per frame, so slow devices keep the chosen speed
     c.last = now
     if (!c.paused) {
       if (c.hold > 0) c.hold -= dt
@@ -757,8 +895,12 @@ export class World {
       if (k >= 1) this.reveal = null
       active = true
     }
-    if (this.mode === 'orbit') this.applyOrbit()
+    if (this.mode === 'orbit') { this.applyOrbit(); this.followShadow() }
+    if (this.updateLod()) this.shadowDirty = true
     this.sky.position.copy(this.camera.position)
+    // while walking the sun moves every frame; on weaker graphics redraw shadows every third frame
+    this.frameNo++
+    if (this.shadowDirty && (!this.cine || !this.low || this.frameNo % 3 === 0)) { this.renderer.shadowMap.needsUpdate = true; this.shadowDirty = false }
     this.renderer.render(this.scene, this.camera)
     this.onRender()
     if (active) { this.adapt(now); this.raf = requestAnimationFrame((t) => this.loop(t)) } else this.lastT = 0
@@ -770,6 +912,7 @@ export class World {
     if (this.frames.length < 40) return
     const avg = this.frames.reduce((a, b) => a + b, 0) / this.frames.length
     if (avg > 26 && this.pixelRatio > 0.6) { this.pixelRatio = Math.max(0.6, this.pixelRatio - 0.2); this.applyRatio() }
+    else if (avg > 30 && this.lodScale > 0.4) { this.lodScale *= 0.75; this.frames = [] } // still slow at the lowest resolution: coarser tiles
     else if (avg < 13 && this.pixelRatio < this.maxRatio) { this.pixelRatio = Math.min(this.maxRatio, this.pixelRatio + 0.2); this.applyRatio() }
   }
   private applyRatio() { this.frames = []; this.renderer.setPixelRatio(this.pixelRatio); this.resize() }

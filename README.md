@@ -36,6 +36,12 @@ Open `index.html` (at the repository root) in a current browser. It is one self-
 
 Earlier prototypes are in `preview/` (2D and a first 3D version).
 
+### Released and beta
+
+- `index.html` is the released version. `npm run build` (in `web/`) replaces it.
+- `beta/index.html` is the beta copy: the latest code, marked BETA, for testing new features before they are released. `npm run build:beta` writes it; `E2E_BETA=1 npm run e2e` tests it.
+- To release the beta, run `npm run build`, test, and commit `index.html`.
+
 ## Check it
 
 ```bash

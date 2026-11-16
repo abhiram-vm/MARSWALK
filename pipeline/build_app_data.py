@@ -5,7 +5,9 @@ AI-assisted (Claude Code).
 Writes:
   site_terrain.png    2 m routing grid: elevation (red, green) and slope (blue)
   site_hirise.jpg     HiRISE image of the site, NASA Mars Trek level 16
-  context_terrain.png 16 m terrain for an 8 km area around the site
+  site_ao.png         sky visibility (ambient occlusion) of the site at 4 m, baked here so browsers do not
+  context_terrain.png 16 m terrain for an 8 km area around the site, with context_ao.png
+  outer_terrain.png   64 m terrain for a 30 km area, with outer_ao.png and outer_ctx.jpg (CTX, Mars Trek level 10)
   context_ctx.jpg     CTX image of the same 8 km area, Mars Trek level 12
   context_themis.png  THEMIS night infrared of the 8 km area, Mars Trek level 9
   photos/c<sol>.jpg   Curiosity Navcam frame at each science stop (pipeline/find_stops.py)
@@ -17,7 +19,9 @@ web/public/data/waypoints.geojson and conditions.json (pipeline/fetch_reference.
 Run from the repository root:  python3 pipeline/build_app_data.py [tile_cache_dir]
 """
 import datetime as dt, io, json, math, os, pathlib, sys, time, urllib.request
+import warnings
 import numpy as np, rasterio
+warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
 from rasterio.windows import Window
 from PIL import Image
 
@@ -27,6 +31,9 @@ R = 3396190.0
 DEM_URL = "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif"
 TREK = "https://trek.nasa.gov/tiles/Mars/EQ/{p}/1.0.0/default/default028mm/{z}/{r}/{c}.png"
 CTX_RES, CTX_HALF = 16, 4000          # context grid: 16 m cells, 8 km square
+OUT_RES, OUT_HALF = 64, 15000         # outer ring: 64 m cells, 30 km square
+SITE_PER_M = 50                       # site heights packed in 2 cm steps (the 3 km area spans about 700 m)
+SITE_IMAGE_PX = 4096                  # HiRISE image of the site, about 0.73 m per pixel
 
 
 def mars24(date_iso, lon_e, hour_utc=12.0):
@@ -119,6 +126,65 @@ def mosaic(product, z, west, east, south, north, cache):
                      round((east + 180) * ppd - c0 * 256), round((90 - south) * ppd - r0 * 256)))
 
 
+def sky_view(z, cell, radii):
+    """Share of the sky each cell sees, from the steepest horizon in 8 directions at the given
+    distances (metres). Used as ambient occlusion: hollows darker, ridges lighter."""
+    n_dir = 8
+    occ = np.zeros_like(z)
+    pad = int(max(radii) / cell) + 1
+    zp = np.pad(z, pad, mode="edge")
+    h, w = z.shape
+    for k in range(n_dir):
+        a = k * math.pi / 4
+        m = np.zeros_like(z)
+        for r in radii:
+            dx, dy = round(math.cos(a) * r / cell), round(math.sin(a) * r / cell)
+            sh = zp[pad + dy:pad + dy + h, pad + dx:pad + dx + w]
+            m = np.maximum(m, (sh - z) / r)
+        occ += m / np.sqrt(1 + m * m)
+    return np.clip(1 - occ / n_dir * 1.25, 0.35, 1)
+
+
+def save_ao(ao, path):
+    Image.fromarray(np.round(ao * 255).astype(np.uint8), "L").save(path, optimize=True)
+
+
+def overview(res, cx_m, cy_m, half):
+    """Read a square around (cx_m, cy_m) at res metres per cell from the DEM's reduced-resolution
+    copies. They sit in a separate .ovr file beside the 1 m model: its base is 4 m per cell and
+    its own levels are 8, 16, 32, 64, 128 and 256 m. The .ovr carries no georeferencing, so pixel
+    positions come from the main file's transform."""
+    env = {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.ovr", "GDAL_HTTP_MAX_RETRY": "4"}
+    with rasterio.Env(**env):
+        with rasterio.open(DEM_URL) as main:
+            left, top, nodata = main.transform.c, main.transform.f, main.nodata
+        kw = {} if res == 4 else {"overview_level": int(math.log2(res // 4)) - 1}
+        with rasterio.open(DEM_URL + ".ovr", **kw) as src:
+            n = int(2 * half / res)
+            col0, row0 = (cx_m - half - left) / res, (top - (cy_m + half)) / res
+            a = src.read(1, window=Window(int(round(col0)), int(round(row0)), n, n), boundless=True, fill_value=nodata).astype("float64")
+    bad = (a == nodata) | ~np.isfinite(a) | (a < -9000)
+    return a, bad
+
+
+def fill_edges(a, bad):
+    """Fill cells with no data from the nearest valid cell along each row, then each column."""
+    a = a.copy()
+    for axis in (1, 0):
+        x = np.moveaxis(a, axis, -1)
+        m = np.moveaxis(bad, axis, -1).copy()
+        for direction in (1, -1):
+            idx = np.where(~m, np.arange(x.shape[-1]), 0 if direction == 1 else x.shape[-1] - 1)
+            idx = np.maximum.accumulate(idx, axis=-1) if direction == 1 else np.minimum.accumulate(idx[..., ::-1], axis=-1)[..., ::-1]
+            filled = np.take_along_axis(x, idx, axis=-1)
+            ok = np.take_along_axis(~m, idx, axis=-1)
+            x[m & ok] = filled[m & ok]
+            m &= ~ok
+        bad = np.moveaxis(m, -1, axis)
+    a[bad] = np.median(a[~bad])
+    return a
+
+
 def pack_height(z, zmin, per_m=100):
     q = np.round((z - zmin) * per_m).astype(np.uint32)
     assert q.max() < 65536, "height range too large to pack"
@@ -140,42 +206,26 @@ def main():
     zsite = zs[::2, ::2]
     rows, cols = zsite.shape
     site_min = float(zsite.min())
-    rgb = pack_height(zsite, site_min)
+    rgb = pack_height(zsite, site_min, SITE_PER_M)
     rgb[..., 2] = np.clip(np.round(slope * 4), 0, 255).astype(np.uint8)
     Image.fromarray(rgb, "RGB").save(OUT / "site_terrain.png", optimize=True)
     west, east = math.degrees(b.left / R), math.degrees(b.right / R)
     south, north = math.degrees(b.bottom / R), math.degrees(b.top / R)
-    mosaic("curiosity_hirise_mosaic", 16, west, east, south, north, cache).save(OUT / "site_hirise.jpg", quality=74, optimize=True)
+    him = mosaic("curiosity_hirise_mosaic", 16, west, east, south, north, cache)
+    him.resize((SITE_IMAGE_PX, round(SITE_IMAGE_PX * him.height / him.width)), Image.LANCZOS).save(OUT / "site_hirise.jpg", quality=70, optimize=True)
+    save_ao(sky_view(zsite[::2, ::2], 4.0, [6, 12, 24, 48, 96, 160]), OUT / "site_ao.png")
     print("site", cols, "x", rows)
 
     # Context terrain: read every 16th row of the source strips around the site
     cx_m, cy_m = (b.left + b.right) / 2, (b.top + b.bottom) / 2
-    ctx_cache = cache / "context_16m.npy" if cache else None
-    env = {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR", "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif", "GDAL_HTTP_MAX_RETRY": "4"}
     n = 2 * CTX_HALF // CTX_RES
-    nodata = -32767.0
-    if ctx_cache and ctx_cache.exists():
-        ctx = np.load(ctx_cache)
-    else:
-      with rasterio.Env(**env), rasterio.open(DEM_URL) as src:
-        col0, row0 = ~src.transform * (cx_m - CTX_HALF, cy_m + CTX_HALF)
-        col0, row0 = int(col0), int(row0)
-        ctx = np.zeros((n, n), dtype="float64")
-        t0 = time.time()
-        for i in range(n):
-            line = src.read(1, window=Window(col0, row0 + i * CTX_RES, n * CTX_RES, 1))[0]
-            ctx[i] = line[::CTX_RES][:n]
-            if i % 100 == 0:
-                print("context row", i, "of", n, round(time.time() - t0), "s", flush=True)
-        nodata = src.nodata
-      if ctx_cache:
-        np.save(ctx_cache, ctx)
-    bad = (ctx == nodata) | ~np.isfinite(ctx)
+    ctx, bad = overview(CTX_RES, cx_m, cy_m, CTX_HALF)
     if bad.any():
         ctx[bad] = np.median(ctx[~bad])
     ctx = box(ctx, 3)
     ctx_min = float(ctx.min())
     Image.fromarray(pack_height(ctx, ctx_min, 10), "RGB").save(OUT / "context_terrain.png", optimize=True)
+    save_ao(sky_view(ctx, CTX_RES, [48, 96, 192, 384, 700]), OUT / "context_ao.png")
     cw, ce = math.degrees((cx_m - CTX_HALF) / R), math.degrees((cx_m + CTX_HALF) / R)
     cs, cn = math.degrees((cy_m - CTX_HALF) / R), math.degrees((cy_m + CTX_HALF) / R)
     # Match the CTX context image's brightness and contrast to HiRISE over the site,
@@ -188,6 +238,29 @@ def main():
     Image.fromarray(np.clip(ctx_img, 0, 255).astype(np.uint8), "L").save(OUT / "context_ctx.jpg", quality=78, optimize=True)
     mosaic("THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018", 9, cw, ce, cs, cn, cache).save(OUT / "context_themis.png", optimize=True)
     print("context", n, "x", n, "range", round(ctx_min), round(float(ctx.max())), "nodata cells", int(bad.sum()))
+
+    # Outer ring: 30 km at 64 m, so the surroundings reach the horizon. Context only.
+    on = 2 * OUT_HALF // OUT_RES
+    outer, obad = overview(OUT_RES, cx_m, cy_m, OUT_HALF)
+    if obad.any():
+        # beyond the edge of the terrain model: carry the nearest valid row or column outward
+        outer = fill_edges(outer, obad)
+    outer = box(outer, 3)
+    out_min = float(outer.min())
+    Image.fromarray(pack_height(outer, out_min, 10), "RGB").save(OUT / "outer_terrain.png", optimize=True)
+    save_ao(sky_view(outer, OUT_RES, [192, 384, 768, 1500, 2600]), OUT / "outer_ao.png")
+    ow, oe = math.degrees((cx_m - OUT_HALF) / R), math.degrees((cx_m + OUT_HALF) / R)
+    os_, on_ = math.degrees((cy_m - OUT_HALF) / R), math.degrees((cy_m + OUT_HALF) / R)
+    oimg = np.asarray(mosaic("Gale_CTX_BlockAdj_dd", 10, ow, oe, os_, on_, cache).resize((1024, 1024), Image.LANCZOS), dtype="float64")
+    # match brightness to the inner context image where they overlap
+    inner = np.asarray(Image.open(OUT / "context_ctx.jpg").convert("L"), dtype="float64")
+    k = 1024 * CTX_HALF / OUT_HALF / 2
+    ov = oimg[int(512 - k):int(512 + k), int(512 - k):int(512 + k)]
+    valid = oimg > 4
+    oimg = (oimg - ov.mean()) / max(ov.std(), 1) * inner.std() + inner.mean()
+    oimg[~valid] = inner.mean()
+    Image.fromarray(np.clip(oimg, 0, 255).astype(np.uint8), "L").save(OUT / "outer_ctx.jpg", quality=74, optimize=True)
+    print("outer", on, "x", on, "range", round(out_min), round(float(outer.max())), "filled cells", int(obad.sum()), "image gaps", int((~valid).sum()))
 
     # Science stops: every place Curiosity stopped to work in the area (pipeline/find_stops.py),
     # named from the mission blog where a post describes it (data/reference/named_sites.json).
@@ -210,8 +283,14 @@ def main():
             data = f.read_bytes() if f and f.exists() else get(ph["url"])
             if f and not f.exists():
                 f.write_bytes(data)
-            size = 640 if big else 360
-            Image.open(io.BytesIO(data)).convert("L").resize((size, size), Image.LANCZOS).save(pdir / f"{sid}.jpg", quality=74 if big else 68, optimize=True)
+            size = 640 if big else 320
+            im = Image.open(io.BytesIO(data)).convert("L").resize((size, size), Image.LANCZOS)
+            # a frame with a band lost in transmission (pure black) is not shown
+            if (np.asarray(im) < 4).mean() > 0.05:
+                print("dropped photo with missing data:", sid)
+                ph = None
+            else:
+                im.save(pdir / f"{sid}.jpg", quality=74 if big else 64, optimize=True)
         sols = st["sols"]
         stations.append({
             "id": sid, "rmc": st["rmc"],
@@ -232,7 +311,8 @@ def main():
     wp = json.loads((ROOT / "web" / "public" / "data" / "waypoints.geojson").read_text())["features"]
     cond = json.loads((ROOT / "web" / "public" / "data" / "conditions.json").read_text())["records"][0]
     site = {
-        "site": {"cols": cols, "rows": rows, "cell": 2, "zmin": round(site_min, 2), "west": west, "east": east, "south": south, "north": north},
+        "site": {"cols": cols, "rows": rows, "cell": 2, "per_m": SITE_PER_M, "zmin": round(site_min, 2), "west": west, "east": east, "south": south, "north": north},
+        "outer": {"n": on, "cell": OUT_RES, "zmin": round(out_min, 2), "per_m": 10},
         "context": {"n": n, "cell": CTX_RES, "zmin": round(ctx_min, 2), "per_m": 10,
                     "dx": round(cx_m - (b.left + b.right) / 2, 2), "dz": 0.0},
         "stations": [{**x, "xy": cell(*x.pop("lonlat"))} for x in stations],

@@ -1,6 +1,8 @@
 // MARSWALK app: state, panels, timeline, HUD and field guide.
 // AI-assisted (Claude Code). Behaviour is described in docs/DESIGN.md.
 import './style.css'
+declare const __BETA__: boolean
+if (__BETA__) document.title = 'MARSWALK beta'
 import * as THREE from 'three'
 import RoutingWorker from './routing.worker?worker&inline'
 import { loadSite, type SiteData, type Station } from './data'
@@ -195,7 +197,8 @@ function recompute(opts: typeof pendingOpts) {
   S.busy = true
   renderDecision()
   W.setPoints(S.pts, pointColors())
-  const job = { id: ++jobId, walks: walkers().map((w) => [0, ...stopsOf(w), 0].map((i) => idx(S.pts[i]))), limit: P.limit, suit: P.suit }
+  const end = (w: number) => (P.oneWay ? stopsOf(w)[stopsOf(w).length - 1] : 0)
+  const job = { id: ++jobId, walks: walkers().map((w) => [0, ...stopsOf(w), end(w)].map((i) => idx(S.pts[i]))), limit: P.limit, suit: P.suit }
   if (worker) worker.postMessage(job)
   else setTimeout(() => {
     if (job.id !== jobId) return
@@ -247,7 +250,7 @@ function reanalyse() {
 }
 function onPick(cx: number, cy: number, inside: boolean) {
   if (pickRouteLine()) return
-  if (!inside) return hint(cx < 0 ? 'That is beyond the mapped area.' : 'That point is outside the 1.4 km planning area. The land around it is shown for context only.', true)
+  if (!inside) return hint(cx < 0 ? 'That is beyond the mapped area.' : `That point is outside the ${areaText()} planning area. The land around it is shown for context only.`, true)
   const p = snap({ x: cx, y: cy })
   if (!p) return hint(`That ground is steeper than the ${P.limit}° limit, with nothing walkable within 30 m. Pick another point or raise the limit under Assumptions.`, true)
   S.pts[S.active] = { x: p.x, y: p.y }
@@ -314,7 +317,7 @@ function buildUI() {
   const c = D.conditions
   document.body.insertAdjacentHTML('beforeend', html`
   <header class="topbar">
-    <span class="wordmark">MARSWALK</span>
+    <span class="wordmark">MARSWALK</span>${__BETA__ ? '<span class="beta-tag" title="Beta copy for testing new features. The released version is the main page.">BETA</span>' : ''}
     <div class="place"><b>Boxwork unit, Mount Sharp</b><span>Gale crater, 4.80° S 137.38° E</span></div>
     <div class="right">
       <span class="stamp">Weather: sol ${c.sol}, ${c.terrestrial_date}</span>
@@ -400,7 +403,7 @@ function buildUI() {
     <button class="icon-btn" id="z-north" aria-label="Face north" title="Face north">${icon.NavigationArrow}</button>
   </div>
 
-  <div class="mini surface"><canvas id="mini" width="440" height="476" aria-label="Map of the planning area. Click to look at a point."></canvas><p><span>Planning area</span><span>1.4 × 1.5 km</span></p></div>
+  <div class="mini surface"><canvas id="mini" width="440" height="${Math.round((440 * D.grid.rows) / D.grid.cols)}" aria-label="Map of the planning area. Click to look at a point."></canvas><p><span>Planning area</span><span>${areaText()}</span></p></div>
 
   <div class="hint surface" id="hint" role="status" hidden></div>
   <div class="drawer surface" id="drawer" hidden></div>
@@ -434,8 +437,8 @@ function buildUI() {
       <div class="next" id="h-next"></div>
       <div class="row">
         <div>Next stop<b id="h-stop"></b><small id="h-stop2"></small></div>
-        <div>Time left<b id="h-left"></b><small>until back at the start</small></div>
-        <div>Back by<b id="h-back"></b><small id="h-clock"></small></div>
+        <div>Time left<b id="h-left"></b><small id="h-left2"></small></div>
+        <div><span id="h-back-l">Back by</span><b id="h-back"></b><small id="h-clock"></small></div>
         <div>Ground<b id="h-slope"></b><small id="h-slope2"></small></div>
         <div id="h-partner-c" hidden>Partner<b id="h-partner"></b><small id="h-partner2"></small></div>
       </div>
@@ -461,6 +464,8 @@ function buildUI() {
     if (t.closest('.rm')) { removeStop(Number(row!.dataset.i)); return }
     if (t.closest('.who')) { toggleWho(Number(row!.dataset.i)); return }
     if (t.closest('#add-stop')) { addStop(); return }
+    if (t.closest('#end-back') && P.oneWay) { P.oneWay = false; recompute({ fit: false, note: 'The walk returns to the start.' }); return }
+    if (t.closest('#end-last') && !P.oneWay) { P.oneWay = true; recompute({ fit: false, note: 'The walk ends at the last stop, where a rover picks the crew up. Nobody walks back.' }); return }
     if (t.closest('#opt')) { optimiseOrder(); return }
     if (t.closest('#rev')) { const st = S.pts[0]; S.pts = [st, ...S.pts.slice(1).reverse()]; S.who = [0, ...S.who.slice(1).reverse()]; recompute({ fit: false }); return }
     if (row) setActive(Number(row.dataset.i))
@@ -498,7 +503,7 @@ function buildUI() {
   ;($('#gl') as HTMLCanvasElement).addEventListener('pointerdown', (e) => (lastDown = { x: e.clientX, y: e.clientY }))
   $('#h-prof').addEventListener('pointerdown', (e) => {
     const b = $('#h-prof').getBoundingClientRect()
-    W.seekWalk(((e.clientX - b.left) / b.width) * walkEnd)
+    walkDone = false; W.seekWalk(((e.clientX - b.left) / b.width) * walkEnd)
     $('#arrive').hidden = true
   })
   const bind = (id: string, f: (v: number) => void, slow: boolean) => {
@@ -521,6 +526,7 @@ function buildUI() {
   })
 }
 const byId = (id: string) => D.stations.find((s) => s.id === id)
+const areaText = () => { const k = (n: number) => ((n * D.grid.cell) / 1000).toFixed(1).replace(/\.0$/, ''); return `${k(D.grid.cols)} by ${k(D.grid.rows)} km` }
 const shortName = (s: Station) => (s.kind === 'stop' ? `Sol ${s.sols[0]} stop` : s.name.replace(/ \(.*/, ''))
 const siteName = (s: Station) => (s.kind === 'stop' ? `Curiosity's sol ${s.sols[0]} stop` : s.name)
 function nearStation(p: Pt) {
@@ -608,8 +614,10 @@ function renderItin() {
   }
   const back = walkers().map((w) => { const r = cur()[w]; return r ? `${S.pair ? `${WHO[w]} ` : ''}${fmtMin(r.backMin)}` : '' }).filter(Boolean).join(', ')
   $('#itin').className = `itin ${S.pair ? 'paired' : ''}`
-  $('#itin').innerHTML = S.pts.map((_, i) => row(i)).join('') + html`
-    <li class="stop back"><i class="s"></i><span class="end"><small>Back to the start${back ? ` <span class="mono">${back} walk</span>` : ''}</small><strong>${label(S.pts[0])}</strong></span><span></span><span></span></li>
+  $('#itin').innerHTML = S.pts.map((_, i) => row(i)).join('') + (P.oneWay
+    ? html`<li class="stop back oneway"><i class="s"></i><span class="end"><small>End of the walk</small><strong>At the last stop${S.pair ? ' of each astronaut' : ''}. A rover picks the crew up.</strong></span><span></span><span></span></li>`
+    : html`<li class="stop back"><i class="s"></i><span class="end"><small>Back to the start${back ? ` <span class="mono">${back} walk</span>` : ''}</small><strong>${label(S.pts[0])}</strong></span><span></span><span></span></li>`) + html`
+    <li class="itin-end"><div class="seg" role="group" aria-label="Where the walk ends"><button id="end-back" aria-pressed="${!P.oneWay}">${icon.ArrowCounterClockwise}<span>Return to start</span></button><button id="end-last" aria-pressed="${!!P.oneWay}">${icon.ArrowRight}<span>End at last stop</span></button></div></li>
     <li class="itin-actions">${n - 1 < MAX_STOPS ? `<button class="btn" id="add-stop">${icon.Plus}<span>Add a stop</span></button>` : ''}${n > 3 ? `<button class="btn" id="opt" title="Reorder the stops for the least walking">${icon.Shuffle}<span>Quickest order</span></button>` : ''}${n > 2 ? `<button class="btn" id="rev" aria-label="Reverse the stops" title="Reverse the stops">${icon.ArrowsDownUp}</button>` : ''}</li>`
   $('#edit-hint').innerHTML = `${icon.Crosshair}<span>Click the ground to set <b>${pointName(S.active).toLowerCase()}</b>, or drag any beacon. Hover to read the slope.</span>`
   renderTags()
@@ -631,7 +639,7 @@ function renderDecision() {
     <div class="call-row"><span class="call">${v.go ? 'GO' : 'NO-GO'}</span><div><strong>${v.head}</strong><span>${a ? `Leaving at ${clock(P.depart)} local time, ${n} stop${n > 1 ? 's' : ''}${S.pair ? ', two astronauts' : ''}` : 'Change the points or the limit'}</span></div></div>
     ${a ? html`<div class="figures">
       <div><small>${S.pair ? 'Longest walk' : 'Whole walk'}</small><b>${fmtMin(a.walk)}</b></div>
-      <div><small>Back by</small><b>${clock(v.back)}</b></div>
+      <div><small>${P.oneWay ? 'Done by' : 'Back by'}</small><b>${clock(v.back)}</b></div>
       <div><small>Radiation${S.pair ? ' each' : ''}</small><b>${a.dose.toFixed(2)}<span style="font-size:12px"> mSv</span></b></div>
     </div>` : ''}
     <ul class="checks">${v.checks.map((c) => `<li class="${c.state}">${checkIcon(c)}<span>${c.text}</span></li>`).join('')}</ul>`
@@ -763,7 +771,7 @@ function renderDay() {
     ${ticks}${walk}`
   $('#day').setAttribute('aria-valuenow', String(P.depart)); $('#day').setAttribute('aria-valuetext', `Leave at ${clock(P.depart)}`)
   const s = sunAt(P.depart, D.sun)
-  $('#day-sun').textContent = ready() ? `Leave ${clock(P.depart)}, back ${clock(v.back)}. Sun ${Math.round(s.el)}° in the ${compassWord(s.az)}.` : ''
+  $('#day-sun').textContent = ready() ? `Leave ${clock(P.depart)}, ${P.oneWay ? 'done' : 'back'} ${clock(v.back)}. Sun ${Math.round(s.el)}° in the ${compassWord(s.az)}.` : ''
 }
 function setDepart(m: number) {
   P.depart = Math.max(sunrise - 60, Math.min(T1 - 20, Math.round(m / 5) * 5))
@@ -802,15 +810,17 @@ function openLayers() {
     ${row('thermal', 'Night surface temperature', 'Mars Odyssey THEMIS, 100 m per pixel, relative', sw('linear-gradient(90deg,#140b34,#781c6d,#cf4446,#f98e09,#fcee9f)'), S.layers.thermal,
       '<span class="legend-ramp" style="background:linear-gradient(90deg,#140b34,#781c6d,#cf4446,#f98e09,#fcee9f)"></span><small style="grid-column:2/span 2">Cooler at night (dust, sand) to warmer (rock that held the day\'s heat)</small>')}
     ${row('track', 'Curiosity drive path', 'MSL localization, sols 4469 to 4916', sw('#f4f1ec'), S.layers.track)}
-    ${row('boundary', 'Planning area edge', '1.4 by 1.5 km where routes are computed', sw('repeating-linear-gradient(90deg,#f4f1ec 0 5px,transparent 5px 9px)'), S.layers.boundary)}
+    ${row('boundary', 'Planning area edge', `${areaText()} where routes are computed`, sw('repeating-linear-gradient(90deg,#f4f1ec 0 5px,transparent 5px 9px)'), S.layers.boundary)}
     ${row('tint', 'Mars colour', 'A tint on the greyscale images, not data', sw('#c58c63'), S.tint)}
     ${row('exag', 'Relief ×2', 'Doubles heights to read the shape', sw('linear-gradient(160deg,#5b4334,#d4b296)'), S.exag)}
+    ${row('perf' as never, 'Performance mode', 'Lower resolution, smaller shadows and simpler distant ground, for weaker computers. Turned on automatically when needed.', sw('repeating-linear-gradient(90deg,#75716c 0 3px,transparent 3px 6px)'), W.low)}
     <p class="note">Used in the decision, not drawn on the map: radiation dose rate from Curiosity's RAD, weather from its REMS station, and solar storm forecasts from NASA's space weather models.</p>`
   el.querySelectorAll<HTMLButtonElement>('.switch').forEach((b) => (b.onclick = () => {
     const k = b.dataset.k!, on = b.getAttribute('aria-checked') !== 'true'
     b.setAttribute('aria-checked', String(on))
     if (k === 'tint') { S.tint = on; W.setTint(on) }
     else if (k === 'exag') { S.exag = on; W.setExag(on ? 2 : 1) }
+    else if (k === 'perf') { W.setQuality(on); store.set('mw-quality', on ? 'low' : 'high') }
     else { S.layers[k as keyof typeof S.layers] = on; W.setLayer(k as never, on) }
   }))
   $('#d-close').onclick = closeDrawer
@@ -902,6 +912,12 @@ function showCoach() { if (store.get('mw-coach') || W.mode !== 'orbit') return; 
 function dismissCoach() { $('#coach').hidden = true; store.set('mw-coach', '1') }
 
 // ---------------------------------------------------------------- overlay: pins, tags, minimap
+// Sizes of pins and tags, measured once (reading layout every frame is slow on weaker computers)
+const sized = (el: HTMLElement, w0: number, h0: number) => {
+  if (!el.dataset.w) { el.dataset.w = String(el.offsetWidth || w0); el.dataset.h = String(el.offsetHeight || h0) }
+  return { w: Number(el.dataset.w), h: Number(el.dataset.h) }
+}
+let panelRects: DOMRect[] = [], panelsAt = 0, miniAt = 0, miniTimer = 0
 function drawOverlay() {
   const ground = (x: number, y: number, lift: number) => W.project(W.cellToWorld({ x, y }, lift))
   const placed: { x: number; y: number; w: number; h: number }[] = []
@@ -915,7 +931,7 @@ function drawOverlay() {
   for (const t of tags) {
     t.el.style.visibility = t.hide ? 'hidden' : 'visible'
     if (t.hide) continue
-    const w = t.el.offsetWidth || 90, h = t.el.offsetHeight || 22
+    const { w, h } = sized(t.el, 90, 22)
     let y = t.p.y - h / 2
     for (let guard = 0; guard < 8 && overlaps(t.p.x, y, w, h); guard++) y -= h + 4
     placed.push({ x: t.p.x, y, w, h })
@@ -925,7 +941,9 @@ function drawOverlay() {
   // overlap something already placed are hidden rather than stacked, so the map stays readable
   const zoomedIn = W.pose().dist < 2600
   // pins never show through the panels
-  const panels = ['.rail', '#drawer', '.mini', '.day', '.tools', '#coach'].map((q) => $(q)).filter((el) => el && !el.hidden).map((el) => el.getBoundingClientRect())
+  const now = performance.now()
+  if (now - panelsAt > 400) { panelsAt = now; panelRects = ['.rail', '#drawer', '.mini', '.day', '.tools', '#coach', '#gobar .gobar-in'].map((q) => $(q)).filter((el) => el && !el.hidden).map((el) => el.getBoundingClientRect()) }
+  const panels = panelRects
   const covered = (p: { x: number; y: number }) => p.y < 60 || panels.some((r) => p.x > r.left - 6 && p.x < r.right + 6 && p.y > r.top - 6 && p.y < r.bottom + 6)
   const pins = [...document.querySelectorAll<HTMLElement>('.pin')].map((el) => {
     const s = byId(el.dataset.id!)!, p = ground(s.xy[0], s.xy[1], s.kind === 'stop' ? 2 : 6)
@@ -934,7 +952,7 @@ function drawOverlay() {
   for (const q of pins) {
     let hide = q.hide
     if (!hide) {
-      const w = q.el.offsetWidth || 10, h = q.el.offsetHeight || 10, y = q.s.kind === 'stop' ? q.p.y : q.p.y - h / 2
+      const { w, h } = sized(q.el, 10, 10), y = q.s.kind === 'stop' ? q.p.y : q.p.y - h / 2
       if (overlaps(q.p.x, y, w, h)) hide = true
       else placed.push({ x: q.p.x, y, w, h })
     }
@@ -951,7 +969,10 @@ function drawOverlay() {
     pt.textContent = `${WHO[1 - walkAs]} ${$('#h-partner').textContent}`
     pt.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -100%)`
   }
-  drawMini($('#mini') as HTMLCanvasElement, true)
+  // the mini-map redraws at most ten times a second, with a last draw when the view settles
+  clearTimeout(miniTimer)
+  if (now - miniAt > 100) { miniAt = now; drawMini($('#mini') as HTMLCanvasElement, true) }
+  else miniTimer = window.setTimeout(() => { miniAt = performance.now(); drawMini($('#mini') as HTMLCanvasElement, true) }, 120)
 }
 let miniBase: HTMLCanvasElement | null = null
 // box: the part of the site to show, in grid cells. Defaults to the whole site.
@@ -959,9 +980,9 @@ function drawMini(cv: HTMLCanvasElement, withCamera: boolean, box?: { x0: number
   const b0 = box ?? { x0: 0, y0: 0, x1: D.grid.cols, y1: D.grid.rows }
   const x = cv.getContext('2d')!, w = cv.width, h = cv.height, sx = w / (b0.x1 - b0.x0), sy = h / (b0.y1 - b0.y0), u = w / 440
   if (!miniBase) {
-    miniBase = document.createElement('canvas'); miniBase.width = 440; miniBase.height = 476
+    miniBase = document.createElement('canvas'); miniBase.width = 440; miniBase.height = Math.round((440 * D.grid.rows) / D.grid.cols)
     const b = miniBase.getContext('2d')!
-    b.filter = 'contrast(1.1) brightness(0.9)'; b.drawImage(D.images.site, 0, 0, 440, 476)
+    b.filter = 'contrast(1.1) brightness(0.9)'; b.drawImage(D.images.site, 0, 0, miniBase.width, miniBase.height)
   }
   if (box) {
     const im = D.images.site, ix = im.naturalWidth / D.grid.cols, iy = im.naturalHeight / D.grid.rows
@@ -1015,7 +1036,7 @@ function bindMini() {
 
 // ---------------------------------------------------------------- walk at eye level
 let walkAs = 0, walkEnd = 0, walkRate = 1, walkSpeed = 1, walkLegs: ReturnType<typeof legs> = [], arrivedAt = -1, walkTimes: Float32Array = new Float32Array(0)
-let helmet = store.get('mw-helmet') === '1', partnerStride = 0, partnerLast: Pt | null = null
+let walkDone = false, helmet = store.get('mw-helmet') === '1', partnerStride = 0, partnerLast: Pt | null = null
 function setHelmet(on: boolean) {
   helmet = on; store.set('mw-helmet', on ? '1' : '0')
   $('#hud').classList.toggle('visor', on); $('#h-helmet').setAttribute('aria-pressed', String(on))
@@ -1029,7 +1050,7 @@ function startWalk(w: number) {
   const r = cur()[w]
   if (!r) return
   closeDrawer(); dismissCoach(); closeGuide(); $('#tip').hidden = true
-  walkAs = w; arrivedAt = -1; walkTimes = sampleTimes(r, P); partnerStride = 0; partnerLast = null
+  walkAs = w; arrivedAt = -1; walkDone = false; walkTimes = sampleTimes(r, P); partnerStride = 0; partnerLast = null
   // Walk to the last stop; the way back is the same kind of ground and would double the rehearsal.
   const iEnd = r.stopAt[r.stopAt.length - 2]
   walkEnd = r.d[iEnd]
@@ -1077,6 +1098,8 @@ function onWalkFrame(f: { dist: number; heading: number; holding: boolean }) {
   $('#strip').style.transform = `translateX(${(-((f.heading / 15 + 2) * 40 + 20)).toFixed(1)}px)`
   // time left until back at the start, counting the stops still to come and the walk back
   $('#h-left').textContent = fmtMin(Math.max(0, r.walk - elapsed))
+  $('#h-left2').textContent = P.oneWay ? 'until the walk ends' : 'until back at the start'
+  $('#h-back-l').textContent = P.oneWay ? 'Done by' : 'Back by'
   $('#h-back').textContent = clock(P.depart + r.walk / MARS_MIN)
   $('#h-clock').textContent = `Mars time now ${clock(sim)}`
   const sl = $('#h-slope'); sl.textContent = `${Math.round(slope)}°`; sl.className = slope > 15 ? 'alarm' : slope > 10 ? 'warn' : ''
@@ -1104,7 +1127,8 @@ function onWalkFrame(f: { dist: number; heading: number; holding: boolean }) {
   let next = '', warn = false
   for (const l of walkLegs) if (l.from > f.dist + 2 && l.from < stopDist && l.k >= 2) { next = `${l.k === 3 ? 'Very steep ground' : 'Steep ground'} in ${Math.max(5, round10(l.from - f.dist))} m. Slow down and check footing.`; warn = true; break }
   if (!next) next = left > 15 ? `Follow the beacon to stop ${stopNo}.` : `At stop ${stopNo}. ${P.work} min of science planned here.`
-  const n = $('#h-next'); n.textContent = next; n.className = `next ${warn ? 'warn' : ''}`
+  // once arrived, the end message stays until the walker moves again
+  if (!(walkDone && f.dist >= walkEnd - 0.5)) { const n = $('#h-next'); n.textContent = next; n.className = `next ${warn ? 'warn' : ''}` }
   const cur_ = $('#h-cur')
   if (cur_) { const xx = ((f.dist / walkEnd) * 1000).toFixed(1); cur_.setAttribute('x1', xx); cur_.setAttribute('x2', xx) }
   // the arrival card stays while the walker waits at a stop, then gets out of the way
@@ -1119,9 +1143,10 @@ function arrivalCard(j: number) {
 }
 function onStopReached(j: number) { arrivedAt = j; arrivalCard(j) }
 function onWalkEnd() {
+  walkDone = true
   const r = cur()[walkAs]!
   setPaused(true)
-  $('#h-next').textContent = `Arrived at the last stop. The walk back is ${fmtMin(r.backMin)}. Press Exit to return to the map, or click the profile to replay part of it.`
+  $('#h-next').textContent = `${P.oneWay ? 'Arrived at the last stop, where the walk ends.' : `Arrived at the last stop. The walk back is ${fmtMin(r.backMin)}.`} Press Exit to return to the map, or click the profile to replay part of it.`
 }
 function stopWalk() {
   if (W.mode === 'orbit') return
@@ -1155,7 +1180,7 @@ function openGuide() {
   }).sort((x, y) => x.i - y.i)
   const legBlocks = walkers().map((w) => {
     const r = rs[w]!, st = stopsOf(w)
-    return (S.pair ? `<h4 class="who-h">Astronaut ${WHO[w]}</h4>` : '') + r.legMin.map((m, i) => {
+    return (S.pair ? `<h4 class="who-h">Astronaut ${WHO[w]}</h4>` : '') + r.legMin.slice(0, P.oneWay ? -1 : undefined).map((m, i) => {
       const from = i ? r.stopAt[i - 1] : 0, to = r.stopAt[i], dist = r.d[to] - r.d[from]
       const title = i === r.legMin.length - 1 ? `Back to the start` : `To stop ${st[i]}`
       const rows = legs(D.grid, r, from, to).map((l) => {
@@ -1181,7 +1206,7 @@ function openGuide() {
         <ul>
           ${li('s', 'Simulated', `Leave ${V(label(S.pts[0]))} at ${V(clock(P.depart))}, from a notional rover park`)}
           ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}Stop ${s.i}${s.st ? `, ${shortName(s.st)}` : ''}: arrive about ${V(clock(s.arrive))}, ${V(P.work + ' min')} of science. Sun ${V(Math.round(s.sun) + '°')} high, ${V(s.dose.toFixed(3) + ' mSv')} so far, ${V(`${s.dz >= 0 ? '+' : ''}${Math.round(s.dz)} m`)} against the start.`)).join('')}
-          ${li('a', 'Assumed', `${S.pair ? 'Both back' : 'Back'} at the start about ${V(clock(v.back))}. ${S.pair ? 'Longest walk' : 'Whole walk'} ${V(fmtMin(a.walk))}, ${V(round10(a.dist) + ' m')}${S.pair ? ' walked in all' : ''}, climb ${V(Math.round(a.climb) + ' m')}`)}
+          ${li('a', 'Assumed', `${P.oneWay ? `Walk ends at the last stop about ${V(clock(v.back))}; a rover picks the crew up.` : `${S.pair ? 'Both back' : 'Back'} at the start about ${V(clock(v.back))}.`} ${S.pair ? 'Longest walk' : 'Whole walk'} ${V(fmtMin(a.walk))}, ${V(round10(a.dist) + ' m')}${S.pair ? ' walked in all' : ''}, climb ${V(Math.round(a.climb) + ' m')}`)}
         </ul>
         ${S.pair && pc ? html`<h3>Working as a pair</h3><ul>
           ${li('d', 'Derived', `Furthest apart ${V(round10(pc.maxSep) + ' m')}, about ${V(fmtMin(pc.maxSepAt))} after leaving. The limit is ${V(S.sepLimit + ' m')}.`)}
@@ -1191,7 +1216,7 @@ function openGuide() {
         <h3>Turn back if</h3>
         <ul>
           ${stops.map((s) => li('a', 'Assumed', `${who(s.w)}You have not reached stop ${s.i} by ${V(clock(s.turn))}, one and a half times the planned time.`)).join('')}
-          ${li('d', 'Derived', `The walk back from the last stop takes ${V(walkers().map((w) => who(w) + fmtMin(rs[w]!.backMin)).join(', '))}.`)}
+          ${P.oneWay ? li('a', 'Assumed', 'The rover cannot reach the last stop. Walk back the way you came, or to the nearest point it can reach.') : li('d', 'Derived', `The walk back from the last stop takes ${V(walkers().map((w) => who(w) + fmtMin(rs[w]!.backMin)).join(', '))}.`)}
           ${li('d', 'Derived', `You would return after ${V(clock(sunset - RESERVE_MIN / MARS_MIN))}, when the last hour of daylight begins.`)}
           ${li('a', 'Assumed', 'A solar particle alert is issued while you are out. Return to the rover, which is the nearest shelter.')}
         </ul>

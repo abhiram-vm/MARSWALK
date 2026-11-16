@@ -4,7 +4,8 @@
 const { chromium } = require('playwright')
 const path = require('path')
 
-const url = 'file://' + path.resolve(__dirname, '../dist/index.html')
+// E2E_BETA=1 tests the beta copy
+const url = 'file://' + path.resolve(__dirname, process.env.E2E_BETA ? '../dist-beta/index.html' : '../dist/index.html')
 const shots = process.env.SHOTS
 const results = []
 const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`) }
@@ -63,6 +64,14 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
   check('quickest order is no slower', w1 <= w0 + 0.01, `${w0.toFixed(1)} to ${w1.toFixed(1)} min`)
   await page.click('#itin .stop[data-i="3"] .rm'); await idle()
   check('removing a stop works', (await state()).stops === 2)
+
+  // one-way: end at the last stop
+  const round = (await state()).walk
+  await page.click('#end-last'); await page.waitForTimeout(100); await idle()
+  const one = await state()
+  check('one-way walk ends at the last stop and is shorter', one.walk < round && /End of the walk/.test(await page.textContent('#itin')), `${round.toFixed(0)} to ${one.walk.toFixed(0)} min`)
+  await page.click('#end-back'); await page.waitForTimeout(100); await idle()
+  check('round trip restored', Math.abs((await state()).walk - round) < 0.5)
 
   // working in pairs
   await page.click('#m-pair'); await page.waitForTimeout(100); await idle()
@@ -124,6 +133,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
   await page.click('.speeds button[data-v="4"]')
   const hud = await page.textContent('#h-next')
   check('walk HUD gives the next stop or hazard', /Stop|steep/i.test(hud), hud)
+  // jump to just before the last stop (the profile click does the same), then let it arrive
+  await page.evaluate(() => { const W = window.__mw.world; W.seekWalk(W.walkLength - 15) })
   await page.waitForFunction(() => /Arrived/.test(document.getElementById('h-next').textContent), null, { timeout: 150000 })
   check('walk reaches the last stop', true)
   await shot('09-arrived')

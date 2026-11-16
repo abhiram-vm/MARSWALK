@@ -2,28 +2,28 @@
  "source": "USGS Astrogeology, Mars MSL Gale Merged DEM 1m (Parker and Calef, 2016)",
  "source_url": "https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m",
  "aoi": {
-  "west": 137.372,
-  "south": -4.816,
-  "east": 137.396,
-  "north": -4.79
+  "west": 137.3587,
+  "south": -4.8283,
+  "east": 137.40929999999997,
+  "north": -4.7777
  },
- "rows": 1541,
- "cols": 1423,
+ "rows": 2999,
+ "cols": 2999,
  "cell_size_m": [
   1.0,
   1.0
  ],
  "projected_bounds_m": [
-  8142683.748171624,
-  -285466.94327224273,
-  8144106.340912181,
-  -283925.8011366368
+  8141895.394694562,
+  -286196.0220517794,
+  8144894.69438924,
+  -283196.72235710017
  ],
  "crs_proj4": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True",
  "elevation_m": {
-  "min": -3771.680419921875,
-  "max": -3421.17333984375,
-  "mean": -3615.782958984375
+  "min": -4034.14990234375,
+  "max": -3334.401123046875,
+  "mean": -3618.8759765625
  },
  "valid_fraction": 1.0
 }

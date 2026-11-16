@@ -476,3 +476,8 @@ details.assume[open] summary svg { transform: rotate(180deg); }
 .readouts .row b#h-stop { max-width: 300px; }
 .helmet .brim { background: linear-gradient(rgba(3, 3, 3, 0.85), rgba(3, 3, 3, 0.35) 9%, transparent 20%), linear-gradient(0deg, rgba(3, 3, 3, 0.55), transparent 14%); }
 .visor ~ .mini, .cine.visor-on .mini { display: none; }
+
+.itin-end { padding: 8px 0 0 30px; }
+.itin-end .seg button { min-height: 30px; font-size: 11.5px; }
+.itin .stop.oneway strong { white-space: normal; font-size: 12.5px; color: var(--ink-2); font-weight: 400; }
+.beta-tag { margin-left: -8px; padding: 2px 6px; border-radius: 3px; font: 700 10px var(--mono); letter-spacing: 0.12em; color: #06121c; background: var(--b); }

@@ -13,6 +13,8 @@ export interface Params {
   limit: number // steepest ground allowed, degrees (assumed)
   work: number // minutes at each stop (assumed)
   depart: number // departure, minutes after midnight, local mean solar time (LMST)
+  /** the walk ends at the last stop (a rover picks the crew up there) instead of returning to the start */
+  oneWay?: boolean
 }
 export interface Pt { x: number; y: number }
 export interface SunModel { ls: number; dec: number; eotMin: number } // dec in degrees; eot = LTST minus LMST
@@ -26,7 +28,7 @@ export interface Route {
   path: Int32Array // grid cell under each sample
   d: Float32Array // distance walked at each sample, m
   t: Float32Array // walking time at each sample, s (time at stops excluded)
-  stopAt: number[] // sample index where each stop is reached; the last entry is the return to start
+  stopAt: number[] // sample index where each stop is reached; the last entry is the return to start (zero length on a one-way walk)
   legMin: number[] // walking minutes for each leg
   dist: number
   climb: number
@@ -390,7 +392,7 @@ export function verdict(routes: Route | null | (Route | null)[], p: Params, sunr
   const okDawn = p.depart >= sunrise, okDay = margin >= RESERVE_MIN, okSlope = maxSlope <= p.limit
   const checks: Check[] = [
     { state: okDawn ? 'ok' : 'bad', text: okDawn ? `Leaves after sunrise (${clock(sunrise)})` : `Leaves before sunrise (${clock(sunrise)})` },
-    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `${rs.length > 1 ? 'Both back' : 'Back'} ${fmtMin(margin)} before sunset; the reserve is ${RESERVE_MIN} min` : `Back ${fmtMin(-margin)} after sunset` },
+    { state: okDay ? 'ok' : 'bad', text: margin >= 0 ? `${p.oneWay ? (rs.length > 1 ? 'Both finish' : 'Finishes') : rs.length > 1 ? 'Both back' : 'Back'} ${fmtMin(margin)} before sunset; the reserve is ${RESERVE_MIN} min` : `${p.oneWay ? 'Finishes' : 'Back'} ${fmtMin(-margin)} after sunset` },
     okSlope
       ? { state: 'ok', text: `Steepest ground ${maxSlope.toFixed(1)}°, inside the ${p.limit}° limit` }
       : { state: 'bad', text: `Steepest ground ${maxSlope.toFixed(1)}° is over the ${p.limit}° limit` },
@@ -405,7 +407,7 @@ export function verdict(routes: Route | null | (Route | null)[], p: Params, sunr
     checks.push(okSight
       ? { state: 'ok', text: `In sight of each other ${Math.round(c.inSight * 100)}% of the time; longest gap ${fmtMin(c.longestGap)}` }
       : { state: 'bad', text: `Out of sight for ${fmtMin(c.longestGap)} at a stretch, over the ${pair.gapLimit} min limit` })
-  } else checks.push({ state: 'info', text: `The walk back from the last stop takes ${fmtMin(backMin)}` })
+  } else checks.push({ state: 'info', text: p.oneWay ? 'Ends at the last stop; a rover picks the crew up there' : `The walk back from the last stop takes ${fmtMin(backMin)}` })
   const storm = sw && nowIso ? stormNear(sw, nowIso) : null
   if (storm) checks.push({ state: 'warn', text: storm })
   const go = okDawn && okDay && okSlope && okPair

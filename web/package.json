@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && cp dist/index.html ../index.html",
+    "build:beta": "tsc -b && MARSWALK_BETA=1 vite build && mkdir -p ../beta && cp dist-beta/index.html ../beta/index.html",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",

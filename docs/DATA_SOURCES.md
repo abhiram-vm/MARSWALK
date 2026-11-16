@@ -100,6 +100,14 @@ What the thermal layer means: rock and coarse ground hold the day's heat and sta
 
 The build carries a snapshot; a hosted copy also asks DONKI for the latest runs when it opens.
 
+### 2c2. Bigger area (changed 2026-11-16)
+
+- The planning area is now 3 by 3 km (1,500 by 1,500 cells of 2 m), centred where the first 1.4 by 1.5 km area was. It is defined once in `pipeline/aoi.py`. HiRISE images cover all of it; the site image is 4,096 px across (about 0.73 m per pixel). Heights are packed in 2 cm steps because the area spans about 700 m of relief.
+- T5, the outer ring: 30 by 30 km at 64 m, read from the reduced-resolution copy of the same USGS model (the `.ovr` file beside it). About 10% of the ring lies beyond the model's edge; those cells copy the nearest edge value and are hidden by haze. Image: CTX at Mars Trek level 10, brightness matched to the inner image. Context only.
+- The 8 km inner ring is now read from the same reduced-resolution copy at 16 m. Against the old point-sampled version the median difference is 2.3 m.
+- Ambient occlusion (sky visibility) is computed in the pipeline (`site_ao.png`, `context_ao.png`, `outer_ao.png`) instead of in the browser.
+- Science sites: 114 in the bigger area (sols 4080 to 5070), 10 of them named. One photo (sol 4329) had a band lost in transmission and is not shown.
+
 ### 2d. Science sites (added 2026-11-16)
 
 | # | Data | Source | Status | Use |

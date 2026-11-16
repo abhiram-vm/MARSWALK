@@ -34,6 +34,11 @@ How it stays fast:
 - **Renders on demand.** Idle, it uses no GPU time.
 - **Adaptive resolution.** If frames take longer than about 26 ms the render scale steps down; it steps back up when there is room.
 - **Cheap geometry.** About 275,000 triangles for the site (4 m spacing over the 2 m grid) and 125,000 for the 8 km context. Shading from the terrain is baked once at load, so the GPU does not compute it per frame.
+- **Tiled terrain.** The 3 km site is 36 tiles of 500 m. Each switches between 4, 8, 16 and 32 m detail by distance from the camera, with skirts that hide cracks. The rings around it are coarse (32 m and 128 m). In the build environment this cut triangles per frame by about 60% and frame time by 2 to 3 times compared with the smaller previous version.
+- **Shadows only when needed.** The shadow map is redrawn when the sun or the view moves, not every frame; it follows the area being looked at.
+- **Layers in the terrain shader.** Slope and night temperature are a texture lookup in the ground's own shader, not extra copies of the terrain.
+- **Weaker graphics are detected** (software renderers, older integrated and phone GPUs, little memory or few cores) and get a lower resolution cap, 1024 px shadows, coarser distant tiles and a halved site image. **Performance mode** in Data layers switches this by hand.
+- **No layout reads per frame:** pin sizes and panel positions are measured once, and the mini-map redraws at most ten times a second.
 - **One shadow-casting light.** In walk mode its shadow area shrinks to the 500 m around the walker, which sharpens shadows at no cost.
 - **Routing in a worker,** so the screen never freezes.
 - **No post-processing, no blur over the 3D view,** no animation library.

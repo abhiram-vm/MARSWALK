@@ -1,5 +1,5 @@
 {
- "source": "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json (read 2026-11-14)",
+ "source": "https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json (read 2026-11-16)",
  "credit": "NASA/JPL-Caltech/CSIC-INTA (REMS)",
  "units": {
   "temp": "deg C",
