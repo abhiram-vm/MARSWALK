@@ -1,6 +1,7 @@
 import asyncio
 from playwright.async_api import async_playwright
-URL='file:///home/claude/marswalk/beta/index.html'
+import pathlib
+URL='file://'+str(pathlib.Path(__file__).resolve().parents[3]/'index.html')+''
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'])

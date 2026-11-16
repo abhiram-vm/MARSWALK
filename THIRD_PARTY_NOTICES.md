@@ -6,8 +6,8 @@ MARSWALK's own code and documents are licensed under the Apache License 2.0 (`LI
 
 | Component | Licence | Use |
 | --- | --- | --- |
-| [three.js](https://threejs.org/) | MIT | 3D rendering (bundled in the app; r149 also in `preview/vendor/`) |
-| [Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif) via @fontsource/instrument-serif | SIL Open Font License 1.1 | Story chapter titles (beta) |
+| [three.js](https://threejs.org/) | MIT | 3D rendering, bundled in the app |
+| [Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif) via @fontsource/instrument-serif | SIL Open Font License 1.1 | Story chapter titles |
 | [Phosphor Icons](https://phosphoricons.com/) | MIT | Interface icons, pre-rendered into `web/src/icons.ts` |
 | [B612 and B612 Mono](https://github.com/polarsys/b612) via Fontsource | SIL Open Font License 1.1 | Typefaces, embedded in the build |
 

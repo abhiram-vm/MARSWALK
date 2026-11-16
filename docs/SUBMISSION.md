@@ -9,7 +9,7 @@ Rules quoted here are from the official [Project Submission Guide](https://www.s
 ## Before you open the form
 
 - [ ] Every member is registered, on the same Local Event, not waitlisted, and listed on the team's Members tab.
-- [ ] The final-project link opens in a private browser window with no login. The repository is private as of this writing.
+- [ ] The final-project link opens in a private browser window with no login. The repository is public.
 - [ ] The demo link opens the same way.
 - [ ] Demo is at most seven slides (title and intro included) or at most 30 seconds of video. Over the limit means ineligible.
 - [ ] Everything is in English.
@@ -25,7 +25,7 @@ Rules quoted here are from the official [Project Submission Guide](https://www.s
 | --- | --- | --- |
 | Project Name | Name of the project | MARSWALK |
 | High-Level Project Summary | "What did you develop? How does it address the challenge? Why is it important?" | Three short paragraphs, one per question. Lead with the place and the decision. |
-| Link to Project Demo | Seven slides or a 30-second video, public link | Slides are the safer choice in the time left |
+| Link to Project Demo | Seven slides or a 30-second video, public link | `docs/demo/MarsWalk_demo_30s.mp4` (29.5 s, silent, captioned, AI-assisted watermark). Upload to YouTube as Unlisted or link the GitHub file. |
 | Link to Final Project | Public link to site or repository | The GitHub Pages address of the app (the repository's root `index.html`), with the repository linked from it |
 | Detailed Project Description | What it does, how it works, benefits, goals, tools and languages | Walk through the demo path. Include the limits. Add two or three screenshots (images up to 10 MB are allowed). |
 | Use of Super Intelligence (SI) | Whether and how AI tools were used | Use the short wording in PLAN.md section 11: the concept and decisions are the team's, Claude Code assisted with documents and code. Not shown to judges. |

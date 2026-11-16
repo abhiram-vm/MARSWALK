@@ -20,30 +20,27 @@ The boxwork site in 3D from NASA terrain and orbital images, with Mount Sharp ar
 | [docs/DESIGN.md](docs/DESIGN.md) | How it looks and behaves: layout, motion, performance, tokens, checks |
 | [docs/AUDIT.md](docs/AUDIT.md) | How it is built, rule compliance, defects found and fixed, tests |
 | [docs/SUBMISSION.md](docs/SUBMISSION.md) | Submission checklist, form fields, demo outline |
-| [HANDOFF.md](HANDOFF.md) | Start here if you are taking over: commands, release and beta, renaming, open work |
+| [HANDOFF.md](HANDOFF.md) | Start here if you are taking over: commands, releasing, renaming, open work |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, newest first |
 | [docs/history/CHAT.md](docs/history/CHAT.md) | The conversation the project was built in |
-| [docs/LANDING_PLAN.md](docs/LANDING_PLAN.md) | Plan for the cinematic story site that leads into the planner (not built yet) |
+| [docs/demo/](docs/demo/) | The 30-second demo video and the scripts that made it |
 
 ## Try it
 
 Open `index.html` (at the repository root) in a current browser. It is one self-contained file with everything inside it: data, fonts and code. Once the repository is public, GitHub Pages can serve it from the main branch root.
 
+- A first visit opens a short scroll story: the Mars globe turns to Gale crater, then Mount Sharp, the boxwork, the data and the plan, and hands over to the planner. **Skip to the planner** or a `#plan` link goes straight there; **Story** reopens it.
 - The camera descends to a default science walk: from the edge of the boxwork to the hollow and the ridge Curiosity drilled in 2025, and back.
-- Add stops by clicking the ground, dragging a beacon, or picking one of 49 places Curiosity worked from **Science sites**. Every leg is routed on the spot, two ways. **Quickest order** reorders the stops; four ready-made plans are one click away.
+- Add stops by clicking the ground, dragging a beacon, or picking one of 114 places Curiosity worked from **Science sites**. Every leg is routed on the spot, two ways. **Quickest order** reorders the stops; four ready-made plans are one click away.
 - Hover the ground to read its slope and height against your start.
 - Switch to **Pair** to split the stops between two astronauts. MARSWALK checks how far apart they get and whether they can see each other over the terrain.
 - Read the GO or NO-GO call, compare the routes, and drag the walk along the daylight timeline.
 - Open **Data layers** to see each NASA dataset and switch overlays.
 - Press **Walk it at eye level** (or **Walk as A** or **B** in a pair) to rehearse the walk: it pauses at each stop with Curiosity's photo, runs at ½× to 4×, and you can click the height profile to jump. Then open the **Field guide**.
 
-Earlier prototypes are in `preview/` (2D and a first 3D version).
+### Releasing
 
-### Released and beta
-
-- `index.html` is the released version. `npm run build` (in `web/`) replaces it.
-- `beta/index.html` is the beta copy: the latest code, marked BETA, for testing new features before they are released. `npm run build:beta` writes it; `E2E_BETA=1 npm run e2e` tests it.
-- To release the beta, run `npm run build`, test, and commit `index.html`.
+`index.html` is the released app. `npm run build` (in `web/`) rebuilds it from the source; run `npm run e2e`, then commit `index.html`.
 
 ## Check it
 
@@ -55,7 +52,7 @@ cd web && npm test
 cd web && npm run build && npm run e2e
 ```
 
-`npm test` runs 17 engine tests; `npm run e2e` drives the built app through 21 checks in a browser. Findings and fixes are in [docs/AUDIT.md](docs/AUDIT.md).
+`npm test` runs 22 engine tests; `npm run e2e` drives the built app through 42 checks in a browser, including the story. Findings and fixes are in [docs/AUDIT.md](docs/AUDIT.md).
 
 ## Build it
 
@@ -90,9 +87,9 @@ python3 pipeline/build_app_data.py
 
 ## AI assistance
 
-The project concept, the framework and the decisions are our team's. We used Claude Code as an assistant for drafting documents and writing code, and we reviewed what it produced. No AI-generated images, video or audio are used.
+The project concept, the framework and the decisions are our team's. We used Claude Code as an assistant for drafting documents and writing code, and we reviewed what it produced. The 30-second demo video was assembled with Claude from real screenshots of the app and carries a visible AI-assisted watermark. No AI-generated images or audio are used in the app.
 
-3D rendering uses [three.js](https://threejs.org/) (MIT licence): 0.186 in the app, r149 in the earlier prototype (`preview/vendor/`). Icons: Phosphor (MIT). Typefaces: B612 and B612 Mono (Open Font License).
+3D rendering uses [three.js](https://threejs.org/) 0.186 (MIT licence). Icons: Phosphor (MIT). Typefaces: B612, B612 Mono and Instrument Serif (Open Font License).
 
 ## Data credits
 

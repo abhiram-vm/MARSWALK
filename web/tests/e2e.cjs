@@ -4,8 +4,7 @@
 const { chromium } = require('playwright')
 const path = require('path')
 
-// E2E_BETA=1 tests the beta copy
-const url = 'file://' + path.resolve(__dirname, process.env.E2E_BETA ? '../dist-beta/index.html' : '../dist/index.html') + '#plan'
+const url = 'file://' + path.resolve(__dirname, '../dist/index.html') + '#plan'
 const shots = process.env.SHOTS
 const results = []
 const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`) }
@@ -154,8 +153,8 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); c
   check('no em or en dashes in visible text', !/[–—]/.test(text))
   check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '))
 
-  // the story (beta): opens on a first visit, draws the globe, and hands over to the planner
-  if (process.env.E2E_BETA) {
+  // the story: opens on a first visit, draws the globe, and hands over to the planner
+  {
     const sp = await browser.newPage({ viewport: { width: 1440, height: 880 } }); sp.setDefaultTimeout(180000)
     const serr = []; sp.on('pageerror', (e) => serr.push(e.message))
     await sp.goto(url.replace('#plan', ''))

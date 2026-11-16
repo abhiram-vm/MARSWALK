@@ -153,7 +153,7 @@ With the default assumptions in section 4, both routes connect without raising t
 | Time out / back (assumed model) | 17 / 14 min | 19 / 15 min |
 | Dose for the whole walk (derived) | about 0.03 mSv | about 0.03 mSv |
 
-The two routes differ in a way a crew would care about: about 90 m more walking buys a path almost free of ground over 10 degrees. Show figures rounded, as the preview does.
+The two routes differ in a way a crew would care about: about 90 m more walking buys a path almost free of ground over 10 degrees. Show figures rounded, as the app does.
 
 ## 4. Assumptions and simulated values
 

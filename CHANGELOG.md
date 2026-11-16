@@ -1,8 +1,14 @@
 # Changelog
 
-Newest first. Commit hashes are on `main`. "Beta" means the change is in `beta/index.html` and the source, but not yet in the released `index.html` (see HANDOFF.md, "Released and beta").
+Newest first. Commit hashes are on `main`.
 
-## Unreleased (beta)
+## Released 2026-11-15: the beta becomes the app
+
+### 2026-11-15: release and cleanup
+- The beta is now the released `index.html`, without the BETA badge or title. The separate beta copy, `npm run build:beta`, `E2E_BETA` and the `__BETA__` flag were removed; there is one build.
+- Removed the early prototypes in `preview/` (2D planner and first 3D version, about 8 MB) and `docs/LANDING_PLAN.md` (the story it planned is built). Both remain in git history and on the `backup/original-2026-11-15` branch.
+- The browser test now always checks the story. Docs updated for a single build; `.gitignore` covers `node_modules/` and build folders.
+- Audit results: docs/AUDIT.md, "Release audit, 2026-11-15".
 
 ### 2026-11-15: 30-second demo video
 - `docs/demo/MarsWalk_demo_30s.mp4`: silent 29.5 s walkthrough of the beta following the Space Apps demo timing (team, challenge, title, how it works, future), captioned in English, with an AI-assisted watermark. Scripts that captured and rendered it are in `docs/demo/tools/`.
@@ -23,7 +29,7 @@ Newest first. Commit hashes are on `main`. "Beta" means the change is in `beta/i
 - Beta copy set up (`npm run build:beta`).
 - Fix: the arrival message could be overwritten at the end of a walk; on slow devices the walk played slower than the chosen speed.
 
-## Released (`index.html`)
+## Earlier releases
 
 ### 2026-11-16 (`857e8bd`, `1de15c1`)
 - Large "Walk it at eye level" button over the map with a Direct or Cautious switch; clicking a route line selects it.

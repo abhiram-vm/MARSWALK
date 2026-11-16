@@ -175,7 +175,7 @@ Open `web/dist/index.html`. For development, `npm run dev`. To rebuild the data 
 
 ### Earlier prototypes
 
-`preview/index.html` (2D) and `preview/cinematic.html` (first 3D) are kept for reference. The app in `web/` replaces both.
+The 2D and first 3D prototypes were replaced by the app in `web/` and removed in the 2026-11-15 cleanup (they remain in git history).
 
 ## 7. What is left, in order
 
@@ -213,7 +213,7 @@ Submitting early is safe: the guide says you can "edit and resubmit your project
 | Risk | Likelihood | Response |
 | --- | --- | --- |
 | The judge's computer has weak graphics | Medium | Resolution drops automatically; the demo video carries the visual story regardless |
-| WebGL unavailable | Low | The app says so and names supported browsers; `preview/index.html` works without WebGL |
+| WebGL unavailable | Low | The app says so and names supported browsers; the app explains the problem instead of failing silently |
 | A user-picked pair is not connected under the slope limit | Medium | Clear message naming the limit and how to change it |
 | Judges cannot open links | Medium while private | Public link tested logged out, twice |
 | Demo over the limit | Low | 30 seconds or seven slides; over-limit projects are ineligible |

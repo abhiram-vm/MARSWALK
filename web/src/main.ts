@@ -2,8 +2,7 @@
 // AI-assisted (Claude Code). Behaviour is described in docs/DESIGN.md.
 import './style.css'
 import { NAME } from './brand'
-declare const __BETA__: boolean
-document.title = __BETA__ ? `${NAME} beta` : NAME
+document.title = NAME
 import * as THREE from 'three'
 import RoutingWorker from './routing.worker?worker&inline'
 import { loadSite, type SiteData, type Station } from './data'
@@ -339,7 +338,7 @@ function buildUI() {
   const c = D.conditions
   document.body.insertAdjacentHTML('beforeend', html`
   <header class="topbar">
-    <span class="wordmark">${NAME}</span>${__BETA__ ? '<span class="beta-tag" title="Beta copy for testing new features. The released version is the main page.">BETA</span>' : ''}
+    <span class="wordmark">${NAME}</span>
     <div class="place"><b>Boxwork unit, Mount Sharp</b><span>Gale crater, 4.80° S 137.38° E</span></div>
     <div class="right">
       <span class="stamp">Weather: sol ${c.sol}, ${c.terrestrial_date}</span>

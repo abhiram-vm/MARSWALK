@@ -4,7 +4,7 @@ Written with AI assistance (Claude Code).
 
 This is the reference implementation of the routing model in docs/PLAN.md
 section 6. The web app will run the same model in a Web Worker; this script
-exists so the numbers can be checked and so static previews use real routes.
+exists so the numbers can be checked independently of the browser.
 
 Inputs:  data/dem/aoi_dem_1m.tif, data/reference/stations.geojson
 Outputs: web/public/data/routes.json   two routes with statistics and profiles
@@ -16,7 +16,6 @@ Model (every parameter below is an assumption, see docs/DATA_SOURCES.md 4):
     of travel, times a suit factor
   - blocked: cells whose terrain slope exceeds the slope limit
   - Direct: least time. Cautious: time multiplied on cells steeper than 10 degrees.
-  The prototype in preview/ runs the same model in the browser.
 
 Run from the repository root:  python3 pipeline/routes.py
 """

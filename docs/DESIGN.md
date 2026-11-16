@@ -148,5 +148,5 @@ That environment has no graphics card; it renders in software, so frame rates th
 
 ## 10. Earlier directions
 
-- `preview/index.html`: 2D planner. Clear, but did not feel like Mars.
-- `preview/cinematic.html`: first 3D version. The team preferred it; the final app keeps its idea and rebuilds the interface, adds the surroundings, stations with photos, the daylight timeline, layers, the mini-map and the paper field guide.
+- 2D planner prototype (removed; in git history before 2026-11-15 cleanup). Clear, but did not feel like Mars.
+- First 3D prototype (removed likewise). The team preferred it; the final app keeps its idea and rebuilds the interface, adds the surroundings, stations with photos, the daylight timeline, layers, the mini-map and the paper field guide.

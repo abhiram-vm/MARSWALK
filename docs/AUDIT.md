@@ -96,7 +96,7 @@ cd web && npm test
 cd web && npm run build && npm run e2e
 ```
 
-34 browser checks: load, default walk, itinerary, click-to-route, hover readout, dragging a beacon, quickest order never slower, removing a stop, pair mode (two routes, separation and sight figures, two walk buttons), the pair plan, the 49-site list and adding from it, late departure turning NO-GO, layers, space weather, site card with blog source, no flyover, time left and back-by time while walking, helmet view, the free speed slider, walk to the last stop at 4×, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion.
+42 browser checks: load, default walk, itinerary, click-to-route, hover readout, dragging a beacon, quickest order never slower, removing a stop, pair mode (two routes, separation and sight figures, two walk buttons), the pair plan, the 114-site list and adding from it, late departure turning NO-GO, layers, space weather, site card with blog source, no flyover, time left and back-by time while walking, helmet view, the free speed slider, walk to the last stop at 4×, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion, and the story (globe on first visit, last chapter, hand-over to the planner, Story button, Escape).
 
 The stop-order search times the raw grid paths. After straightening, a different order can come out a few seconds slower; the app then keeps the old order and says it is already the quickest. The browser test checks the order never gets slower.
 
@@ -105,3 +105,19 @@ The stop-order search times the raw grid paths. After straightening, a different
 - **Frame rate on real hardware.** The build environment renders in software; test on the demo laptops.
 - **The live space-weather refresh** from a hosted copy. It works through the NASA API, which allows browser requests from any site, but it uses NASA's shared demo key (about 10 requests an hour per address). If it fails the snapshot stays.
 - **The radiation paper itself.** Figures are from NASA and SwRI pages about it.
+
+## 7. Release audit, 2026-11-15
+
+The beta became the released app and the repository was cleaned up for submission.
+
+| Area | What was done | Result |
+| --- | --- | --- |
+| One build | `index.html` is the former beta with the BETA badge and title removed. Source changed to match: `__BETA__`, `MARSWALK_BETA`, `build:beta`, `dist-beta` and `E2E_BETA` removed, so `npm run build` now produces the same app | Verified: title is the product name; no `beta-tag` in the page |
+| Browser test | `npm run e2e` against the new `index.html`; the story checks, previously beta-only, now always run | 36 of 36 planner checks passed, then 6 of 6 story checks plus a title check, no page errors (software renderer) |
+| Copy rules | Visible text checked for em and en dashes | None |
+| Files removed | `beta/` (15 MB), `preview/` prototypes (8 MB, including a second copy of three.js), `docs/LANDING_PLAN.md` (its story is built) | Still in git history and on branch `backup/original-2026-11-15` |
+| Files kept on purpose | `data/` (source terrain clip and stop lists), `web/public/data/` (pipeline intermediates read by `build_app_data.py`), `pipeline/routes.py` (independent check of the browser route engine), `docs/history/CHAT.md` (AI-use record) | |
+| Docs | README, HANDOFF, AGENTS, SUBMISSION, PLAN, DESIGN, DATA_SOURCES and THIRD_PARTY_NOTICES updated for a single build; stale counts (49 sites, 17 tests, 21 checks) corrected; demo video's AI assistance disclosed in the README | |
+| Ignore rules | `.gitignore` now covers `node_modules/`, `web/dist/`, `web/dist-beta/` | |
+
+Not run in this pass: `npm test` and the TypeScript check, because `node_modules` could not be installed in the audit environment (no network for packages). The source changes were removals of the beta flag only. Run `cd web && npm install && npm test && npm run build && npm run e2e` once on a team machine; the rebuilt `index.html` should be identical in behaviour to the committed one.
