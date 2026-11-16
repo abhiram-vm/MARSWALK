@@ -415,7 +415,7 @@ function buildUI() {
   </div>
 
   <div class="hud" id="hud" hidden>
-    <div class="helmet" aria-hidden="true"><i class="glass"></i><i class="glare"></i><i class="rim"></i><i class="reticle"></i></div>
+    <div class="helmet" aria-hidden="true"><i class="glass"></i><i class="brim"></i><i class="glare"></i><i class="rim"></i><i class="reticle"></i></div>
     <div class="frame"></div>
     <div class="mode" id="hud-mode"></div>
     <div class="compass" aria-hidden="true"><div class="strip" id="strip"></div></div>
@@ -1019,6 +1019,7 @@ let helmet = store.get('mw-helmet') === '1', partnerStride = 0, partnerLast: Pt 
 function setHelmet(on: boolean) {
   helmet = on; store.set('mw-helmet', on ? '1' : '0')
   $('#hud').classList.toggle('visor', on); $('#h-helmet').setAttribute('aria-pressed', String(on))
+  document.body.classList.toggle('visor-on', on && W.mode !== 'orbit')
 }
 function setSpeed(m: number) {
   walkSpeed = Math.max(0.25, Math.min(8, m)); W.setWalkSpeed(walkSpeed); showSpeed()
@@ -1029,7 +1030,6 @@ function startWalk(w: number) {
   if (!r) return
   closeDrawer(); dismissCoach(); closeGuide(); $('#tip').hidden = true
   walkAs = w; arrivedAt = -1; walkTimes = sampleTimes(r, P); partnerStride = 0; partnerLast = null
-  setHelmet(helmet)
   // Walk to the last stop; the way back is the same kind of ground and would double the rehearsal.
   const iEnd = r.stopAt[r.stopAt.length - 2]
   walkEnd = r.d[iEnd]
@@ -1056,6 +1056,7 @@ function startWalk(w: number) {
     $('#strip').innerHTML = s
   }
   W.startWalk(r, w, walkRate, walkEnd, r.stopAt.slice(0, -1).map((k) => r.d[k]), (dist) => clockAt(r, dist))
+  setHelmet(helmet)
   showSpeed()
   ;($('#gl') as HTMLCanvasElement).focus({ preventScroll: true })
 }
@@ -1126,7 +1127,7 @@ function stopWalk() {
   if (W.mode === 'orbit') return
   W.stopWalk(S.exag ? 2 : 1)
   partner = null; partnerAt = null
-  document.body.classList.remove('cine'); $('#hud').hidden = true
+  document.body.classList.remove('cine', 'visor-on'); $('#hud').hidden = true
   W.flyTo(routePose(), 1400)
 }
 

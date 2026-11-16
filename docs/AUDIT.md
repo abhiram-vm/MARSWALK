@@ -96,7 +96,7 @@ cd web && npm test
 cd web && npm run build && npm run e2e
 ```
 
-32 browser checks: load, default walk, itinerary, click-to-route, hover readout, dragging a beacon, quickest order never slower, removing a stop, pair mode (two routes, separation and sight figures, two walk buttons), the pair plan, the 49-site list and adding from it, late departure turning NO-GO, layers, space weather, site card with blog source, no flyover, height against the start while walking, walk to the last stop at 4×, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion.
+34 browser checks: load, default walk, itinerary, click-to-route, hover readout, dragging a beacon, quickest order never slower, removing a stop, pair mode (two routes, separation and sight figures, two walk buttons), the pair plan, the 49-site list and adding from it, late departure turning NO-GO, layers, space weather, site card with blog source, no flyover, time left and back-by time while walking, helmet view, the free speed slider, walk to the last stop at 4×, Escape, field guide content, no em or en dashes, no page errors, phone layout, reduced motion.
 
 The stop-order search times the raw grid paths. After straightening, a different order can come out a few seconds slower; the app then keeps the old order and says it is already the quickest. The browser test checks the order never gets slower.
 

@@ -472,3 +472,7 @@ details.assume[open] summary svg { transform: rotate(180deg); }
   .hud .speed #h-rate, .hud .speed output { display: none; }
   .readouts .row small { display: none; }
 }
+.hud .compass { top: 76px; }
+.readouts .row b#h-stop { max-width: 300px; }
+.helmet .brim { background: linear-gradient(rgba(3, 3, 3, 0.85), rgba(3, 3, 3, 0.35) 9%, transparent 20%), linear-gradient(0deg, rgba(3, 3, 3, 0.55), transparent 14%); }
+.visor ~ .mini, .cine.visor-on .mini { display: none; }

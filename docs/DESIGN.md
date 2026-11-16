@@ -25,7 +25,8 @@ Rule: motion only when it explains a change, and nothing moves while you are rea
 | --- | --- | --- |
 | Opening | Title fades while the camera descends from above the crater to the route; panels settle in after | Where you are, then what you are doing |
 | New route | The route draws itself from start to destination | Confirms the change and shows direction |
-| Walk it | First person at 1.8 m, true scale; the sun moves with simulated time; pauses at each stop; in a pair the partner walks too | Rehearsal |
+| Walk it | First person at 1.8 m, true scale; the sun moves with simulated time; pauses at each stop; in a pair the partner walks too, as an astronaut with a walking stride | Rehearsal |
+| Helmet view | A visor frame (dark edge, brim, faint glare, centre reticle) drawn over the same camera, so the field of view does not change | Optional immersion, key H |
 | Orbit | Short inertia after a drag | Feels physical; stops in under a second |
 
 How it stays fast:
@@ -61,6 +62,8 @@ How it stays fast:
 - **Plan panel** in the order a person decides: who (Solo or Pair), where (an itinerary: start, numbered stops, back to start, with walking time per leg), whether, which, then act, then space weather and assumptions.
 - **Itinerary:** the selected row is outlined in orange and a click on the ground moves it. Beacons can also be dragged. Add a stop, remove one, reverse the order, or press **Quickest order**. Stops are numbered the same way on the map, the mini-map, the 3D tags and in the guide. Four ready-made plans sit under it.
 - **Pairs:** each stop has an A or B badge; click it to hand the stop to the other astronaut. A is orange, B is blue (`b` token), on the map, tags, timeline lanes and walk buttons. A pair section shows the furthest separation, the share of time in sight, and a bar of when they are out of sight or too far apart.
+- **Walk button:** **Walk it at eye level** floats over the map above the timeline, with a Direct or Cautious switch beside it. In a pair it becomes Walk as A and Walk as B. Key W. Clicking the other route's line on the map also selects it.
+- **Walk HUD:** only what a walker needs: next stop with distance and time to it, time left until back at the start, back-by time, ground slope, and the partner. Speed: ½×, 1×, 4× or a free slider from ¼× to 8×. Sun height, dose and height against the start for each stop are in the field guide timeline.
 - **Hover readout:** over the ground, a small card gives the slope, whether it is walkable, the height against the start, and the site name if there is one.
 - **Space weather card:** NASA's latest forecasts of solar storms reaching Mars, with a plain one-line status and when it was checked. It says "live from NASA" when the hosted page has refreshed it, "snapshot" otherwise.
 - **Daylight timeline:** the walk is drawn as blocks (each leg, each stop, the way back) between sunrise and sunset, with the last hour of light hatched and the sun's height as a curve. Drag the block to change when you leave; the call and the shadows update as you drag.

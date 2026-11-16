@@ -41,10 +41,10 @@ export function buildAstronaut(renderer: THREE.WebGLRenderer, color: number): As
   const env = marsEnv(renderer)
   const suit = new THREE.MeshStandardMaterial({ color: 0xece8e1, roughness: 0.82, metalness: 0, envMap: env, envMapIntensity: 0.6 })
   const soft = new THREE.MeshStandardMaterial({ color: 0xd9d4cc, roughness: 0.9, envMap: env, envMapIntensity: 0.4 }) // fabric folds at the joints
-  const hard = new THREE.MeshPhysicalMaterial({ color: 0xf3f1ec, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2, envMap: env, envMapIntensity: 1 })
+  const hard = new THREE.MeshStandardMaterial({ color: 0xf3f1ec, roughness: 0.3, envMap: env, envMapIntensity: 1 })
   const dark = new THREE.MeshStandardMaterial({ color: 0x3b3e42, roughness: 0.55, metalness: 0.4, envMap: env, envMapIntensity: 0.8 })
   const band = new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: 0.18 })
-  const visor = new THREE.MeshPhysicalMaterial({ color: 0xc9962e, metalness: 1, roughness: 0.08, envMap: env, envMapIntensity: 1.6, clearcoat: 1, clearcoatRoughness: 0.05 })
+  const visor = new THREE.MeshStandardMaterial({ color: 0xc9962e, metalness: 1, roughness: 0.08, envMap: env, envMapIntensity: 1.6 })
 
   const g = new THREE.Group()
   const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0) => {
