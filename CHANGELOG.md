@@ -4,6 +4,9 @@ Newest first. Commit hashes are on `main`. "Beta" means the change is in `beta/i
 
 ## Unreleased (beta)
 
+### 2026-11-15: 30-second demo video
+- `docs/demo/MarsWalk_demo_30s.mp4`: silent 29.5 s walkthrough of the beta following the Space Apps demo timing (team, challenge, title, how it works, future), captioned in English, with an AI-assisted watermark. Scripts that captured and rendered it are in `docs/demo/tools/`.
+
 ### 2026-11-16: hand-off
 - The product name is one setting: `VITE_APP_NAME` in `web/.env` (see HANDOFF.md, "Renaming").
 - Added HANDOFF.md, AGENTS.md, CLAUDE.md, this changelog and `docs/history/CHAT.md` (the build conversation).

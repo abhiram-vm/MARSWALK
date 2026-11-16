@@ -1,0 +1,32 @@
+import asyncio
+from playwright.async_api import async_playwright
+URL='file:///home/claude/marswalk/beta/index.html#plan'
+async def main():
+    async with async_playwright() as p:
+        b = await p.chromium.launch(args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'])
+        pg = await b.new_page(viewport={'width':1920,'height':1080})
+        pg.set_default_timeout(180000)
+        async def shot(n): await pg.screenshot(path=f'shots/{n}.jpg', quality=92)
+        idle = lambda: pg.wait_for_function('() => !window.__mw.S.busy', timeout=60000)
+        await pg.goto(URL)
+        await pg.wait_for_selector('#loading', state='detached', timeout=120000)
+        await idle(); await pg.wait_for_timeout(8000)
+        await pg.evaluate("document.getElementById('coach-ok')?.click()"); await pg.wait_for_timeout(2500)
+        await shot('p01-overview')
+        await pg.click('#m-pair'); await idle(); await pg.wait_for_timeout(3000); await shot('p02-pair')
+        await pg.click('#m-solo'); await idle(); await pg.wait_for_timeout(2000)
+        await pg.click('#b-layers')
+        for k in ['slope']: await pg.click(f'.switch[data-k="{k}"]')
+        await pg.wait_for_timeout(3000); await shot('p03-slope')
+        await pg.click('.switch[data-k="slope"]'); await pg.click('.switch[data-k="thermal"]'); await pg.wait_for_timeout(3000); await shot('p04-thermal')
+        await pg.click('.switch[data-k="thermal"]'); await pg.click('.switch[data-k="track"]'); await pg.wait_for_timeout(3000); await shot('p05-track')
+        await pg.click('.switch[data-k="track"]'); await pg.click('#d-close')
+        await pg.evaluate("document.querySelector('.pin[data-id=\"c4673\"]')?.click()"); await pg.wait_for_timeout(3000); await shot('p06-station'); await pg.click('#d-close')
+        await pg.click('[data-walk="0"]'); await pg.wait_for_timeout(8000); await shot('p07-walk')
+        await pg.wait_for_timeout(4000); await shot('p07b-walk')
+        await pg.click('#h-helmet'); await pg.wait_for_timeout(2500); await shot('p08-helmet'); await pg.click('#h-helmet')
+        await pg.evaluate("() => { const W = window.__mw.world; W.seekWalk(W.walkLength - 15) }"); await pg.wait_for_timeout(9000); await shot('p09-arrived')
+        await pg.keyboard.press('Escape'); await pg.wait_for_timeout(2000)
+        await pg.evaluate("document.getElementById('b-guide').click()"); await pg.wait_for_timeout(2500); await shot('p10-guide')
+        await b.close()
+asyncio.run(main())
